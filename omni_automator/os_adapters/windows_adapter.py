@@ -49,6 +49,13 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 if not name:
                     raise ValueError("Folder name is required")
                 return self.create_folder(name, location)
+            elif action == 'create_folders_batch':
+                # Handle batch folder creation
+                count = params.get('count', 1)
+                start_name = params.get('start_name')
+                end_name = params.get('end_name')
+                location = params.get('location')
+                return self.create_folders_batch(count, start_name, end_name, location)
             elif action == 'create_file':
                 name = params.get('name')
                 if not name:
@@ -110,6 +117,57 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             raise Exception(f"Failed to create folder '{name}': {e}")
     
+    def create_folders_batch(self, count: int, start_name: str, end_name: str, location: str = None) -> dict:
+        """Create multiple folders with names generated from start_name to end_name"""
+        try:
+            # Extract base name and number from start_name
+            import re
+            
+            # Match pattern like "project1"
+            match = re.match(r'([a-zA-Z_]+)(\d+)', start_name)
+            if not match:
+                raise ValueError(f"Invalid start_name format: {start_name}. Expected format like 'project1'")
+            
+            base_name = match.group(1)
+            start_num = int(match.group(2))
+            
+            # Extract number from end_name
+            match_end = re.match(r'([a-zA-Z_]+)(\d+)', end_name)
+            if not match_end:
+                raise ValueError(f"Invalid end_name format: {end_name}. Expected format like 'project10'")
+            
+            end_num = int(match_end.group(2))
+            
+            # Verify base names match
+            if base_name != match_end.group(1):
+                raise ValueError(f"Base names don't match: {base_name} vs {match_end.group(1)}")
+            
+            # Generate folder names and create them
+            created_folders = []
+            failed_folders = []
+            
+            for num in range(start_num, end_num + 1):
+                folder_name = f"{base_name}{num}"
+                try:
+                    self.create_folder(folder_name, location)
+                    created_folders.append(folder_name)
+                except Exception as e:
+                    failed_folders.append({
+                        'name': folder_name,
+                        'error': str(e)
+                    })
+            
+            return {
+                'success': len(failed_folders) == 0,
+                'created': created_folders,
+                'failed': failed_folders,
+                'total_requested': count,
+                'total_created': len(created_folders)
+            }
+            
+        except Exception as e:
+            raise Exception(f"Failed to create batch folders: {e}")
+
     def create_file(self, name: str, location: str = None, content: str = "") -> bool:
         """Create a file"""
         try:

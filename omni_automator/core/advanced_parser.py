@@ -119,6 +119,12 @@ class AdvancedCommandParser:
         if data_science_count >= 3:
             return CommandComplexity.WORKFLOW
         
+        # Single-action commands should be SIMPLE, even if they have prepositions like "to", "in", "on"
+        simple_actions = ['copy', 'move', 'delete', 'create folder', 'create file', 'rename']
+        if any(action in command for action in simple_actions):
+            # These are always SIMPLE - one action with parameters
+            return CommandComplexity.SIMPLE
+        
         # Count conjunctions and conditional words
         conjunction_count = sum(1 for word in self.conjunction_words if word in command)
         conditional_count = sum(1 for word in self.conditional_words if word in command)
@@ -421,28 +427,101 @@ class AdvancedCommandParser:
         return steps
     
     def _parse_simple_command(self, command: str) -> List[ParsedStep]:
-        """Parse simple single-action commands"""
-        # This would use the existing command parser logic
-        # For now, return a basic parsed step
+        """Parse simple single-action commands with smart NLP"""
         
-        if 'create' in command and 'folder' in command:
-            folder_match = re.search(r'folder\s+[\'"]?([^\'"]+)[\'"]?', command)
+        # Handle batch folder/file creation: "create 10 folders from project1 to project10"
+        batch_folder_match = re.search(r'create\s+(\d+)\s+(?:folders?|directories?)\s+(?:(?:from|named)\s+)?(\w+)\s+to\s+(\w+)', command, re.IGNORECASE)
+        if batch_folder_match:
+            count = int(batch_folder_match.group(1))
+            start_name = batch_folder_match.group(2)
+            end_name = batch_folder_match.group(3)
+            
+            # Extract location if specified
+            location_match = re.search(r'(?:on|in|at)\s+(\w+)', command, re.IGNORECASE)
+            location = location_match.group(1) if location_match else None
+            
+            # Generate folder names
+            start_num = self._extract_number(start_name)
+            end_num = self._extract_number(end_name)
+            base_start = self._extract_base_name(start_name)
+            base_end = self._extract_base_name(end_name)
+            
+            # Use the common base name
+            base_name = base_start if base_start == base_end else start_name
+            
+            steps = []
+            if start_num is not None and end_num is not None:
+                for i in range(start_num, end_num + 1):
+                    folder_name = f"{base_name}{i}"
+                    steps.append(ParsedStep(
+                        action='create_folder',
+                        category='filesystem',
+                        params={'name': folder_name, 'location': location},
+                        priority=i - start_num + 1
+                    ))
+            return steps if steps else [ParsedStep(
+                action='unknown',
+                category='unknown',
+                params={'raw_command': command},
+                priority=1
+            )]
+        
+        # Handle simple copy/move/delete commands
+        if 'copy' in command.lower():
+            parts = command.lower().split(' to ')
+            if len(parts) == 2:
+                source = parts[0].replace('copy', '').strip()
+                dest = parts[1].strip()
+                return [ParsedStep(
+                    action='copy',
+                    category='filesystem',
+                    params={'source': source, 'destination': dest},
+                    priority=1
+                )]
+        
+        if 'move' in command.lower():
+            parts = command.lower().split(' to ')
+            if len(parts) == 2:
+                source = parts[0].replace('move', '').strip()
+                dest = parts[1].strip()
+                return [ParsedStep(
+                    action='move',
+                    category='filesystem',
+                    params={'source': source, 'destination': dest},
+                    priority=1
+                )]
+        
+        # Handle folder creation
+        if 'create' in command.lower() and ('folder' in command.lower() or 'directory' in command.lower()):
+            folder_match = re.search(r'(?:folder|directory)\s+["\']?(\w+)["\']?', command, re.IGNORECASE)
             folder_name = folder_match.group(1) if folder_match else 'NewFolder'
+            
+            location_match = re.search(r'(?:on|in|at)\s+(\w+)', command, re.IGNORECASE)
+            location = location_match.group(1) if location_match else None
             
             return [ParsedStep(
                 action='create_folder',
                 category='filesystem',
-                params={'name': folder_name},
+                params={'name': folder_name, 'location': location},
                 priority=1
             )]
         
-        # Add more simple command patterns here
+        # Default fallback
         return [ParsedStep(
             action='unknown',
             category='unknown',
             params={'raw_command': command},
             priority=1
         )]
+    
+    def _extract_number(self, text: str) -> Optional[int]:
+        """Extract number from text like 'project1' -> 1"""
+        match = re.search(r'(\d+)', text)
+        return int(match.group(1)) if match else None
+    
+    def _extract_base_name(self, text: str) -> str:
+        """Extract base name from text like 'project1' -> 'project'"""
+        return re.sub(r'\d+$', '', text)
     
     def _parse_conditional_command(self, command: str) -> List[ParsedStep]:
         """Parse conditional commands with if-then logic"""

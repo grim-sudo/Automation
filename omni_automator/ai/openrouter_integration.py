@@ -33,7 +33,7 @@ class AITaskPlan:
 class OpenRouterAutomationAI:
     """OpenRouter AI integration for intelligent automation with multiple model support"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "openai/gpt-4o-mini"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "mistralai/devstral-2512:free"):
         self.logger = get_logger("OpenRouterAI")
         
         # Validate inputs
@@ -44,7 +44,7 @@ class OpenRouterAutomationAI:
         
         self.api_key = api_key or os.getenv('OPENROUTER_API_KEY')
         self.client = None
-        self.model_name = model  # Default to GPT-4o-mini (fast and cheap)
+        self.model_name = model  # Default to DevStral (best free model)
         self.is_available = False
         self.last_error = None
         
@@ -55,13 +55,17 @@ class OpenRouterAutomationAI:
             "anthropic/claude-3.5-sonnet": "Claude 3.5 Sonnet",
             "google/gemini-pro-1.5": "Gemini Pro 1.5",
             "meta-llama/llama-3.1-8b-instruct": "Llama 3.1 8B",
-            "deepseek/deepseek-r1": "DeepSeek R1"
+            "deepseek/deepseek-r1": "DeepSeek R1",
+            "kwaipilot/kat-coder-pro:free": "KAT Coder Pro",
+            "tngtech/deepseek-r1t2-chimera:free": "DeepSeek R1T2 Chimera",
+            "mistralai/devstral-2512:free": "DevStral 2512 (Best Balance)",
+            "google/gemini-2.0-flash-exp:free": "Gemini 2.0 Flash Exp"
         }
         
-        # Validate model name
+        # Validate model name - default to DevStral if not found
         if self.model_name not in self.available_models:
-            self.logger.warning(f"Unknown model: {self.model_name}. Using default.")
-            self.model_name = "openai/gpt-4o-mini"
+            self.logger.warning(f"Unknown model: {self.model_name}. Using DevStral-2512.")
+            self.model_name = "mistralai/devstral-2512:free"
         
         # System context for automation
         self.system_context = self._build_system_context()
@@ -255,7 +259,7 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
 """
     
     def _parse_ai_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse AI response into structured data"""
+        """Parse AI response into structured data with robust error handling"""
         try:
             # Try to extract JSON from response
             response_text = response_text.strip()
@@ -266,6 +270,7 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
                 return self._get_fallback_response()
             
             # Find JSON block
+            json_text = None
             if '```json' in response_text:
                 start = response_text.find('```json') + 7
                 end = response_text.find('```', start)
@@ -275,19 +280,31 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
             else:
                 # Try to find JSON-like content
                 start = response_text.find('{')
-                end = response_text.rfind('}') + 1
+                end = response_text.rfind('}')
                 if start >= 0 and end > start:
-                    json_text = response_text[start:end]
-                else:
-                    self.logger.warning(f"No JSON found in AI response: {response_text[:100]}...")
-                    return self._get_fallback_response()
+                    json_text = response_text[start:end+1]
             
             # Validate JSON
-            if not json_text.strip():
+            if not json_text or not json_text.strip():
                 self.logger.warning("Empty JSON content in AI response")
-                return self._get_fallback_response()
+                return self._extract_intent_from_text(response_text)
             
-            parsed = json.loads(json_text)
+            # Try to parse JSON - with error recovery
+            try:
+                parsed = json.loads(json_text)
+            except json.JSONDecodeError as json_err:
+                # Try to fix common JSON issues
+                self.logger.warning(f"JSON decode error (attempting recovery): {json_err}")
+                
+                # Fix unterminated strings by closing them
+                if 'Unterminated string' in str(json_err):
+                    json_text = self._fix_unterminated_strings(json_text)
+                    try:
+                        parsed = json.loads(json_text)
+                    except:
+                        return self._extract_intent_from_text(response_text)
+                else:
+                    return self._extract_intent_from_text(response_text)
             
             # Validate required fields
             if not isinstance(parsed, dict):
@@ -311,6 +328,54 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
             "steps": [],
             "risks": {"level": "medium", "concerns": [], "mitigations": []},
             "optimizations": ["Enable AI for better analysis"]
+        }
+    
+    def _fix_unterminated_strings(self, json_text: str) -> str:
+        """Attempt to fix unterminated strings in JSON"""
+        try:
+            # Simple approach: fix common unterminated string patterns
+            lines = json_text.split('\n')
+            fixed_lines = []
+            
+            for line in lines:
+                # Count quotes in the line (excluding escaped quotes)
+                quote_count = line.count('"') - line.count('\\"')
+                
+                # If odd number of quotes, add closing quote before comma/bracket
+                if quote_count % 2 == 1:
+                    line = line.rstrip()
+                    # Find where to insert the quote
+                    if line.endswith(',') or line.endswith('}') or line.endswith(']'):
+                        line = line[:-1] + '"' + line[-1]
+                    else:
+                        line = line + '"'
+                
+                fixed_lines.append(line)
+            
+            return '\n'.join(fixed_lines)
+        except:
+            return json_text
+    
+    def _extract_intent_from_text(self, response_text: str) -> Dict[str, Any]:
+        """Extract intent from text when JSON parsing fails"""
+        # Look for keywords to determine intent
+        text_lower = response_text.lower()
+        
+        if 'create' in text_lower or 'setup' in text_lower:
+            intent = 'Create project structure'
+        elif 'install' in text_lower or 'deploy' in text_lower:
+            intent = 'Install and deploy'
+        elif 'configure' in text_lower:
+            intent = 'Configure system'
+        else:
+            intent = f'Analysis: {response_text[:80]}...'
+        
+        return {
+            "intent": intent,
+            "confidence": 0.5,
+            "steps": [],
+            "risks": {"level": "medium", "concerns": [], "mitigations": []},
+            "optimizations": []
         }
     
     def _extract_basic_intent(self, response_text: str) -> Dict[str, Any]:
