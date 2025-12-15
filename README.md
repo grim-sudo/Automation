@@ -374,14 +374,6 @@ pip install -r requirements.txt
 python main.py "test command"
 ```
 
----
-
-## License
-
-MIT License - See LICENSE file for details.
-
----
-
 ## Support & Documentation
 
 - **Setup Guide**: See [SETUP.md](SETUP.md) for detailed instructions
