@@ -48,18 +48,34 @@ pip install customtkinter pillow
 
 ### Step 3: Configure AI
 
-```bash
-# Get API key from openrouter.ai (free tier available)
-# Then set environment variable
+Get your free API key from [openrouter.ai](https://openrouter.ai) and set the environment variable.
 
-# Windows:
+**Windows (PowerShell or Command Prompt):**
+
+```powershell
+# Option 1: PowerShell (Current session only)
+$env:OPENROUTER_API_KEY="your_openrouter_api_key_here"
+
+# Option 2: Set permanently (requires admin, new terminal window needed)
 setx OPENROUTER_API_KEY "your_openrouter_api_key_here"
+```
 
-# Linux/macOS:
+**Windows (Command Prompt):**
+
+```cmd
+setx OPENROUTER_API_KEY "your_openrouter_api_key_here"
+```
+
+⚠️ **Important:** After using `setx`, close and reopen your terminal for changes to take effect.
+
+**Linux/macOS:**
+
+```bash
+# Current session only
 export OPENROUTER_API_KEY="your_openrouter_api_key_here"
 
-# Add to ~/.bashrc or ~/.zshrc for persistence on Linux/macOS
-echo 'export OPENROUTER_API_KEY="your_key_here"' >> ~/.bashrc
+# Permanent (add to ~/.bashrc, ~/.zshrc, or ~/.bash_profile)
+echo 'export OPENROUTER_API_KEY="your_openrouter_api_key_here"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
