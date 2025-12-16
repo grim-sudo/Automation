@@ -40,6 +40,12 @@ class AIEnhancedParser:
         """Parse command using OpenRouter AI"""
         
         try:
+            # For very long commands, check if AI can handle it
+            # If command is very long and complex, use fallback parser directly
+            if len(command) > 200 and self._is_complex_structure(command):
+                self.logger.info("Complex command detected, using fallback parser for better accuracy")
+                return self.fallback_parser.parse_complex_command(command)
+            
             # Enhance command understanding with AI
             enhancement = self.openrouter_ai.enhance_command_understanding(
                 command, 
@@ -246,6 +252,30 @@ class AIEnhancedParser:
             complexity = result.get('complexity', 'simple')
             pattern_key = f'uses_{complexity}_commands'
             self.user_patterns[pattern_key] = self.user_patterns.get(pattern_key, 0) + 1
+    
+    def _is_complex_structure(self, command: str) -> bool:
+        """Detect if command has complex nested structure"""
+        import re
+        
+        # Check for loop/nesting indicators
+        nested_patterns = [
+            r'in\s+(?:that|those|each|every)',
+            r'and\s+in\s+',
+            r'inside\s+(?:each|every|that)',
+            r'\d+\s+folders?.*\d+\s+folders?',
+            r'table \d+ to table \d+',
+        ]
+        
+        for pattern in nested_patterns:
+            if re.search(pattern, command, re.IGNORECASE):
+                return True
+        
+        # Check for multiple action conjunctions
+        actions = command.lower().count(' and ')
+        if actions >= 3:
+            return True
+        
+        return False
     
     def get_ai_status(self) -> Dict[str, Any]:
         """Get AI integration status"""

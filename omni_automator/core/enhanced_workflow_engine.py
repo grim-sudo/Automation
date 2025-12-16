@@ -173,6 +173,10 @@ class EnhancedWorkflowEngine:
     def _get_ai_enhancement(self, command: str, parsed) -> Optional[AIResponse]:
         """Get AI enhancement for low-confidence commands - generates executable task plan"""
         try:
+            # Skip AI for very long complex commands that break AI JSON parsing
+            if self._is_too_complex_for_ai(command):
+                return None  # Return None to fall back to simple parsing
+            
             context = {
                 'task': 'generate_execution_plan',
                 'command': command,
@@ -200,6 +204,29 @@ class EnhancedWorkflowEngine:
         except Exception as e:
             print(f"AI enhancement failed: {e}")
             return None
+    
+    def _is_too_complex_for_ai(self, command: str) -> bool:
+        """Check if command is too complex for AI parsing"""
+        import re
+        
+        if len(command) > 200:
+            nested_patterns = [
+                r'in\s+(?:that|those|each|every)',
+                r'and\s+in\s+',
+                r'inside\s+(?:each|every)',
+                r'\d+\s+folders?.*\d+\s+folders?',
+                r'table \d+ to table \d+',
+            ]
+            
+            for pattern in nested_patterns:
+                if re.search(pattern, command, re.IGNORECASE):
+                    return True
+            
+            actions = command.lower().count(' and ')
+            if actions >= 3:
+                return True
+        
+        return False
     
     def _execute_action(self, step: WorkflowStep) -> Dict[str, Any]:
         """Execute an action based on the step"""

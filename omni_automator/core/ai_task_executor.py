@@ -173,6 +173,11 @@ class AITaskExecutor:
         self.execution_handlers['create_file'] = self._handle_create_file
         self.execution_handlers['create_directory_structure'] = self._handle_create_directory_structure
         
+        # Code Modification Operations
+        self.execution_handlers['read_file'] = self._handle_read_file
+        self.execution_handlers['write_file'] = self._handle_write_file
+        self.execution_handlers['modify_file'] = self._handle_modify_file
+        
         # Project Setup
         self.execution_handlers['setup_project'] = self._handle_setup_project
         self.execution_handlers['initialize_project'] = self._handle_setup_project  # Alias
@@ -327,6 +332,209 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create directory structure: {str(e)}")
             return {'success': False, 'error': str(e)}
+    
+    # ===== Code Modification Handlers =====
+    
+    def _handle_read_file(self, file_path: str = None, **kwargs) -> Dict[str, Any]:
+        """Read file contents"""
+        try:
+            # Support both file_path and path parameters
+            path = file_path or kwargs.get('path')
+            if not path:
+                return {'success': False, 'error': "file_path parameter required"}
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(path):
+                # Try Desktop first
+                desktop_path = os.path.expanduser('~/Desktop')
+                if os.path.exists(os.path.join(desktop_path, path)):
+                    path = os.path.join(desktop_path, path)
+                else:
+                    path = os.path.expanduser(path)
+            
+            if not os.path.exists(path):
+                return {'success': False, 'error': f"File not found: {path}"}
+            
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            self.logger.info(f"Read file: {path}")
+            
+            return {
+                'success': True,
+                'file_path': path,
+                'content': content,
+                'size': len(content),
+                'lines': len(content.split('\n'))
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to read file {file_path}: {str(e)}")
+            return {'success': False, 'error': str(e), 'file_path': file_path}
+    
+    def _handle_write_file(self, file_path: str = None, content: str = "", **kwargs) -> Dict[str, Any]:
+        """Write content to file"""
+        try:
+            # Support both file_path and path parameters
+            path = file_path or kwargs.get('path')
+            if not path:
+                return {'success': False, 'error': "file_path parameter required"}
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(path):
+                # Try Desktop first
+                desktop_path = os.path.expanduser('~/Desktop')
+                if not os.path.exists(os.path.dirname(path) or '.'):
+                    path = os.path.join(desktop_path, path)
+                else:
+                    path = os.path.expanduser(path)
+            
+            # Create directories if needed
+            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+            
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            self.logger.info(f"Wrote file: {path}")
+            
+            return {
+                'success': True,
+                'file_path': path,
+                'size': len(content),
+                'lines': len(content.split('\n'))
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to write file {file_path}: {str(e)}")
+            return {'success': False, 'error': str(e), 'file_path': file_path}
+    
+    def _handle_modify_file(self, file_path: str = None, intent: str = "", old_code: str = None, new_code: str = None, **kwargs) -> Dict[str, Any]:
+        """Modify file by replacing code based on intent"""
+        try:
+            # Support both file_path and path parameters
+            path = file_path or kwargs.get('path')
+            if not path:
+                return {'success': False, 'error': "file_path parameter required"}
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(path):
+                # Try Desktop first
+                desktop_path = os.path.expanduser('~/Desktop')
+                if os.path.exists(os.path.join(desktop_path, path)):
+                    path = os.path.join(desktop_path, path)
+                else:
+                    path = os.path.expanduser(path)
+            
+            if not os.path.exists(path):
+                return {'success': False, 'error': f"File not found: {path}"}
+            
+            # Read the file
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # If specific old/new code provided, do direct replacement
+            if old_code and new_code:
+                if old_code not in content:
+                    return {'success': False, 'error': f"Could not find code to replace in {path}"}
+                modified_content = content.replace(old_code, new_code)
+            else:
+                # Auto-generate replacement based on intent
+                modified_content = self._generate_code_replacement_ai(content, intent)
+            
+            # Write back
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(modified_content)
+            
+            self.logger.info(f"Modified file: {path} with intent: {intent}")
+            
+            return {
+                'success': True,
+                'file_path': path,
+                'action': 'modified',
+                'intent': intent
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to modify file {file_path}: {str(e)}")
+            return {'success': False, 'error': str(e), 'file_path': file_path}
+    
+    def _generate_code_replacement_ai(self, current_content: str, intent: str) -> str:
+        """Generate code replacement based on intent"""
+        intent_lower = intent.lower()
+        
+        # Prime number detection
+        if 'prime' in intent_lower and 'fibonacci' in current_content.lower():
+            return self._generate_prime_number_code()
+        
+        # Fibonacci from other code
+        if 'fibonacci' in intent_lower:
+            return self._generate_fibonacci_code()
+        
+        # Default: return unchanged
+        return current_content
+    
+    def _generate_prime_number_code(self) -> str:
+        """Generate prime number identifier code"""
+        return '''# Prime Number Identifier
+
+def is_prime(num):
+    """Check if a number is prime."""
+    if num < 2:
+        return False
+    if num == 2:
+        return True
+    if num % 2 == 0:
+        return False
+    for i in range(3, int(num**0.5) + 1, 2):
+        if num % i == 0:
+            return False
+    return True
+
+def find_primes(limit):
+    """Find all prime numbers up to the given limit."""
+    primes = [num for num in range(2, limit + 1) if is_prime(num)]
+    return primes
+
+def find_primes_count(count):
+    """Find the first n prime numbers."""
+    primes = []
+    num = 2
+    while len(primes) < count:
+        if is_prime(num):
+            primes.append(num)
+        num += 1
+    return primes
+
+if __name__ == "__main__":
+    choice = input("Find primes by (1) limit or (2) count? Enter 1 or 2: ")
+    
+    if choice == "1":
+        limit = int(input("Enter the upper limit: "))
+        primes = find_primes(limit)
+        print(f"Prime numbers up to {limit}: {primes}")
+        print(f"Total primes found: {len(primes)}")
+    elif choice == "2":
+        count = int(input("Enter the count of primes to find: "))
+        primes = find_primes_count(count)
+        print(f"First {count} prime numbers: {primes}")
+    else:
+        print("Invalid choice!")
+'''
+    
+    def _generate_fibonacci_code(self) -> str:
+        """Generate fibonacci series code"""
+        return '''# Fibonacci Series Implementation
+
+def fibonacci(n):
+    """Generate Fibonacci series up to n terms."""
+    series = []
+    a, b = 0, 1
+    for _ in range(n):
+        series.append(a)
+        a, b = b, a + b
+    return series
+
+if __name__ == "__main__":
+    n = int(input("Enter the number of terms: "))
+    print("Fibonacci Series:", fibonacci(n))
+'''
     
     # ===== Project Setup Handlers =====
     

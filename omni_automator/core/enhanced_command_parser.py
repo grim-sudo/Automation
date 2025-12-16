@@ -33,6 +33,13 @@ class EnhancedCommandParser:
         
         # Enhanced pattern variations for flexible matching
         self.flexible_patterns = {
+            'modify_file': [
+                r'modify\s+(\S+)\s+from\s+(\w+)\s+to\s+(\w+(?:\s+\w+)*)',
+                r'change\s+(\S+)\s+from\s+(\w+)\s+to\s+(\w+(?:\s+\w+)*)',
+                r'convert\s+(\S+)\s+(?:code\s+)?from\s+(\w+)\s+to\s+(\w+(?:\s+\w+)*)',
+                r'update\s+(\S+)\s+to\s+(?:use|implement|change\s+to)\s+(\w+(?:\s+\w+)*)',
+                r'(?:refactor|rewrite|replace)\s+(\S+)\s+(?:with|to)\s+(\w+(?:\s+\w+)*)',
+            ],
             'create_folder': [
                 r'create\s+(?:a\s+)?(folder|directory|dir)\s+([\'"]?)([^\'\"]+?)\2(?:\s+(?:in|at|on|inside)\s+(\S+))?',
                 r'make\s+(?:a\s+)?(folder|directory|dir)\s+([\'"]?)([^\'\"]+?)\2(?:\s+(?:in|at|on|inside)\s+(\S+))?',
@@ -172,7 +179,14 @@ class EnhancedCommandParser:
         
         groups = match.groups()
         
-        if category == 'create_folder':
+        if category == 'modify_file':
+            if len(groups) >= 3:
+                params['file_path'] = groups[0]
+                params['old_type'] = groups[1]
+                params['new_type'] = groups[2]
+                params['intent'] = f'convert {groups[1]} to {groups[2]}'
+        
+        elif category == 'create_folder':
             if len(groups) >= 3:
                 params['name'] = groups[2]
                 if len(groups) > 3 and groups[3]:

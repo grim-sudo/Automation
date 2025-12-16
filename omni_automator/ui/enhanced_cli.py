@@ -12,6 +12,7 @@ from enum import Enum
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from omni_automator.core.engine import OmniAutomator
 from omni_automator.core.enhanced_workflow_engine import EnhancedWorkflowEngine
 from omni_automator.core.ai_model_manager import get_ai_manager, AIModelConfig
 from omni_automator.core.ai_task_executor import get_ai_task_executor
@@ -30,7 +31,10 @@ class EnhancedCLI:
     """Enhanced CLI with flexible command processing"""
     
     def __init__(self, mode: InteractionMode = InteractionMode.CLI):
-        self.engine = EnhancedWorkflowEngine()
+        # Use the full OmniAutomator engine for complex commands
+        self.base_engine = OmniAutomator()
+        # Keep the workflow engine for simple commands
+        self.workflow_engine = EnhancedWorkflowEngine()
         self.executor = get_ai_task_executor()
         self.mode = mode
         self.ai_manager = get_ai_manager()
@@ -38,6 +42,32 @@ class EnhancedCLI:
         self.running = True
         self.command_history = []
         self.max_history = 100
+    
+    # Alias for backward compatibility
+    @property
+    def engine(self):
+        return self.base_engine
+    
+    def _is_complex_command(self, command: str) -> bool:
+        """Check if command has nested/loop structures"""
+        import re
+        
+        if len(command) > 150:
+            patterns = [
+                r'in\s+(?:that|those|each|every)',
+                r'and\s+in\s+',
+                r'inside\s+(?:each|every)',
+                r'\d+\s+folders?.*\d+\s+folders?',
+            ]
+            
+            for pattern in patterns:
+                if re.search(pattern, command, re.IGNORECASE):
+                    return True
+            
+            if command.lower().count(' and ') >= 3:
+                return True
+        
+        return False
     
     def run(self, commands: Optional[List[str]] = None) -> None:
         """Run the CLI"""
@@ -161,59 +191,83 @@ class EnhancedCLI:
         
         print(f"🔄 Processing: {command}")
         
-        result = self.engine.execute_command(command)
-        step = result['step']
-        parsed = result['parsed']
-        ai_response = result.get('ai_response')
-        
-        # Display results
-        print(f"✅ Status: {step.status.value.upper()}")
-        print(f"📌 Action: {parsed.action}")
-        print(f"📂 Category: {parsed.category}")
-        print(f"📊 Confidence: {parsed.confidence:.1%}")
-        print(f"🔄 Flexibility Score: {parsed.flexibility_score:.2f}")
-        
-        if parsed.params:
-            print(f"⚙️ Parameters:")
-            for key, value in parsed.params.items():
-                print(f"   - {key}: {value}")
-        
-        # NEW: Check if AI generated a task plan and execute it
-        if ai_response and hasattr(ai_response, 'task_plan') and ai_response.task_plan:
-            print(f"\n🤖 AI Analysis Generated Task Plan:")
-            print(f"   - Intent: {ai_response.task_plan.get('interpreted_intent', 'Unknown')}")
-            print(f"   - Confidence: {ai_response.task_plan.get('confidence_score', 0):.2%}")
-            print(f"   - Steps: {len(ai_response.task_plan.get('execution_steps', []))}")
-            
-            # Execute the AI-generated task plan
-            print(f"\n⚡ Executing AI-generated tasks...")
-            execution_result = self.executor.execute_task_plan(ai_response.task_plan)
-            
-            if execution_result['success']:
-                print(f"✅ Task execution successful!")
-                print(f"   - Created resources: {len(execution_result.get('created_resources', []))}")
-                if execution_result.get('created_resources'):
-                    for resource in execution_result['created_resources'][:5]:
-                        print(f"      ✓ {resource}")
-                    if len(execution_result['created_resources']) > 5:
-                        print(f"      ... and {len(execution_result['created_resources']) - 5} more")
+        # For complex commands with loops/nesting, use the full OmniAutomator engine
+        # which handles the advanced parser with loop support properly
+        if self._is_complex_command(command):
+            result = self.base_engine.execute(command)
+            print(f"✅ Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
+            if result.get('success'):
+                print(f"   - Total steps: {result.get('steps_completed', result.get('total_steps', 'multiple'))}")
             else:
-                print(f"❌ Task execution failed:")
-                for failure in execution_result.get('failed_operations', []):
-                    print(f"   - Step {failure.get('step')}: {failure.get('error')}")
-        
-        elif ai_response:
-            ai_resp = ai_response
-            print(f"\n🤖 AI Enhancement:")
-            print(f"   - Model: {ai_resp.model_used}")
-            print(f"   - Provider: {ai_resp.provider}")
-            print(f"   - Response: {ai_resp.content[:200]}...")
-        
-        if step.result:
-            print(f"📤 Result: {step.result}")
-        
-        if step.error:
-            print(f"❌ Error: {step.error}")
+                print(f"   - Error: {result.get('error')}")
+        else:
+            # For simple commands, use the workflow engine
+            result = self.workflow_engine.execute_command(command)
+            step = result['step']
+            parsed = result['parsed']
+            ai_response = result.get('ai_response')
+            
+            # Display results
+            print(f"✅ Status: {step.status.value.upper()}")
+            print(f"📌 Action: {parsed.action}")
+            print(f"📂 Category: {parsed.category}")
+            print(f"📊 Confidence: {parsed.confidence:.1%}")
+            print(f"🔄 Flexibility Score: {parsed.flexibility_score:.2f}")
+            
+            if parsed.params:
+                print(f"⚙️ Parameters:")
+                for key, value in parsed.params.items():
+                    print(f"   - {key}: {value}")
+            
+            # For code modification, execute directly without AI plan
+            if parsed.category == 'modify_file':
+                print(f"\n🔧 Executing file modification...")
+                parsed_command = {
+                    'action': 'modify_file',
+                    'category': 'code_modification',
+                    'params': parsed.params
+                }
+                mod_result = self.base_engine._execute_parsed_command(parsed_command)
+                if mod_result.get('success'):
+                    print(f"✅ File successfully modified!")
+                    print(f"   - Intent: {parsed.params.get('intent')}")
+                else:
+                    print(f"❌ Modification failed: {mod_result.get('error')}")
+            # Check if AI generated a task plan and execute it
+            elif ai_response and hasattr(ai_response, 'task_plan') and ai_response.task_plan:
+                print(f"\n🤖 AI Analysis Generated Task Plan:")
+                print(f"   - Intent: {ai_response.task_plan.get('interpreted_intent', 'Unknown')}")
+                print(f"   - Confidence: {ai_response.task_plan.get('confidence_score', 0):.2%}")
+                print(f"   - Steps: {len(ai_response.task_plan.get('execution_steps', []))}")
+                
+                # Execute the AI-generated task plan
+                print(f"\n⚡ Executing AI-generated tasks...")
+                execution_result = self.executor.execute_task_plan(ai_response.task_plan)
+                
+                if execution_result['success']:
+                    print(f"✅ Task execution successful!")
+                    print(f"   - Created resources: {len(execution_result.get('created_resources', []))}")
+                    if execution_result.get('created_resources'):
+                        for resource in execution_result['created_resources'][:5]:
+                            print(f"      ✓ {resource}")
+                        if len(execution_result['created_resources']) > 5:
+                            print(f"      ... and {len(execution_result['created_resources']) - 5} more")
+                else:
+                    print(f"❌ Task execution failed:")
+                    for failure in execution_result.get('failed_operations', []):
+                        print(f"   - Step {failure.get('step')}: {failure.get('error')}")
+            elif ai_response:
+                ai_resp = ai_response
+                print(f"\n🤖 AI Enhancement:")
+                print(f"   - Model: {ai_resp.model_used}")
+                print(f"   - Provider: {ai_resp.provider}")
+                print(f"   - Response: {ai_resp.content[:200]}...")
+            
+            if step.result:
+                print(f"📤 Result: {step.result}")
+            
+            if step.error:
+                print(f"❌ Error: {step.error}")
     
     def _show_interactive_help(self) -> None:
         """Show help for interactive mode"""

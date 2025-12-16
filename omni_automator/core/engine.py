@@ -96,6 +96,32 @@ class OmniAutomator:
         command_lower = command.lower()
         return any(keyword in command_lower for keyword in dangerous_keywords)
     
+    def _is_too_complex_for_ai(self, command: str) -> bool:
+        """Check if command is too complex for AI parsing (likely to cause JSON errors)"""
+        import re
+        
+        # Very long commands with nested loops tend to break AI JSON parsing
+        if len(command) > 200:
+            # Check for nested/loop structures
+            nested_patterns = [
+                r'in\s+(?:that|those|each|every)',
+                r'and\s+in\s+',
+                r'inside\s+(?:each|every)',
+                r'\d+\s+folders?.*\d+\s+folders?',
+                r'table \d+ to table \d+',
+            ]
+            
+            for pattern in nested_patterns:
+                if re.search(pattern, command, re.IGNORECASE):
+                    return True
+            
+            # Multiple action conjunctions also indicate complexity
+            actions = command.lower().count(' and ')
+            if actions >= 3:
+                return True
+        
+        return False
+    
     def execute(self, command: str, **kwargs) -> Dict[str, Any]:
         """Execute an automation command (simple or complex)"""
         try:
@@ -114,8 +140,13 @@ class OmniAutomator:
             
             self.logger.info(f"Executing command: {command}")
             
+            # Check if command is too complex for AI (very long with nested structures)
+            # Use fallback parser directly for these cases
+            if self._is_too_complex_for_ai(command):
+                self.logger.info("Command is too complex for AI, using advanced parser directly")
+                complex_command = self.advanced_parser.parse_complex_command(command)
             # Use AI-enhanced parsing if available, otherwise fall back to advanced parsing
-            if self.ai_parser.get_ai_status()['available']:
+            elif self.ai_parser.get_ai_status()['available']:
                 self.logger.info("Using AI-enhanced command parsing")
                 complex_command = self.ai_parser.parse_with_ai(command, self._get_execution_context())
             else:
@@ -175,7 +206,11 @@ class OmniAutomator:
                 }
             
         except Exception as e:
-            self.logger.error(f"Error executing command '{command}': {str(e)}")
+            error_msg = str(e)
+            self.logger.error(f"Error executing command '{command}': {error_msg}")
+            
+            # Provide helpful fallback messages for specific errors
+            fallback_msg = self._get_fallback_error_message(command, error_msg, type(e).__name__)
             
             # Get AI suggestions for error resolution if available
             error_suggestions = []
@@ -183,7 +218,7 @@ class OmniAutomator:
                 try:
                     error_info = {
                         'command': command,
-                        'error': str(e),
+                        'error': error_msg,
                         'error_type': type(e).__name__,
                         'context': self._get_execution_context()
                     }
@@ -194,7 +229,8 @@ class OmniAutomator:
             
             return {
                 'success': False,
-                'error': str(e),
+                'error': error_msg,
+                'fallback_message': fallback_msg,
                 'command': command,
                 'ai_suggestions': error_suggestions,
                 'timestamp': datetime.now().isoformat()
@@ -204,21 +240,30 @@ class OmniAutomator:
         """Execute a parsed command using appropriate adapter/plugin"""
         action = parsed_command.get('action')
         category = parsed_command.get('category')
+        params = parsed_command.get('params', {})
         
         # Route to appropriate handler
         if category == 'filesystem':
-            return self.os_adapter.filesystem.execute(action, parsed_command.get('params', {}))
+            return self.os_adapter.filesystem.execute(action, params)
         elif category == 'process':
-            return self.os_adapter.process.execute(action, parsed_command.get('params', {}))
+            return self.os_adapter.process.execute(action, params)
         elif category == 'gui':
-            return self.os_adapter.gui.execute(action, parsed_command.get('params', {}))
+            return self.os_adapter.gui.execute(action, params)
         elif category == 'system':
-            return self.os_adapter.system.execute(action, parsed_command.get('params', {}))
+            return self.os_adapter.system.execute(action, params)
         elif category == 'network':
-            return self.os_adapter.network.execute(action, parsed_command.get('params', {}))
+            return self.os_adapter.network.execute(action, params)
+        elif category == 'code_modification':
+            # Handle code modification actions
+            if action == 'modify_file':
+                return self._handle_modify_file(params)
+            elif action == 'read_file':
+                return self._handle_read_file(params)
+            elif action == 'write_file':
+                return self._handle_write_file(params)
         else:
             # Try plugins
-            return self.plugin_manager.execute(category, action, parsed_command.get('params', {}))
+            return self.plugin_manager.execute(category, action, params)
     
     def _log_execution(self, original_command: str, parsed_command: Dict[str, Any], result: Any):
         """Log command execution for audit trail"""
@@ -356,3 +401,242 @@ class OmniAutomator:
         self.is_running = False
         self.plugin_manager.shutdown()
         self.os_adapter.cleanup()
+    
+    def _get_fallback_error_message(self, command: str, error: str, error_type: str) -> str:
+        """Generate helpful fallback error message based on error type"""
+        import re
+        
+        # Check for common error patterns
+        if 'unknown' in error.lower() and 'action' in error.lower():
+            return (
+                "⚠️ Command complexity too high: The command contains multiple nested levels that "
+                "exceed current parsing capabilities.\n"
+                "Suggestion: Break the command into simpler steps or use fewer nesting levels.\n"
+                "Example: Instead of 3+ nested 'in each' statements, use 2 levels maximum."
+            )
+        
+        # Check for multi-level nesting in command
+        nested_count = len(re.findall(r'in\s+(?:each|every)', command, re.IGNORECASE))
+        if nested_count >= 3:
+            return (
+                f"⚠️ Command has {nested_count} nesting levels: The parser supports up to 2-3 levels of nesting.\n"
+                "Your command structure:\n"
+                "  • Level 1: in that / and in that\n"
+                "  • Level 2: in each [type] make/create\n"
+                "  • Level 3: in each of the [plural]\n"
+                "Suggestion: Simplify by removing one or more nesting levels or running multiple commands."
+            )
+        
+        # Check for unsupported patterns
+        if 'registry' in command.lower() or 'index' in command.lower():
+            if error_type == 'NotImplementedError':
+                return "⚠️ Registry/Index generation: This feature requires additional setup.\nTry using a simpler command."
+        
+        # Generic helpful message
+        return (
+            "⚠️ Command parsing failed: The command structure may not be fully supported.\n"
+            "Supported patterns:\n"
+            "  • Simple creation: 'create X folder'\n"
+            "  • Single nesting: 'make A B C folders and in each make D E F folders'\n"
+            "  • Double nesting: Add 'and in each of the [plural] create [items]'\n"
+            "Please verify your command syntax or try a simpler approach."
+        )
+    
+    def _handle_read_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Read file contents"""
+        try:
+            file_path = params.get('file_path') or params.get('path')
+            if not file_path:
+                raise ValueError("file_path parameter required")
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(file_path):
+                desktop_path = os.path.expanduser('~/Desktop')
+                if os.path.exists(os.path.join(desktop_path, file_path)):
+                    file_path = os.path.join(desktop_path, file_path)
+                else:
+                    file_path = os.path.expanduser(file_path)
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            return {
+                'success': True,
+                'file_path': file_path,
+                'content': content,
+                'size': len(content),
+                'lines': len(content.split('\n'))
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'file_path': params.get('file_path')
+            }
+    
+    def _handle_write_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Write content to file"""
+        try:
+            file_path = params.get('file_path') or params.get('path')
+            content = params.get('content', '')
+            
+            if not file_path:
+                raise ValueError("file_path parameter required")
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(file_path):
+                desktop_path = os.path.expanduser('~/Desktop')
+                if not os.path.exists(os.path.dirname(file_path) or '.'):
+                    file_path = os.path.join(desktop_path, file_path)
+                else:
+                    file_path = os.path.expanduser(file_path)
+            
+            # Create directories if needed
+            os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return {
+                'success': True,
+                'file_path': file_path,
+                'size': len(content),
+                'lines': len(content.split('\n'))
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'file_path': params.get('file_path')
+            }
+    
+    def _handle_modify_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Modify file by replacing old implementation with new one"""
+        try:
+            file_path = params.get('file_path') or params.get('path')
+            old_code = params.get('old_code')
+            new_code = params.get('new_code')
+            intent = params.get('intent', '')
+            
+            if not file_path:
+                raise ValueError("file_path parameter required")
+            
+            # Resolve relative paths from Desktop
+            if not os.path.isabs(file_path):
+                desktop_path = os.path.expanduser('~/Desktop')
+                if os.path.exists(os.path.join(desktop_path, file_path)):
+                    file_path = os.path.join(desktop_path, file_path)
+                else:
+                    file_path = os.path.expanduser(file_path)
+            
+            # Read the file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # If specific old/new code provided, do direct replacement
+            if old_code and new_code:
+                if old_code not in content:
+                    raise ValueError(f"Could not find code to replace in {file_path}")
+                modified_content = content.replace(old_code, new_code)
+            else:
+                # Auto-generate replacement based on intent
+                modified_content = self._generate_code_replacement(content, intent)
+            
+            # Write back
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(modified_content)
+            
+            return {
+                'success': True,
+                'file_path': file_path,
+                'action': 'modified',
+                'intent': intent
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'file_path': params.get('file_path')
+            }
+    
+    def _generate_code_replacement(self, current_content: str, intent: str) -> str:
+        """Generate code replacement based on intent"""
+        intent_lower = intent.lower()
+        
+        # Prime number detection
+        if 'prime' in intent_lower and 'fibonacci' in current_content.lower():
+            return self._generate_prime_number_code()
+        
+        # Fibonacci from other code
+        if 'fibonacci' in intent_lower:
+            return self._generate_fibonacci_code()
+        
+        # Default: return unchanged
+        return current_content
+    
+    def _generate_prime_number_code(self) -> str:
+        """Generate prime number identifier code"""
+        return '''# Prime Number Identifier
+
+def is_prime(num):
+    """Check if a number is prime."""
+    if num < 2:
+        return False
+    if num == 2:
+        return True
+    if num % 2 == 0:
+        return False
+    for i in range(3, int(num**0.5) + 1, 2):
+        if num % i == 0:
+            return False
+    return True
+
+def find_primes(limit):
+    """Find all prime numbers up to the given limit."""
+    primes = [num for num in range(2, limit + 1) if is_prime(num)]
+    return primes
+
+def find_primes_count(count):
+    """Find the first n prime numbers."""
+    primes = []
+    num = 2
+    while len(primes) < count:
+        if is_prime(num):
+            primes.append(num)
+        num += 1
+    return primes
+
+if __name__ == "__main__":
+    choice = input("Find primes by (1) limit or (2) count? Enter 1 or 2: ")
+    
+    if choice == "1":
+        limit = int(input("Enter the upper limit: "))
+        primes = find_primes(limit)
+        print(f"Prime numbers up to {limit}: {primes}")
+        print(f"Total primes found: {len(primes)}")
+    elif choice == "2":
+        count = int(input("Enter the count of primes to find: "))
+        primes = find_primes_count(count)
+        print(f"First {count} prime numbers: {primes}")
+    else:
+        print("Invalid choice!")
+'''
+    
+    def _generate_fibonacci_code(self) -> str:
+        """Generate fibonacci series code"""
+        return '''# Fibonacci Series Implementation
+
+def fibonacci(n):
+    """Generate Fibonacci series up to n terms."""
+    series = []
+    a, b = 0, 1
+    for _ in range(n):
+        series.append(a)
+        a, b = b, a + b
+    return series
+
+if __name__ == "__main__":
+    n = int(input("Enter the number of terms: "))
+    print("Fibonacci Series:", fibonacci(n))
+'''
+

@@ -126,8 +126,8 @@ class AdvancedCommandParser:
             return CommandComplexity.SIMPLE
         
         # Count conjunctions and conditional words
-        conjunction_count = sum(1 for word in self.conjunction_words if word in command)
-        conditional_count = sum(1 for word in self.conditional_words if word in command)
+        conjunction_count = sum(1 for word in self.conjunction_words if re.search(r'\b' + word + r'\b', command, re.IGNORECASE))
+        conditional_count = sum(1 for word in self.conditional_words if re.search(r'\b' + word + r'\b', command, re.IGNORECASE))
         
         # Count distinct action verbs
         action_count = sum(1 for keyword in self.action_keywords if keyword in command)
@@ -181,6 +181,14 @@ class AdvancedCommandParser:
     def _parse_workflow_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
         """Parse complex workflow commands"""
         steps = []
+        
+        # Check for loop/iteration constructs (NEW - more versatile)
+        if self._has_loop_construct(command):
+            return self._parse_loop_command(command, context)
+        
+        # Check for nested operations
+        if self._has_nested_operations(command):
+            return self._parse_nested_command(command, context)
         
         # Check for common workflow patterns
         if 'web scraping' in command or 'scrape' in command:
@@ -429,6 +437,19 @@ class AdvancedCommandParser:
     def _parse_simple_command(self, command: str) -> List[ParsedStep]:
         """Parse simple single-action commands with smart NLP"""
         
+        # Handle file modification: "modify p1.py from fibonacci to prime numbers"
+        modify_match = re.search(r'modify\s+(\S+)\s+from\s+(\w+)\s+to\s+(\w+(?:\s+\w+)*)', command, re.IGNORECASE)
+        if modify_match:
+            file_path = modify_match.group(1)
+            old_type = modify_match.group(2)
+            new_type = modify_match.group(3)
+            return [ParsedStep(
+                action='modify_file',
+                category='code_modification',
+                params={'file_path': file_path, 'intent': f'convert {old_type} to {new_type}'},
+                priority=1
+            )]
+        
         # Handle batch folder/file creation: "create 10 folders from project1 to project10"
         batch_folder_match = re.search(r'create\s+(\d+)\s+(?:folders?|directories?)\s+(?:(?:from|named)\s+)?(\w+)\s+to\s+(\w+)', command, re.IGNORECASE)
         if batch_folder_match:
@@ -612,3 +633,306 @@ class AdvancedCommandParser:
             'system': ['system', 'admin', 'configuration', 'settings', 'registry'],
             'network': ['network', 'internet', 'download', 'upload', 'sync', 'cloud']
         }
+    def _has_loop_construct(self, command: str) -> bool:
+        """Check if command contains loop/iteration constructs"""
+        loop_indicators = [
+            r'\b\d+\s+folders?\b',  # "10 folders"
+            r'create.*(?:each|every)\b',  # "create for each"
+            r'(?:for|to)\s+\d+\s*(?:times?|iterations?)',  # "for 10 times"
+            r'from.*to\s+\d+',  # "from 1 to 10"
+            r'multiply|multiplication table',  # multiplication operations
+            r'repeat|duplicate.*\d+',  # "repeat 5 times"
+            r'\d+\s+(?:times?|copies|instances)',  # "5 times", "5 copies"
+        ]
+        
+        for indicator in loop_indicators:
+            if re.search(indicator, command, re.IGNORECASE):
+                return True
+        return False
+    
+    def _has_nested_operations(self, command: str) -> bool:
+        """Check if command contains nested/hierarchical operations"""
+        nested_indicators = [
+            r'in\s+(?:that|those|each|every)',  # "in each folder"
+            r'inside\s+(?:that|those|each)',  # "inside each"
+            r'and\s+in\s+(?:those|each)',  # "and in each"
+            r'with\s+(?:each|every)\s+(?:file|folder)',  # "with each file"
+        ]
+        
+        for indicator in nested_indicators:
+            if re.search(indicator, command, re.IGNORECASE):
+                return True
+        return False
+    
+    def _parse_loop_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+        """Parse commands with loops/iterations - handles multi-level nesting intelligently"""
+        steps = []
+        import os
+        
+        try:
+            # Extract the container/parent name
+            container_match = re.search(r'create\s+(?:a\s+)?([a-zA-Z\s]+?)\s+folder(?:\s+and|$)', command, re.IGNORECASE)
+            
+            if container_match:
+                container_name = container_match.group(1).strip()
+                container_name = re.sub(r'^\s*(?:a|an|the)\s+', '', container_name, flags=re.IGNORECASE).strip()
+            else:
+                return self._fallback_parse_simple(command, context)
+            
+            # Extract location
+            location_match = re.search(r'location\s+(?:of\s+the\s+main\s+folder\s+should\s+be\s+)?([A-Za-z]:\\[^\s"\']+)', command, re.IGNORECASE)
+            location = location_match.group(1) if location_match else context.get('locations', [''])[0] if context.get('locations') else ''
+            
+            # Create main container
+            steps.append(ParsedStep(
+                action='create_folder',
+                category='filesystem',
+                params={'name': container_name, 'location': location if location else '.'},
+                priority=1
+            ))
+            
+            # Parse all nesting levels
+            container_full_path = os.path.join(location, container_name) if location and location != '.' else container_name
+            
+            # Extract all "make ... folders" patterns with their corresponding items
+            level1_items = self._extract_items_between_patterns(command, r'make\s+', r'\s+(?:folders?|directories?)\s+and\s+in\s+each')
+            
+            if not level1_items:
+                # Try simpler pattern if first doesn't match
+                level1_items = self._extract_items_between_patterns(command, r'make\s+', r'\s+(?:folders?|directories?)')
+            
+            if not level1_items:
+                return self._fallback_parse_simple(command, context)
+            
+            # Process level 1 items
+            for i, item1 in enumerate(level1_items, 1):
+                # Create level 1 folder
+                steps.append(ParsedStep(
+                    action='create_folder',
+                    category='filesystem',
+                    params={'name': item1, 'parent': container_name, 'location': location if location else '.'},
+                    priority=2
+                ))
+                
+                # Find nested items for this level 1 item
+                # Pattern: "in each <item1_type> make/create <items>"
+                # Detect what type of item (service, folder, etc.)
+                item1_type = self._infer_item_type(item1, level1_items, command)
+                
+                # Look for "in each <type> make X Y Z" patterns
+                level2_patterns = re.finditer(
+                    rf'in\s+each\s+(?:of\s+the\s+)?(?:\w+\s+)?(?:folder|directory|{re.escape(item1_type)})\s+(?:make|create)\s+([a-zA-Z0-9_\s]+?)\s+(?:(?:sub)?folders?|directories?)',
+                    command,
+                    re.IGNORECASE
+                )
+                
+                level2_patterns_list = list(level2_patterns)
+                
+                if level2_patterns_list:
+                    # Process each "in each" pattern
+                    for pattern_match in level2_patterns_list:
+                        level2_items = self._parse_item_list(pattern_match.group(1))
+                        
+                        for j, item2 in enumerate(level2_items, 1):
+                            # Create level 2 folder
+                            item1_full_path = os.path.join(container_full_path, item1) if location and location != '.' else item1
+                            steps.append(ParsedStep(
+                                action='create_folder',
+                                category='filesystem',
+                                params={'name': item2, 'parent': item1, 'location': item1_full_path},
+                                priority=3
+                            ))
+                            
+                            # Look for tertiary nesting (in each of the <item2> or <item2_plural>)
+                            item2_plural = item2 + 's' if not item2.endswith('s') else item2
+                            # Match "in each of the <item2_singular_or_plural> [optional: folders/directories] create ..."
+                            level3_pattern = (
+                                rf'in\s+each\s+of\s+the\s+(?:{re.escape(item2)}|{re.escape(item2_plural)})'
+                                rf'(?:\s+(?:folders?|directories?))?\s+(?:make|create)\s+'
+                                rf'([a-zA-Z0-9_\s]+?)\s+(?:(?:sub)?folders?|directories?)'
+                            )
+                            level3_match = re.search(level3_pattern, command, re.IGNORECASE)
+                            
+                            if level3_match:
+                                level3_items = self._parse_item_list(level3_match.group(1))
+                                
+                                for k, item3 in enumerate(level3_items, 1):
+                                    item2_full_path = os.path.join(item1_full_path, item2) if location and location != '.' else item2
+                                    steps.append(ParsedStep(
+                                        action='create_folder',
+                                        category='filesystem',
+                                        params={'name': item3, 'parent': item2, 'location': item2_full_path},
+                                        priority=4
+                                    ))
+                
+                # Handle special cases like "and then in resources make X Y Z"
+                special_match = re.search(
+                    rf'and\s+then\s+in\s+({re.escape(item1)})\s+make\s+([a-zA-Z0-9_\s]+?)\s+(?:(?:sub)?folders?|directories?)',
+                    command,
+                    re.IGNORECASE
+                )
+                
+                if special_match:
+                    special_items = self._parse_item_list(special_match.group(2))
+                    item1_full_path = os.path.join(container_full_path, item1) if location and location != '.' else item1
+                    
+                    for m, special_item in enumerate(special_items, 1):
+                        steps.append(ParsedStep(
+                            action='create_folder',
+                            category='filesystem',
+                            params={'name': special_item, 'parent': item1, 'location': item1_full_path},
+                            priority=3
+                        ))
+            
+            # Generate config files if mentioned
+            if 'test configuration' in command.lower() or 'config' in command.lower():
+                steps.append(ParsedStep(
+                    action='create_file',
+                    category='filesystem',
+                    params={
+                        'name': 'test_config.json',
+                        'content': self._generate_test_config(),
+                        'parent': container_name
+                    },
+                    priority=5
+                ))
+            
+            return steps
+        
+        except Exception as e:
+            self.logger.warning(f"Complex nesting pattern failed: {e}. Using fallback parser.")
+            return self._fallback_parse_complex(command, context)
+    
+    def _extract_items_between_patterns(self, command: str, start_pattern: str, end_pattern: str) -> List[str]:
+        """Extract items between two regex patterns"""
+        match = re.search(start_pattern + r'([a-zA-Z0-9_\s]+?)' + end_pattern, command, re.IGNORECASE)
+        if match:
+            return self._parse_item_list(match.group(1))
+        return []
+    
+    def _parse_item_list(self, items_str: str) -> List[str]:
+        """Parse a comma/and-separated list of items intelligently"""
+        if not items_str or not items_str.strip():
+            return []
+        
+        # Replace "and" with delimiter
+        items_str = re.sub(r'\s+and\s+', '|', items_str, flags=re.IGNORECASE)
+        # Split by whitespace and delimiter, remove articles
+        items = re.split(r'[\s|]+', items_str)
+        items = [item.strip() for item in items if item.strip() and item.lower() not in ['and', 'the', 'a', 'an']]
+        return items
+    
+    def _infer_item_type(self, item: str, items: List[str], command: str) -> str:
+        """Infer the type of item (service, test, component, etc.)"""
+        # Check for common suffixes
+        if item.endswith('_service'):
+            return 'service'
+        elif item.endswith('_tests'):
+            return 'test'
+        elif item.endswith('_folder'):
+            return 'folder'
+        elif item.endswith('_component'):
+            return 'component'
+        else:
+            # Use a generic term
+            return 'folder'
+    
+    def _fallback_parse_complex(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+        """Fallback parser for commands that are too complex"""
+        self.logger.warning("Command complexity exceeds supported nesting levels. Creating basic structure.")
+        steps = []
+        
+        # Extract basic container name
+        container_match = re.search(r'create\s+(?:a\s+)?([a-zA-Z\s]+?)\s+folder', command, re.IGNORECASE)
+        container_name = container_match.group(1).strip() if container_match else 'project'
+        container_name = re.sub(r'^\s*(?:a|an|the)\s+', '', container_name, flags=re.IGNORECASE).strip()
+        
+        # Extract location
+        location_match = re.search(r'location\s+(?:of\s+the\s+main\s+folder\s+should\s+be\s+)?([A-Za-z]:\\[^\s"\']+)', command, re.IGNORECASE)
+        location = location_match.group(1) if location_match else ''
+        
+        # Create container
+        steps.append(ParsedStep(
+            action='create_folder',
+            category='filesystem',
+            params={'name': container_name, 'location': location if location else '.'},
+            priority=1
+        ))
+        
+        return steps
+    
+    def _fallback_parse_simple(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+        """Fallback parser for simple commands"""
+        steps = []
+        
+        container_match = re.search(r'create\s+(?:a\s+)?([a-zA-Z\s]+?)\s+folder', command, re.IGNORECASE)
+        container_name = container_match.group(1).strip() if container_match else 'project'
+        
+        location_match = re.search(r'location\s+(?:of\s+the\s+main\s+folder\s+should\s+be\s+)?([A-Za-z]:\\[^\s"\']+)', command, re.IGNORECASE)
+        location = location_match.group(1) if location_match else ''
+        
+        steps.append(ParsedStep(
+            action='create_folder',
+            category='filesystem',
+            params={'name': container_name, 'location': location if location else '.'},
+            priority=1
+        ))
+        
+        return steps
+    
+    def _generate_test_config(self) -> str:
+        """Generate test configuration file content"""
+        return """{
+  "test_framework": "pytest",
+  "test_runner": "python -m pytest",
+  "coverage_enabled": true,
+  "min_coverage": 80,
+  "parallel_execution": true,
+  "timeout_seconds": 300,
+  "log_level": "INFO",
+  "environment": "test"
+}"""
+    
+    def _generate_master_registry(self, container: str, items: List[str], subitems: List[str]) -> str:
+        """Generate master registry file"""
+        lines = [
+            "=" * 70,
+            "MASTER TEST REGISTRY",
+            "=" * 70,
+            f"Test Framework: {container}",
+            f"Generated: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "TEST SUITES:",
+            "-" * 70,
+        ]
+        
+        for item in items:
+            lines.append(f"\n[{item.upper()}]")
+            lines.append(f"Location: {container}/{item}")
+            lines.append(f"Description: {item.replace('_', ' ').title()} tests")
+            
+            if subitems:
+                lines.append("Subfolders:")
+                for subitem in subitems:
+                    lines.append(f"  - {subitem}: {subitem.replace('_', ' ').title()}")
+        
+        lines.extend([
+            "",
+            "=" * 70,
+            "Configuration: test_config.json",
+            "=" * 70,
+        ])
+        
+        return "\n".join(lines)
+    
+    def _parse_nested_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+        """Parse commands with nested operations"""
+        # This uses the loop parser since nested operations are usually within loops
+        return self._parse_loop_command(command, context)
+    
+    def _generate_multiplication_table(self, number: int) -> str:
+        """Generate multiplication table for a number"""
+        lines = [f"Multiplication Table of {number}", "=" * 40]
+        for i in range(1, 11):
+            lines.append(f"{number} × {i} = {number * i}")
+        return "\n".join(lines)

@@ -220,7 +220,15 @@ class WorkflowEngine:
                 self.logger.info(f"Executing step: {step.action} (attempt {attempt + 1})")
                 
                 # Execute based on category
-                if step.category == 'project_generator':
+                if step.category == 'filesystem':
+                    # Handle filesystem operations directly
+                    if step.action == 'create_folder':
+                        result = self._execute_create_folder(step)
+                    elif step.action == 'create_file':
+                        result = self._execute_create_file(step)
+                    else:
+                        raise Exception(f"Unknown filesystem action: {step.action}")
+                elif step.category == 'project_generator':
                     result = self._execute_project_generator_step(step)
                 elif step.category == 'package_manager':
                     result = self._execute_package_manager_step(step)
@@ -298,6 +306,76 @@ class WorkflowEngine:
                 return plugin.execute(step.action, step.params)
             else:
                 return self._create_basic_python_project(step.params)
+    
+    def _execute_create_folder(self, step: ParsedStep) -> Dict[str, Any]:
+        """Execute create_folder step"""
+        import os
+        
+        name = step.params.get('name', '')
+        location = step.params.get('location', '.')
+        parent = step.params.get('parent', '')
+        
+        # Build the full path
+        if parent:
+            # If parent is specified, create under the parent folder
+            if location and location != '.':
+                full_path = os.path.join(location, parent, name)
+            else:
+                full_path = os.path.join(parent, name)
+        elif location and location != '.':
+            full_path = os.path.join(location, name)
+        else:
+            full_path = name
+        
+        # Create the folder
+        try:
+            os.makedirs(full_path, exist_ok=True)
+            self.logger.info(f"Created folder: {full_path}")
+            return {
+                'success': True,
+                'path': full_path,
+                'message': f'Created folder: {full_path}'
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to create folder {full_path}: {e}")
+            raise
+    
+    def _execute_create_file(self, step: ParsedStep) -> Dict[str, Any]:
+        """Execute create_file step"""
+        import os
+        
+        name = step.params.get('name', '')
+        content = step.params.get('content', '')
+        parent = step.params.get('parent', '')
+        location = step.params.get('location', '.')
+        
+        # Build the full path
+        if parent:
+            if location and location != '.':
+                folder_path = os.path.join(location, parent)
+            else:
+                folder_path = parent
+        elif location and location != '.':
+            folder_path = location
+        else:
+            folder_path = '.'
+        
+        file_path = os.path.join(folder_path, name)
+        
+        # Create the file
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+            with open(file_path, 'w') as f:
+                f.write(content)
+            self.logger.info(f"Created file: {file_path}")
+            return {
+                'success': True,
+                'path': file_path,
+                'message': f'Created file: {file_path}'
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to create file {file_path}: {e}")
+            raise
     
     def _execute_package_manager_step(self, step: ParsedStep) -> Any:
         """Execute package manager steps"""
