@@ -253,28 +253,43 @@ class EnhancedCLI:
                     print(f"✅ File successfully modified!")
                     print(f"   - Intent: {parsed.params.get('intent')}")
                 else:
-                    print(f"❌ Modification failed: {mod_result.get('error')}")
+                    print(f"Modification failed: {mod_result.get('error')}")
             # Check if AI generated a task plan and execute it
             elif ai_response and hasattr(ai_response, 'task_plan') and ai_response.task_plan:
-                print(f"\n🤖 AI Analysis Generated Task Plan:")
+                try:
+                    print(f"\n🤖 AI Analysis Generated Task Plan:")
+                except:
+                    print(f"\nAI Analysis Generated Task Plan:")
                 print(f"   - Intent: {ai_response.task_plan.get('interpreted_intent', 'Unknown')}")
                 print(f"   - Confidence: {ai_response.task_plan.get('confidence_score', 0):.2%}")
                 print(f"   - Steps: {len(ai_response.task_plan.get('execution_steps', []))}")
                 
                 # Execute the AI-generated task plan
-                print(f"\n⚡ Executing AI-generated tasks...")
+                try:
+                    print(f"\n⚡ Executing AI-generated tasks...")
+                except:
+                    print(f"\nExecuting AI-generated tasks...")
                 execution_result = self.executor.execute_task_plan(ai_response.task_plan)
                 
                 if execution_result['success']:
-                    print(f"✅ Task execution successful!")
+                    try:
+                        print(f"✅ Task execution successful!")
+                    except:
+                        print(f"Task execution successful!")
                     print(f"   - Created resources: {len(execution_result.get('created_resources', []))}")
                     if execution_result.get('created_resources'):
                         for resource in execution_result['created_resources'][:5]:
-                            print(f"      ✓ {resource}")
+                            try:
+                                print(f"      ✓ {resource}")
+                            except:
+                                print(f"      - {resource}")
                         if len(execution_result['created_resources']) > 5:
                             print(f"      ... and {len(execution_result['created_resources']) - 5} more")
                 else:
-                    print(f"❌ Task execution failed:")
+                    try:
+                        print(f"❌ Task execution failed:")
+                    except:
+                        print(f"Task execution failed:")
                     for failure in execution_result.get('failed_operations', []):
                         print(f"   - Step {failure.get('step')}: {failure.get('error')}")
             elif ai_response:

@@ -281,6 +281,11 @@ class AITaskExecutor:
         # Folder and File Operations
         self.execution_handlers['create_folder'] = self._handle_create_folder
         self.execution_handlers['create_folders'] = self._handle_create_folders
+        self.execution_handlers['delete_folder'] = self._handle_delete_folder
+        self.execution_handlers['delete_folders'] = self._handle_delete_folder
+        self.execution_handlers['verify_deletion'] = self._handle_verify_deletion
+        self.execution_handlers['verify_folder_exists'] = self._handle_verify_folder_exists
+        self.execution_handlers['verify_existence'] = self._handle_verify_folder_exists
         self.execution_handlers['create_file'] = self._handle_create_file
         self.execution_handlers['create_directory_structure'] = self._handle_create_directory_structure
         
@@ -378,6 +383,147 @@ class AITaskExecutor:
             }
         except Exception as e:
             self.logger.error(f"Failed to create folders: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_delete_folder(self, path: str = None, name: str = None, location: str = None, permanent: bool = False, **kwargs) -> Dict[str, Any]:
+        """
+        Delete a folder and all its contents.
+        By default, moves to recycle bin (safe deletion).
+        Set permanent=True to permanently delete (requires explicit user intent).
+        """
+        try:
+            # Determine the full path to delete
+            if path:
+                # Direct path provided
+                folder_path = path
+            elif name and location:
+                # Name and location provided
+                folder_path = os.path.join(location, name)
+            elif name:
+                # Just name provided - try to find it
+                folder_path = self._resolve_file_with_disambiguation(name)
+                if not folder_path:
+                    return {'success': False, 'error': f'Folder not found: {name}'}
+            else:
+                return {'success': False, 'error': 'No folder path or name provided'}
+            
+            # Normalize path
+            folder_path = os.path.abspath(folder_path)
+            
+            if not os.path.exists(folder_path):
+                return {'success': False, 'error': f'Folder not found: {folder_path}'}
+            
+            if not os.path.isdir(folder_path):
+                return {'success': False, 'error': f'Path is not a directory: {folder_path}'}
+            
+            # Safe deletion - move to recycle bin by default
+            if not permanent:
+                try:
+                    import send2trash
+                    send2trash.send2trash(folder_path)
+                    self.logger.info(f"Moved folder to recycle bin: {folder_path}")
+                    return {
+                        'success': True,
+                        'deleted_path': folder_path,
+                        'method': 'recycle_bin',
+                        'message': f'Successfully moved folder to recycle bin'
+                    }
+                except ImportError:
+                    self.logger.warning("send2trash not available, falling back to permanent deletion")
+                    permanent = True  # Fall back to permanent if send2trash unavailable
+            
+            # Permanent deletion (requires explicit intent)
+            if permanent:
+                # Require confirmation for permanent deletion
+                if not kwargs.get('confirm_permanent_deletion', False):
+                    return {
+                        'success': False,
+                        'error': 'Permanent deletion requires explicit confirmation',
+                        'requires_confirmation': True,
+                        'message': 'Use confirm_permanent_deletion=True to permanently delete without recycle bin'
+                    }
+                
+                import shutil
+                shutil.rmtree(folder_path)
+                self.logger.warning(f"PERMANENTLY deleted folder: {folder_path}")
+                return {
+                    'success': True,
+                    'deleted_path': folder_path,
+                    'method': 'permanent',
+                    'message': f'Permanently deleted folder and all contents (bypassed recycle bin)'
+                }
+        except Exception as e:
+            self.logger.error(f"Failed to delete folder: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_verify_deletion(self, path: str = None, name: str = None, location: str = None, **kwargs) -> Dict[str, Any]:
+        """Verify that a folder has been deleted"""
+        try:
+            # Determine the full path to check
+            if path:
+                folder_path = path
+            elif name and location:
+                folder_path = os.path.join(location, name)
+            elif name:
+                folder_path = name
+            else:
+                return {'success': False, 'error': 'No folder path or name provided'}
+            
+            # Normalize path
+            folder_path = os.path.abspath(folder_path)
+            
+            # Check if folder exists
+            if os.path.exists(folder_path):
+                return {
+                    'success': False,
+                    'verified': False,
+                    'message': f'Folder still exists: {folder_path}',
+                    'path': folder_path
+                }
+            else:
+                return {
+                    'success': True,
+                    'verified': True,
+                    'message': f'Folder successfully deleted: {folder_path}',
+                    'path': folder_path
+                }
+        except Exception as e:
+            self.logger.error(f"Failed to verify deletion: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_verify_folder_exists(self, path: str = None, name: str = None, location: str = None, **kwargs) -> Dict[str, Any]:
+        """Verify that a folder exists"""
+        try:
+            # Determine the full path to check
+            if path:
+                folder_path = path
+            elif name and location:
+                folder_path = os.path.join(location, name)
+            elif name:
+                folder_path = name
+            else:
+                return {'success': False, 'error': 'No folder path or name provided'}
+            
+            # Normalize path
+            folder_path = os.path.abspath(folder_path)
+            
+            # Check if folder exists
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                return {
+                    'success': True,
+                    'exists': True,
+                    'message': f'Folder exists: {folder_path}',
+                    'path': folder_path
+                }
+            else:
+                return {
+                    'success': False,
+                    'exists': False,
+                    'message': f'Folder does not exist: {folder_path}',
+                    'path': folder_path
+                }
+        except Exception as e:
+            self.logger.error(f"Failed to verify folder existence: {str(e)}")
             return {'success': False, 'error': str(e)}
     
     def _handle_create_file(self, name: str, location: str = None, content: str = "", **kwargs) -> Dict[str, Any]:
