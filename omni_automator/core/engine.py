@@ -442,6 +442,118 @@ class OmniAutomator:
             "Please verify your command syntax or try a simpler approach."
         )
     
+    def _resolve_file_with_disambiguation(self, file_name: str) -> Optional[str]:
+        """
+        Resolve a file name to its full path.
+        If multiple files with the same name exist, prompt user to select one.
+        Returns the selected file path or None if not found/selected.
+        Prioritizes current working directory, then user project directories.
+        """
+        # Check current directory first
+        if os.path.exists(file_name):
+            return os.path.abspath(file_name)
+        
+        # Check Desktop
+        desktop_path = os.path.expanduser('~/Desktop')
+        if os.path.exists(os.path.join(desktop_path, file_name)):
+            return os.path.join(desktop_path, file_name)
+        
+        # Search for files in user project directories (limited depth, prioritize current dir)
+        user_search_paths = [
+            os.getcwd(),  # Current directory first
+            os.path.expanduser('~/Desktop'),
+            os.path.expanduser('~/Documents'),
+            os.path.expanduser('~/Projects'),
+        ]
+        
+        found_files = []
+        found_files_set = set()  # To avoid duplicates
+        current_dir = os.getcwd()
+        
+        # First pass: search user directories with limited depth
+        for search_path in user_search_paths:
+            if not os.path.exists(search_path):
+                continue
+            for root, dirs, files in os.walk(search_path):
+                # Limit depth to 5 levels for user directories
+                depth = root.replace(search_path, '').count(os.sep)
+                if depth > 5:
+                    continue
+                # Skip system directories
+                if any(skip in root.lower() for skip in ['appdata', 'roaming', 'site-packages', 'dist-packages']):
+                    continue
+                
+                if file_name in files:
+                    full_path = os.path.abspath(os.path.join(root, file_name))
+                    if full_path not in found_files_set:
+                        found_files.append(full_path)
+                        found_files_set.add(full_path)
+        
+        # If no files found, return None
+        if not found_files:
+            return None
+        
+        # If only one file found, return it
+        if len(found_files) == 1:
+            return found_files[0]
+        
+        # If multiple files found, prompt user to select with enhanced context
+        try:
+            print(f"\n⚠️  Multiple files named '{file_name}' found:")
+        except:
+            print(f"\nWARNING: Multiple files named '{file_name}' found:")
+        print(f"    Current working directory: {current_dir}\n")
+        
+        for idx, path in enumerate(found_files, 1):
+            # Show location context
+            abs_path = os.path.abspath(path)
+            
+            # Determine folder context
+            if abs_path.startswith(current_dir):
+                try:
+                    folder_context = f"📁 [IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+                except:
+                    folder_context = f"[IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+            elif abs_path.startswith(desktop_path):
+                try:
+                    folder_context = f"🖥️  [ON DESKTOP]"
+                except:
+                    folder_context = f"[ON DESKTOP]"
+            else:
+                try:
+                    folder_context = f"📂 {os.path.dirname(abs_path)}"
+                except:
+                    folder_context = f"{os.path.dirname(abs_path)}"
+            
+            # Get file stats
+            try:
+                file_stat = os.stat(abs_path)
+                size_kb = file_stat.st_size / 1024
+                size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.1f}MB"
+
+            except:
+                size_str = "?"
+            
+            print(f"   {idx}. {folder_context}")
+            print(f"       Full path: {abs_path}")
+            print(f"       Size: {size_str}\n")
+        
+        try:
+            # Try to get user input
+            choice = input(f"Enter the number of the file to use (1-{len(found_files)}): ").strip()
+            choice_idx = int(choice) - 1
+            
+            if 0 <= choice_idx < len(found_files):
+                selected_file = found_files[choice_idx]
+                print(f"✓ Selected: {selected_file}\n")
+                return selected_file
+            else:
+                print(f"❌ Invalid choice. Using first option.\n")
+                return found_files[0]
+        except (ValueError, KeyboardInterrupt):
+            print(f"✓ Using first option: {found_files[0]}\n")
+            return found_files[0]
+    
     def _handle_read_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Read file contents"""
         try:
@@ -449,13 +561,20 @@ class OmniAutomator:
             if not file_path:
                 raise ValueError("file_path parameter required")
             
-            # Resolve relative paths from Desktop
+            # Resolve relative paths from Desktop with duplicate detection
             if not os.path.isabs(file_path):
-                desktop_path = os.path.expanduser('~/Desktop')
-                if os.path.exists(os.path.join(desktop_path, file_path)):
-                    file_path = os.path.join(desktop_path, file_path)
+                resolved_path = self._resolve_file_with_disambiguation(file_path)
+                if not resolved_path:
+                    return {'success': False, 'error': f"File not found: {file_path}"}
+                file_path = resolved_path
+            elif not os.path.exists(file_path):
+                # Check if there are duplicate files
+                file_name = os.path.basename(file_path)
+                resolved_path = self._resolve_file_with_disambiguation(file_name)
+                if resolved_path:
+                    file_path = resolved_path
                 else:
-                    file_path = os.path.expanduser(file_path)
+                    return {'success': False, 'error': f"File not found: {file_path}"}
             
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -483,13 +602,21 @@ class OmniAutomator:
             if not file_path:
                 raise ValueError("file_path parameter required")
             
-            # Resolve relative paths from Desktop
+            # Resolve relative paths from Desktop with duplicate detection
             if not os.path.isabs(file_path):
-                desktop_path = os.path.expanduser('~/Desktop')
-                if not os.path.exists(os.path.dirname(file_path) or '.'):
+                resolved_path = self._resolve_file_with_disambiguation(file_path)
+                if not resolved_path:
+                    # If not found, use Desktop as default location
+                    desktop_path = os.path.expanduser('~/Desktop')
                     file_path = os.path.join(desktop_path, file_path)
                 else:
-                    file_path = os.path.expanduser(file_path)
+                    file_path = resolved_path
+            elif not os.path.exists(file_path):
+                # Check if there are duplicate files
+                file_name = os.path.basename(file_path)
+                resolved_path = self._resolve_file_with_disambiguation(file_name)
+                if resolved_path:
+                    file_path = resolved_path
             
             # Create directories if needed
             os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
@@ -521,13 +648,28 @@ class OmniAutomator:
             if not file_path:
                 raise ValueError("file_path parameter required")
             
-            # Resolve relative paths from Desktop
+            # Resolve relative paths from Desktop with duplicate detection
             if not os.path.isabs(file_path):
-                desktop_path = os.path.expanduser('~/Desktop')
-                if os.path.exists(os.path.join(desktop_path, file_path)):
-                    file_path = os.path.join(desktop_path, file_path)
+                resolved_path = self._resolve_file_with_disambiguation(file_path)
+                if not resolved_path:
+                    return {
+                        'success': False,
+                        'error': f"File not found: {file_path}",
+                        'file_path': file_path
+                    }
+                file_path = resolved_path
+            elif not os.path.exists(file_path):
+                # Check if there are duplicate files
+                file_name = os.path.basename(file_path)
+                resolved_path = self._resolve_file_with_disambiguation(file_name)
+                if resolved_path:
+                    file_path = resolved_path
                 else:
-                    file_path = os.path.expanduser(file_path)
+                    return {
+                        'success': False,
+                        'error': f"File not found: {file_path}",
+                        'file_path': file_path
+                    }
             
             # Read the file
             with open(file_path, 'r', encoding='utf-8') as f:

@@ -189,13 +189,19 @@ class EnhancedCLI:
         if len(self.command_history) > self.max_history:
             self.command_history.pop(0)
         
-        print(f"🔄 Processing: {command}")
+        try:
+            print(f"🔄 Processing: {command}")
+        except:
+            print(f"Processing: {command}")
         
         # For complex commands with loops/nesting, use the full OmniAutomator engine
         # which handles the advanced parser with loop support properly
         if self._is_complex_command(command):
             result = self.base_engine.execute(command)
-            print(f"✅ Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
+            try:
+                print(f"✅ Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
+            except:
+                print(f"Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
             if result.get('success'):
                 print(f"   - Total steps: {result.get('steps_completed', result.get('total_steps', 'multiple'))}")
             else:
@@ -208,20 +214,35 @@ class EnhancedCLI:
             ai_response = result.get('ai_response')
             
             # Display results
-            print(f"✅ Status: {step.status.value.upper()}")
-            print(f"📌 Action: {parsed.action}")
-            print(f"📂 Category: {parsed.category}")
-            print(f"📊 Confidence: {parsed.confidence:.1%}")
-            print(f"🔄 Flexibility Score: {parsed.flexibility_score:.2f}")
+            try:
+                print(f"✅ Status: {step.status.value.upper()}")
+            except:
+                print(f"Status: {step.status.value.upper()}")
+            try:
+                print(f"📌 Action: {parsed.action}")
+            except:
+                print(f"Action: {parsed.action}")
+            try:
+                print(f"📂 Category: {parsed.category}")
+            except:
+                print(f"Category: {parsed.category}")
+            print(f"Confidence: {parsed.confidence:.1%}")
+            try:
+                print(f"🔄 Flexibility Score: {parsed.flexibility_score:.2f}")
+            except:
+                print(f"Flexibility Score: {parsed.flexibility_score:.2f}")
             
             if parsed.params:
-                print(f"⚙️ Parameters:")
+                print(f"Parameters:")
                 for key, value in parsed.params.items():
                     print(f"   - {key}: {value}")
             
             # For code modification, execute directly without AI plan
             if parsed.category == 'modify_file':
-                print(f"\n🔧 Executing file modification...")
+                try:
+                    print(f"\n🔧 Executing file modification...")
+                except:
+                    print(f"\nExecuting file modification...")
                 parsed_command = {
                     'action': 'modify_file',
                     'category': 'code_modification',
