@@ -8,6 +8,13 @@ Supports flexible NLP, AI integration, and multiple interaction modes
 import sys
 import os
 import argparse
+import io
+
+# Fix encoding issues on Windows
+if sys.platform == 'win32':
+    # Use UTF-8 encoding for stdout/stderr
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from omni_automator.ui.enhanced_cli import EnhancedCLI, InteractionMode
 from omni_automator.core.ai_model_manager import get_ai_manager, AIModelConfig
 from omni_automator.core.ai_task_executor import get_ai_task_executor
-from omni_automator.ui.cli import cli as legacy_cli
 
 
 def setup_default_ai_models():
@@ -114,9 +120,10 @@ Examples:
         
         return
     
-    # Use legacy CLI if requested
+    # Use legacy CLI if requested (now just uses enhanced CLI)
     if args.legacy:
-        legacy_cli()
+        cli = EnhancedCLI(InteractionMode.INTERACTIVE)
+        cli.run()
         return
     
     # Determine interaction mode

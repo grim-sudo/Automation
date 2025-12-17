@@ -17,6 +17,8 @@ from omni_automator.core.enhanced_workflow_engine import EnhancedWorkflowEngine
 from omni_automator.core.ai_model_manager import get_ai_manager, AIModelConfig
 from omni_automator.core.ai_task_executor import get_ai_task_executor
 from omni_automator.core.flexible_nlp import get_nlp_processor
+from omni_automator.core.semantic_nlp_engine import get_semantic_nlp
+from omni_automator.utils.logger import get_logger
 
 
 class InteractionMode(Enum):
@@ -31,42 +33,44 @@ class EnhancedCLI:
     """Enhanced CLI with flexible command processing"""
     
     def __init__(self, mode: InteractionMode = InteractionMode.CLI):
-        # Use the full OmniAutomator engine for complex commands
+        self.logger = get_logger("EnhancedCLI")
         self.base_engine = OmniAutomator()
-        # Keep the workflow engine for simple commands
         self.workflow_engine = EnhancedWorkflowEngine()
         self.executor = get_ai_task_executor()
         self.mode = mode
         self.ai_manager = get_ai_manager()
         self.nlp_processor = get_nlp_processor()
+        self.semantic_nlp = get_semantic_nlp()
         self.running = True
         self.command_history = []
         self.max_history = 100
+        
+        # Import smart features
+        try:
+            from omni_automator.core.spell_correction import get_spell_corrector
+            from omni_automator.core.smart_error_handler import get_smart_error_handler
+            self.spell_corrector = get_spell_corrector()
+            self.error_handler = get_smart_error_handler()
+        except ImportError:
+            self.spell_corrector = None
+            self.error_handler = None
     
-    # Alias for backward compatibility
     @property
     def engine(self):
+        """Backward compatibility"""
         return self.base_engine
     
+    def _apply_spell_correction(self, command: str) -> str:
+        """Apply spell correction if available"""
+        if self.spell_corrector:
+            return self.spell_corrector.correct_text(command)
+        return command
+    
     def _is_complex_command(self, command: str) -> bool:
-        """Check if command has nested/loop structures"""
+        """Check if command is complex"""
         import re
-        
         if len(command) > 150:
-            patterns = [
-                r'in\s+(?:that|those|each|every)',
-                r'and\s+in\s+',
-                r'inside\s+(?:each|every)',
-                r'\d+\s+folders?.*\d+\s+folders?',
-            ]
-            
-            for pattern in patterns:
-                if re.search(pattern, command, re.IGNORECASE):
-                    return True
-            
-            if command.lower().count(' and ') >= 3:
-                return True
-        
+            return bool(re.search(r'(\d+.*folders?|nested|hierarchy|structure)', command, re.IGNORECASE))
         return False
     
     def run(self, commands: Optional[List[str]] = None) -> None:
@@ -85,7 +89,14 @@ class EnhancedCLI:
         print("=" * 60)
         print("OmniAutomator - Interactive Mode")
         print("=" * 60)
-        self._show_interactive_help()
+        print("\nAvailable Commands:")
+        print("  /help     - Show help")
+        print("  /history  - Show command history")
+        print("  /status   - Show system status")
+        print("  /cd       - Change directory")
+        print("  /pwd      - Print working directory")
+        print("  /ls       - List files")
+        print("  quit      - Exit\n")
         
         # Execute initial commands if provided
         if initial_commands:
@@ -95,323 +106,141 @@ class EnhancedCLI:
         # Interactive loop
         while self.running:
             try:
-                user_input = input("\n📟 Enter command (or 'help' for commands, 'quit' to exit): ").strip()
+                user_input = input("\n> ").strip()
                 
                 if not user_input:
                     continue
                 
-                if user_input.lower() == 'quit':
+                if user_input.lower() in ['quit', 'exit']:
                     self.running = False
                     print("Goodbye!")
                     break
                 
                 self._execute_interactive_command(user_input)
-            
             except KeyboardInterrupt:
-                print("\nInterrupted. Type 'quit' to exit.")
+                print("\n\nInterrupted. Type 'quit' to exit.")
             except Exception as e:
-                print(f"❌ Error: {e}")
+                print(f"Error: {e}")
     
-    def _run_batch(self, commands: List[str]) -> None:
+    def _execute_interactive_command(self, command: str) -> None:
+        """Execute command in interactive mode"""
+        # Special commands
+        if command.startswith('/'):
+            self._handle_special_command(command)
+            return
+        
+        # Regular commands with spell correction
+        corrected_command = self._apply_spell_correction(command)
+        
+        if corrected_command != command:
+            print(f"Correction: {command} -> {corrected_command}")
+        
+        # Analyze with semantic NLP
+        analysis = self.semantic_nlp.analyze(corrected_command)
+        print(f"Intent: {analysis.intent.value} (Confidence: {analysis.confidence:.1%})")
+        
+        # Execute
+        try:
+            result = self.base_engine.execute(corrected_command)
+            self._format_and_display_result(result)
+            self.command_history.append(command)
+            if len(self.command_history) > self.max_history:
+                self.command_history = self.command_history[-self.max_history:]
+        except Exception as e:
+            if self.error_handler:
+                self.error_handler.handle_error(str(e), command)
+            else:
+                print(f"Error: {e}")
+    
+    def _handle_special_command(self, command: str) -> None:
+        """Handle special commands like /help"""
+        if command == '/help':
+            print("Available commands: /help, /history, /status, /cd, /pwd, /ls")
+        elif command == '/history':
+            for i, cmd in enumerate(self.command_history, 1):
+                print(f"{i:3d}. {cmd}")
+        elif command == '/status':
+            print("Status: Running")
+        else:
+            print(f"Unknown command: {command}")
+    
+    def _format_and_display_result(self, result: dict) -> None:
+        """Format and display execution results in human-readable format"""
+        if not isinstance(result, dict):
+            print(f"Result: {result}")
+            return
+        
+        # Check if execution was successful
+        success = result.get('success', False)
+        completed_steps = result.get('completed_steps', 0)
+        total_steps = result.get('total_steps', 0)
+        results_list = result.get('results', [])
+        execution_time = result.get('total_execution_time', 0)
+        
+        # Header
+        status_symbol = "✅" if success else "❌"
+        print(f"\n{status_symbol} {'SUCCESS' if success else 'FAILED'} - {completed_steps}/{total_steps} steps completed")
+        
+        # Display results for each step
+        if results_list:
+            print("\n📋 Operation Results:")
+            for i, step_result in enumerate(results_list, 1):
+                if isinstance(step_result, dict):
+                    step_status = "✓" if step_result.get('success', False) else "✗"
+                    action = step_result.get('action', 'Unknown')
+                    details = step_result.get('details', '')
+                    created_item = step_result.get('created_item') or step_result.get('created_folder') or step_result.get('created_file')
+                    
+                    if created_item:
+                        print(f"   {step_status} {i}. {action}: {created_item}")
+                    elif details:
+                        print(f"   {step_status} {i}. {action}: {details}")
+                    else:
+                        print(f"   {step_status} {i}. {action}")
+        
+        # Execution time
+        if execution_time:
+            time_ms = execution_time * 1000
+            print(f"\n⏱️  Execution Time: {time_ms:.2f} ms")
+        
+        print()  # Blank line for readability
+    
+    def _run_batch(self, commands: Optional[List[str]] = None) -> None:
         """Run batch mode"""
-        print("=" * 60)
-        print("OmniAutomator - Batch Mode")
-        print(f"Executing {len(commands)} commands...")
-        print("=" * 60)
+        if not commands:
+            return
         
-        execution = self.engine.execute_workflow(commands, "batch_job")
-        
-        print(f"\n✅ Batch execution completed:")
-        print(f"  - Steps executed: {execution.steps_executed}/{execution.total_steps}")
-        print(f"  - Steps failed: {execution.steps_failed}")
-        print(f"  - AI queries: {execution.ai_queries}")
-        print(f"  - Started: {execution.started_at}")
-        print(f"  - Completed: {execution.completed_at}")
+        for cmd in commands:
+            print(f"\nExecuting: {cmd}")
+            corrected = self._apply_spell_correction(cmd)
+            try:
+                self.base_engine.execute(corrected)
+            except Exception as e:
+                print(f"Error: {e}")
     
     def _run_cli(self, commands: Optional[List[str]] = None) -> None:
         """Run CLI mode"""
         if not commands:
-            self._show_cli_help()
             return
         
-        for command in commands:
-            self._execute_cli_command(command)
+        for cmd in commands:
+            corrected = self._apply_spell_correction(cmd)
+            try:
+                self.base_engine.execute(corrected)
+            except Exception as e:
+                if self.error_handler:
+                    self.error_handler.handle_error(str(e), cmd)
+                else:
+                    print(f"Error: {e}")
     
     def _run_gui(self) -> None:
         """Run GUI mode"""
         try:
-            from ui.gui_app import GUIApplication
-            
-            app = GUIApplication(self.engine)
-            app.run()
-        
+            from omni_automator.ui.gui_app import OmniAutomatorGUI
+            gui = OmniAutomatorGUI()
+            gui.run()
         except ImportError:
-            print("GUI module not available. Run in interactive mode instead.")
-            self.mode = InteractionMode.INTERACTIVE
-            self._run_interactive()
-    
-    def _execute_interactive_command(self, user_input: str) -> None:
-        """Execute command in interactive mode"""
-        # Handle special commands
-        if user_input.lower().startswith('help'):
-            self._show_interactive_help()
-            return
-        
-        if user_input.lower().startswith('history'):
-            self._show_command_history()
-            return
-        
-        if user_input.lower().startswith('models'):
-            self._show_ai_models()
-            return
-        
-        if user_input.lower().startswith('switch'):
-            self._handle_model_switch(user_input)
-            return
-        
-        if user_input.lower().startswith('variations'):
-            self._show_command_variations(user_input)
-            return
-        
-        # Execute as command
-        self._execute_command(user_input)
-    
-    def _execute_cli_command(self, command: str) -> None:
-        """Execute single command in CLI mode"""
-        print(f"Executing: {command}")
-        self._execute_command(command)
-        print()
-    
-    def _execute_command(self, command: str) -> None:
-        """Execute a command - with AI analysis and task execution bridge"""
-        # Add to history
-        self.command_history.append(command)
-        if len(self.command_history) > self.max_history:
-            self.command_history.pop(0)
-        
-        try:
-            print(f"🔄 Processing: {command}")
-        except:
-            print(f"Processing: {command}")
-        
-        # For complex commands with loops/nesting, use the full OmniAutomator engine
-        # which handles the advanced parser with loop support properly
-        if self._is_complex_command(command):
-            result = self.base_engine.execute(command)
-            try:
-                print(f"✅ Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
-            except:
-                print(f"Status: {'SUCCESS' if result.get('success') else 'FAILED'}")
-            if result.get('success'):
-                print(f"   - Total steps: {result.get('steps_completed', result.get('total_steps', 'multiple'))}")
-            else:
-                print(f"   - Error: {result.get('error')}")
-        else:
-            # For simple commands, use the workflow engine
-            result = self.workflow_engine.execute_command(command)
-            step = result['step']
-            parsed = result['parsed']
-            ai_response = result.get('ai_response')
-            
-            # Display results
-            try:
-                print(f"✅ Status: {step.status.value.upper()}")
-            except:
-                print(f"Status: {step.status.value.upper()}")
-            try:
-                print(f"📌 Action: {parsed.action}")
-            except:
-                print(f"Action: {parsed.action}")
-            try:
-                print(f"📂 Category: {parsed.category}")
-            except:
-                print(f"Category: {parsed.category}")
-            print(f"Confidence: {parsed.confidence:.1%}")
-            try:
-                print(f"🔄 Flexibility Score: {parsed.flexibility_score:.2f}")
-            except:
-                print(f"Flexibility Score: {parsed.flexibility_score:.2f}")
-            
-            if parsed.params:
-                print(f"Parameters:")
-                for key, value in parsed.params.items():
-                    print(f"   - {key}: {value}")
-            
-            # For code modification, execute directly without AI plan
-            if parsed.category == 'modify_file':
-                try:
-                    print(f"\n🔧 Executing file modification...")
-                except:
-                    print(f"\nExecuting file modification...")
-                parsed_command = {
-                    'action': 'modify_file',
-                    'category': 'code_modification',
-                    'params': parsed.params
-                }
-                mod_result = self.base_engine._execute_parsed_command(parsed_command)
-                if mod_result.get('success'):
-                    print(f"✅ File successfully modified!")
-                    print(f"   - Intent: {parsed.params.get('intent')}")
-                else:
-                    print(f"Modification failed: {mod_result.get('error')}")
-            # Check if AI generated a task plan and execute it
-            elif ai_response and hasattr(ai_response, 'task_plan') and ai_response.task_plan:
-                try:
-                    print(f"\n🤖 AI Analysis Generated Task Plan:")
-                except:
-                    print(f"\nAI Analysis Generated Task Plan:")
-                print(f"   - Intent: {ai_response.task_plan.get('interpreted_intent', 'Unknown')}")
-                print(f"   - Confidence: {ai_response.task_plan.get('confidence_score', 0):.2%}")
-                print(f"   - Steps: {len(ai_response.task_plan.get('execution_steps', []))}")
-                
-                # Execute the AI-generated task plan
-                try:
-                    print(f"\n⚡ Executing AI-generated tasks...")
-                except:
-                    print(f"\nExecuting AI-generated tasks...")
-                execution_result = self.executor.execute_task_plan(ai_response.task_plan)
-                
-                if execution_result['success']:
-                    try:
-                        print(f"✅ Task execution successful!")
-                    except:
-                        print(f"Task execution successful!")
-                    print(f"   - Created resources: {len(execution_result.get('created_resources', []))}")
-                    if execution_result.get('created_resources'):
-                        for resource in execution_result['created_resources'][:5]:
-                            try:
-                                print(f"      ✓ {resource}")
-                            except:
-                                print(f"      - {resource}")
-                        if len(execution_result['created_resources']) > 5:
-                            print(f"      ... and {len(execution_result['created_resources']) - 5} more")
-                else:
-                    try:
-                        print(f"❌ Task execution failed:")
-                    except:
-                        print(f"Task execution failed:")
-                    for failure in execution_result.get('failed_operations', []):
-                        print(f"   - Step {failure.get('step')}: {failure.get('error')}")
-            elif ai_response:
-                ai_resp = ai_response
-                print(f"\n🤖 AI Enhancement:")
-                print(f"   - Model: {ai_resp.model_used}")
-                print(f"   - Provider: {ai_resp.provider}")
-                print(f"   - Response: {ai_resp.content[:200]}...")
-            
-            if step.result:
-                print(f"📤 Result: {step.result}")
-            
-            if step.error:
-                print(f"❌ Error: {step.error}")
-    
-    def _show_interactive_help(self) -> None:
-        """Show help for interactive mode"""
-        print("""
-Available Commands:
-  - File operations: create folder, delete file, copy files, move files
-  - Deployments: deploy app with Docker, setup Kubernetes, deploy to cloud
-  - Databases: setup database, create schema, backup database
-  - Pipelines: create CI/CD pipeline, setup monitoring, optimize workflow
-  - Data: backup data, migrate data, sync data
-  - ML/AI: setup ML pipeline, train model, deploy model
-  - Security: setup security, audit permissions, encrypt data
-
-Examples (natural language variations supported):
-  ✓ "create a folder called myproject"
-  ✓ "make folder myproject"
-  ✓ "setup myproject folder on desktop"
-  ✓ "deploy app using docker"
-  ✓ "migrate database from mysql to postgresql"
-  ✓ "setup kubernetes cluster for production"
-
-Special Commands:
-  - help              Show this help
-  - history           Show command history
-  - models            List AI models
-  - switch <model>    Switch AI model
-  - variations <cmd>  Show command variations
-  - quit              Exit
-        """)
-    
-    def _show_cli_help(self) -> None:
-        """Show help for CLI mode"""
-        print("""
-OmniAutomator - Enhanced CLI
-
-Usage:
-  python omnimator --interactive    Run in interactive mode
-  python omnimator --batch <file>   Run batch commands from file
-  python omnimator --gui            Run GUI mode
-  python omnimator "<command>"      Execute single command
-  python omnimator "<cmd1>" "<cmd2>" Execute multiple commands
-
-Examples:
-  python omnimator "create folder myproject"
-  python omnimator "deploy app using docker"
-  python omnimator "setup database with postgresql"
-
-For more help, run in interactive mode with --interactive flag.
-        """)
-    
-    def _show_command_history(self) -> None:
-        """Show command history"""
-        if not self.command_history:
-            print("No command history.")
-            return
-        
-        print(f"\n📜 Command History ({len(self.command_history)} commands):")
-        for i, cmd in enumerate(self.command_history, 1):
-            print(f"  {i:3d}. {cmd}")
-    
-    def _show_ai_models(self) -> None:
-        """Show available AI models"""
-        current = self.ai_manager.get_current_model_info()
-        models = self.ai_manager.list_registered_models()
-        
-        print(f"\n🤖 AI Models:")
-        
-        if current:
-            print(f"  Current: {current['name']} ({current['provider']})")
-        
-        if models:
-            print(f"  Registered:")
-            for name, info in models.items():
-                marker = "✓" if info['is_current'] else " "
-                print(f"    [{marker}] {name} ({info['provider']})")
-        else:
-            print("  No models registered.")
-    
-    def _handle_model_switch(self, user_input: str) -> None:
-        """Handle model switching"""
-        parts = user_input.split(None, 1)
-        if len(parts) < 2:
-            self._show_ai_models()
-            return
-        
-        model_name = parts[1].strip()
-        if self.engine.switch_ai_model(model_name):
-            print(f"✅ Switched to model: {model_name}")
-        else:
-            print(f"❌ Model '{model_name}' not found")
-            self._show_ai_models()
-    
-    def _show_command_variations(self, user_input: str) -> None:
-        """Show command variations"""
-        # Extract command from "variations <command>"
-        parts = user_input.split(None, 1)
-        if len(parts) < 2:
-            print("Usage: variations <command>")
-            return
-        
-        command = parts[1]
-        variations = self.engine.get_command_alternatives(command)
-        
-        print(f"\n📌 Command Variations:")
-        print(f"  Original: {variations['original']}")
-        print(f"  Alternatives ({variations['count'] - 1}):")
-        for alt in variations['alternatives'][1:]:
-            print(f"    • {alt}")
+            print("GUI mode requires PyQt/Tkinter. Please install required dependencies.")
 
 
 def main():
@@ -421,31 +250,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="OmniAutomator - Intelligent Automation System"
     )
-    parser.add_argument(
-        'commands',
-        nargs='*',
-        help='Commands to execute'
-    )
-    parser.add_argument(
-        '--interactive', '-i',
-        action='store_true',
-        help='Run in interactive mode'
-    )
-    parser.add_argument(
-        '--batch', '-b',
-        type=str,
-        help='Run batch commands from file'
-    )
-    parser.add_argument(
-        '--gui', '-g',
-        action='store_true',
-        help='Run in GUI mode'
-    )
-    parser.add_argument(
-        '--model', '-m',
-        type=str,
-        help='Specify AI model to use'
-    )
+    parser.add_argument('commands', nargs='*', help='Commands to execute')
+    parser.add_argument('--interactive', '-i', action='store_true', help='Interactive mode')
+    parser.add_argument('--batch', '-b', type=str, help='Batch file')
+    parser.add_argument('--gui', '-g', action='store_true', help='GUI mode')
     
     args = parser.parse_args()
     
@@ -456,29 +264,18 @@ def main():
         mode = InteractionMode.INTERACTIVE
     elif args.batch:
         mode = InteractionMode.BATCH
-        # Load batch file
         if os.path.exists(args.batch):
             with open(args.batch, 'r') as f:
                 args.commands = [line.strip() for line in f if line.strip()]
         else:
-            print(f"Error: Batch file not found: {args.batch}")
+            print(f"Batch file not found: {args.batch}")
             sys.exit(1)
     else:
         mode = InteractionMode.CLI
     
-    # Create CLI
+    # Create and run CLI
     cli = EnhancedCLI(mode)
-    
-    # Switch model if specified
-    if args.model:
-        cli.engine.switch_ai_model(args.model)
-    
-    # Run
-    if args.commands or mode != InteractionMode.CLI:
-        cli.run(args.commands if args.commands else None)
-    else:
-        # Show help if no commands
-        cli._show_cli_help()
+    cli.run(args.commands if args.commands else None)
 
 
 if __name__ == '__main__':

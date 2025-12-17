@@ -134,36 +134,49 @@ class OpenRouterAutomationAI:
     
     def _build_system_context(self) -> str:
         """Build system context for OpenRouter AI"""
-        return """
+        return r"""
 You are an AI assistant integrated into OmniAutomator, a universal OS automation framework. Your role is to:
 
-1. INTERPRET natural language automation requests intelligently
-2. ANALYZE user intent and break down complex tasks
-3. GENERATE structured execution plans with proper steps
+1. INTERPRET natural language automation requests intelligently - EVEN WITH GRAMMAR ERRORS AND TYPOS
+2. ANALYZE user intent and break down complex tasks into executable steps
+3. GENERATE structured execution plans with proper JSON formatting
 4. ASSESS risks and suggest safety measures
 5. OPTIMIZE workflows for efficiency and reliability
+6. HANDLE AMBIGUOUS INPUT by asking clarifying questions or making intelligent assumptions
 
-CAPABILITIES YOU CAN LEVERAGE:
-- File system operations (create, move, copy, delete files/folders) - use category: "filesystem"
-- Process management (start/stop applications, manage services) - use category: "process"
-- GUI automation (click, type, screenshot, window management) - use category: "gui"
-- Network operations (download files, API calls, web scraping) - use category: "network"
-- System information gathering - use category: "system"
-- Development environment setup - use category: "project_generator"
-- Project generation and scaffolding - use category: "project_generator"
-- Package installation and dependency management - use category: "package_manager"
+💡 KEY CAPABILITY: GRAMMAR & TYPO TOLERANCE
+- Users may misspell words: "fodler" → "folder", "creat" → "create", "delet" → "delete"
+- Users may have grammatical errors: "I wnat to creat folder" → understand as "create folder"
+- Users may use informal language: "make" → "create", "rm" → "remove"
+- ALWAYS attempt to understand intent despite errors, don't reject inputs
+- Silently correct and interpret, then ask confirmation if appropriate
 
-RESPONSE FORMAT:
-Always respond with valid JSON containing:
+🎯 CAPABILITIES YOU CAN LEVERAGE:
+- File system operations (create, move, copy, delete files/folders) - category: "filesystem"
+- Process management (start/stop applications, manage services) - category: "process"
+- GUI automation (click, type, screenshot, window management) - category: "gui"
+- Network operations (download files, API calls, web scraping) - category: "network"
+- System information gathering - category: "system"
+- Development environment setup - category: "project_generator"
+- Package installation and dependency management - category: "package_manager"
+- DevOps operations (Docker, CI/CD, deployment) - category: "devops"
+
+📋 RESPONSE FORMAT:
+Always respond with valid JSON (never use markdown code blocks):
+For code generation requests, KEEP JSON CLEAN - do NOT include actual code in params:
 {
     "intent": "Clear description of what user wants to accomplish",
     "confidence": 0.85,
+    "corrected_input": "If there were typos/grammar, show corrected version here",
+    "clarification_questions": ["Question 1?", "Question 2?"],
+    "assumptions": ["Assumption made if input was ambiguous"],
     "steps": [
         {
             "action": "specific_action_name",
             "category": "action_category",
             "params": {"key": "value"},
-            "description": "Human readable description"
+            "description": "Human readable description",
+            "required": true
         }
     ],
     "risks": {
@@ -171,66 +184,136 @@ Always respond with valid JSON containing:
         "concerns": ["list of potential issues"],
         "mitigations": ["suggested safety measures"]
     },
-    "optimizations": ["suggestions for better execution"]
+    "optimizations": ["suggestions for better execution"],
+    "user_confirmations_needed": ["What user should confirm before proceeding"]
 }
 
-IMPORTANT CATEGORY MAPPINGS:
-- For file/folder operations: use "filesystem" (NOT "file_system")
-- For creating folders: {"action": "create_folder", "category": "filesystem", "params": {"name": "folder_name", "location": "path"}}
-- For deleting folders (SAFE): {"action": "delete_folder", "category": "filesystem", "params": {"path": "full_path_to_folder"}}
-  * This moves to recycle bin (safe, recoverable)
-  * NEVER set permanent=true unless user explicitly requests permanent deletion
-- For verifying deletion: {"action": "verify_deletion", "category": "filesystem", "params": {"path": "full_path_to_folder"}}
-- For creating files: {"action": "create_file", "category": "filesystem", "params": {"name": "file_name", "location": "path", "content": "file_content"}}
-- For process operations: use "process"
-- For GUI operations: use "gui"
-- For network operations: use "network"
-- For system operations: use "system"
+⚠️ IMPORTANT FOR CODE GENERATION:
+When user asks for code generation, create_file steps but DO NOT include the actual code in JSON params
+Instead, use "generate_code" as action or put code in a separate step with minimal escaping
+Example: Instead of including 100-line C code in JSON string, just reference it:
+{
+    "action": "create_file",
+    "category": "filesystem", 
+    "params": {
+        "name": "bubble_sort.c",
+        "location": "path",
+        "template": "bubble_sort"
+    }
+}
 
-FOLDER NAME HANDLING - CREATION:
-- When user says "create X named folder", X is the folder name (do NOT append "folder" to it)
-- When user says "create a folder named X", X is the folder name
-- The words "folder", "directory", "named" are descriptors, NOT part of the name
-- Example: "create safe_test named folder" → folder name is "safe_test" (NOT "safe_test folder")
-- Example: "create my_project folder" → folder name is "my_project" (NOT "my_project folder")
-- Example: "create a folder named test" → folder name is "test" (NOT "test folder")
-- ALWAYS extract only the actual name the user specifies, never append descriptors
+⚠️ DO NOT GENERATE THESE ACTIONS (they are handled automatically):
+- "verify_file_creation" - workflow engine verifies automatically
+- "verify_folder_exists" - workflow engine verifies automatically  
+- "verify_files_created" - workflow engine verifies automatically
+- "verify_deletion" - workflow engine verifies automatically
+Use only: create_file, create_folder, delete_file, delete_folder, copy_file, move_file, list_files, list_folders, etc.
 
-FOLDER NAME HANDLING - DELETION:
-- When extracting folder names from natural language, ALWAYS preserve the exact name including spaces
-- Example: "delete microservice folder" → The literal folder name is "microservice" (not "microservice folder")
-- Example: "delete the test folder" → The folder name is "test"
-- If the command says "delete X folder", then X is the folder name (e.g., "delete my project folder" → folder name is "my project")
-- When user provides literal folder name, extract it as-is including all spaces
-- The word "folder" at the end is a descriptor, not part of the folder name
-- Always construct the full path as: location/folder_name
+🗂️ CATEGORY MAPPINGS (ALWAYS USE EXACT NAMES):
+- File/folder operations: "filesystem"
+- Process management: "process"
+- GUI automation: "gui"
+- Network operations: "network"
+- System info: "system"
+- Project generation: "project_generator"
+- Package management: "package_manager"
+- DevOps: "devops"
 
-CREATION ACTION EXAMPLES:
-- Command: "create safe_test named folder"
-  Action: create_folder
-  Params: {"name": "safe_test", "location": "C:\\Users\\shefa\\Desktop"}
+📁 FILESYSTEM ACTION REFERENCE:
+CREATE OPERATIONS:
+  1. Single folder: {"action": "create_folder", "category": "filesystem", "params": {"name": "folder_name", "location": "path"}}
+  2. Bulk folders: {"action": "create_bulk_folders", "params": {"base_name": "test", "start": 1, "end": 10, "location": "path"}}
+  3. Nested folders: {"action": "create_nested_folders", "params": {"parent_name": "parent", "subfolders": {"test_range": {"base": "test", "start": 2, "end": 100}, "nested_subfolders": {"base": "1", "start": 1, "end": 15, "decimal": true}}, "location": "path"}}
+  4. Single file: {"action": "create_file", "params": {"name": "file.txt", "location": "path", "content": "file content"}}
 
-- Command: "create my project folder at C:\\Users\\shefa\\Desktop"
-  Action: create_folder
-  Params: {"name": "my project", "location": "C:\\Users\\shefa\\Desktop"}
+DELETE OPERATIONS:
+  1. Delete folder (safe): {"action": "delete_folder", "params": {"path": "full/path"}}
+     * Moves to recycle bin (RECOVERABLE)
+     * NEVER set permanent=true unless user explicitly requests permanent deletion
+  2. Verify deletion: {"action": "verify_deletion", "params": {"path": "full/path"}}
 
-DELETION ACTION EXAMPLES:
-- Command: "delete microservice folder from C:\\Users\\shefa\\Desktop"
-  Action: delete_folder
-  Params: {"path": "C:\\Users\\shefa\\Desktop\\microservice folder"}
-  
-- Command: "delete the test folder"
-  Action: delete_folder
-  Params: {"path": "C:\\Users\\shefa\\Desktop\\test"}
+COPY/MOVE OPERATIONS:
+  1. Copy: {"action": "copy_file", "params": {"source": "source/path", "destination": "dest/path"}}
+  2. Move: {"action": "move_file", "params": {"source": "source/path", "destination": "dest/path"}}
 
-IMPORTANT: Use forward slashes or escaped backslashes for Windows paths in JSON
+FOLDER NAME EXTRACTION RULES:
+CREATE:
+  • "create X named folder" → name = X (NOT "X folder")
+  • "create a folder named X" → name = X
+  • "creat a fodler called test" → INTERPRET as "create folder named test"
+  • Words like "folder", "directory", "named", "called" are DESCRIPTORS, not part of name
 
-SAFETY RULES:
-- Never suggest destructive operations on system files
-- Always recommend backups before major changes
-- Suggest sandbox mode for testing
-- Flag high-risk operations clearly
-- Prioritize user data safety
+DELETE:
+  • "delete X folder" → folder name is X
+  • "delete the X" → folder name is X
+  • "delet microservice fodler" → INTERPRET as "delete folder named microservice"
+
+TYPO TOLERANCE EXAMPLES:
+  ✓ "creat a foldер" → "create a folder"
+  ✓ "delet test fodler" → "delete test folder"
+  ✓ "copу file to backup" → "copy file to backup"
+  ✓ "make new proyect folder" → "create new project folder"
+  ✓ "runn the skript" → "run the script"
+  ✓ "intall packages" → "install packages"
+  ✓ "downlaod from URL" → "download from URL"
+
+COMPLEX COMMAND EXAMPLES:
+1. "creat folder nam test wit 100 subfoldrs nam from test2 to test100 and in each make 15 foldrs nam 1.1 to 1.15"
+   INTERPRET AS: Create nested folder structure with ranges and decimal naming
+   
+2. "make safe_test named foldер"
+   INTERPRET AS: Create folder named "safe_test"
+   
+3. "delet microservice fodler from /projects"
+   INTERPRET AS: Delete folder "microservice" from "/projects" directory
+
+PATH HANDLING:
+- If path is ambiguous or relative, ask user for full path
+- Always resolve to absolute path
+- Handle Windows (C:\Users\...) and Unix (/home/...) paths
+- If path doesn't exist, ask: "Create this path?" or "Choose existing path?"
+- Example ambiguity: "create folder in test" → Ask: "In which 'test' directory? /home/test or C:/test?"
+- EXTRACT EXPLICIT PATHS: "folder destination as C:\Users\shefa\Desktop" → location = "C:\Users\shefa\Desktop"
+- EXTRACT FROM KEYWORDS: "in the Desktop", "to Documents", "the folder destination as path" → use as location
+- PRECEDENCE: Full path > relative path > default location
+- Always pass location/destination in the "location" parameter for filesystem operations
+
+CONFIRMATION & CLARIFICATION:
+When input is ambiguous:
+1. Make reasonable assumption based on context
+2. Ask user to confirm with "Did you mean...?"
+3. Suggest alternatives if there's uncertainty
+
+When parameters are missing:
+1. Ask specifically: "Where should I create this folder?"
+2. Suggest common locations: Desktop, Documents, Current Directory
+3. Never fail - always try to get needed information
+
+SAFETY & BEST PRACTICES:
+- For destructive operations (delete, permanent changes): Ask confirmation
+- For complex operations: Break into smaller steps
+- For path operations: Validate and suggest corrections
+- Always mention if operation will affect system files
+- Flag permissions issues and suggest elevation if needed
+
+OPTIMIZATION TIPS:
+- Combine related operations into single workflow
+- Suggest parallel execution where possible
+- Recommend backup operations before destructive changes
+- Suggest dry-run for complex operations
+
+ERROR RECOVERY:
+If user input seems like a typo/misunderstanding:
+1. Correct silently in interpretation
+2. Show corrected version in "corrected_input" field
+3. Ask confirmation: "Did you mean: [corrected_input]?"
+4. Don't reject input - always try to help
+
+CONTEXT AWARENESS:
+- Remember previous commands in multi-turn interactions
+- Use previous operations to disambiguate
+- Learn user's common locations and preferences
+- Ask less clarification on familiar operations
 """
     
     def analyze_automation_request(self, user_request: str, context: Dict[str, Any] = None) -> AITaskPlan:
@@ -375,7 +458,61 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
     def _fix_unterminated_strings(self, json_text: str) -> str:
         """Attempt to fix unterminated strings in JSON"""
         try:
-            # Simple approach: fix common unterminated string patterns
+            # Strategy: Extract the core structure and rebuild properly
+            # Look for the "steps" array which is what we really need
+            
+            steps_start = json_text.find('"steps"')
+            if steps_start > 0:
+                # Look for the array start
+                array_start = json_text.find('[', steps_start)
+                if array_start > 0:
+                    # Count brackets to find where the array ends
+                    bracket_count = 0
+                    in_string = False
+                    escape_next = False
+                    array_end = array_start
+                    
+                    for i in range(array_start, len(json_text)):
+                        char = json_text[i]
+                        
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                        
+                        if not in_string:
+                            if char == '[':
+                                bracket_count += 1
+                            elif char == ']':
+                                bracket_count -= 1
+                                if bracket_count == 0:
+                                    array_end = i
+                                    break
+            
+            # If we found a proper array, try to extract just that
+            if array_start > 0 and array_end > array_start:
+                # Try to extract the steps array and build minimal valid JSON
+                steps_json = json_text[array_start:array_end+1]
+                minimal_response = f'''{{
+                    "intent": "Create files with code",
+                    "confidence": 0.7,
+                    "steps": {steps_json},
+                    "risks": {{"level": "low", "concerns": [], "mitigations": []}},
+                    "optimizations": []
+                }}'''
+                
+                try:
+                    return json.dumps(json.loads(minimal_response))
+                except:
+                    pass
+            
+            # Fallback: simple approach - close all unterminated strings
             lines = json_text.split('\n')
             fixed_lines = []
             
@@ -387,24 +524,52 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
                 if quote_count % 2 == 1:
                     line = line.rstrip()
                     # Find where to insert the quote
-                    if line.endswith(',') or line.endswith('}') or line.endswith(']'):
-                        line = line[:-1] + '"' + line[-1]
+                    if line.endswith(','):
+                        line = line[:-1] + '",'
+                    elif line.endswith('}') or line.endswith(']'):
+                        line = line + '"'
                     else:
                         line = line + '"'
                 
                 fixed_lines.append(line)
             
             return '\n'.join(fixed_lines)
-        except:
+        except Exception as e:
+            self.logger.debug(f"String fixing failed: {e}")
             return json_text
     
     def _extract_intent_from_text(self, response_text: str) -> Dict[str, Any]:
-        """Extract intent from text when JSON parsing fails"""
+        """Extract intent from text when JSON parsing fails and generate basic steps"""
         # Look for keywords to determine intent
         text_lower = response_text.lower()
+        steps = []
+        
+        # If we can detect file creation patterns, generate basic steps
+        if ('create' in text_lower or 'write' in text_lower) and '.c' in text_lower:
+            # Extract filenames that end with .c
+            import re
+            filenames = re.findall(r'\b(\w+\.c)\b', response_text, re.IGNORECASE)
+            
+            if filenames:
+                # Create one step per unique filename, use template for code generation
+                for filename in set(filenames):
+                    # Extract algorithm name from filename
+                    algo_name = filename.replace('.c', '').lower()
+                    steps.append({
+                        'action': 'create_file',
+                        'category': 'filesystem',
+                        'params': {
+                            'name': filename,
+                            'location': 'C:\\Users\\shefa\\Desktop\\data_structures_algorithms',
+                            'template': algo_name  # Use template to trigger code generation in workflow engine
+                        },
+                        'description': f'Create C file: {filename}'
+                    })
+                
+                # NOTE: Do NOT add verify actions here - workflow engine handles verification automatically
         
         if 'create' in text_lower or 'setup' in text_lower:
-            intent = 'Create project structure'
+            intent = 'Create files and structure'
         elif 'install' in text_lower or 'deploy' in text_lower:
             intent = 'Install and deploy'
         elif 'configure' in text_lower:
@@ -414,9 +579,9 @@ Focus on breaking down the request into actionable steps that the OmniAutomator 
         
         return {
             "intent": intent,
-            "confidence": 0.5,
-            "steps": [],
-            "risks": {"level": "medium", "concerns": [], "mitigations": []},
+            "confidence": 0.65,
+            "steps": steps,
+            "risks": {"level": "low", "concerns": [], "mitigations": []},
             "optimizations": []
         }
     
@@ -703,17 +868,44 @@ Respond in JSON format:
                 }
             )
             
-            result = json.loads(response.choices[0].message.content)
+            response_content = response.choices[0].message.content.strip()
+            
+            # Handle empty responses
+            if not response_content:
+                self.logger.warning("API returned empty response for workflow optimization")
+                return {
+                    'optimized_steps': workflow_steps,
+                    'improvements': [],
+                    'parallel_groups': []
+                }
+            
+            # Try to extract JSON if response contains text before it
+            json_start = response_content.find('{')
+            json_end = response_content.rfind('}') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_str = response_content[json_start:json_end]
+            else:
+                json_str = response_content
+            
+            result = json.loads(json_str)
             return {
                 'optimized_steps': result.get('optimized_steps', workflow_steps),
                 'improvements': result.get('improvements', []),
                 'parallel_groups': result.get('parallel_groups', [])
             }
             
+        except json.JSONDecodeError as je:
+            self.logger.warning(f"Workflow optimization JSON parsing failed: {je}")
+            return {
+                'optimized_steps': workflow_steps,
+                'improvements': [],
+                'parallel_groups': []
+            }
         except Exception as e:
             self.logger.error(f"Workflow optimization failed: {e}")
             return {
                 'optimized_steps': workflow_steps,
-                'improvements': ['Enable AI for workflow optimization'],
+                'improvements': [],
                 'parallel_groups': []
             }

@@ -2,6 +2,6 @@
 User interfaces for OmniAutomator
 """
 
-from .cli import CLIInterface
+from .enhanced_cli import EnhancedCLI
 
-__all__ = ["CLIInterface"]
+__all__ = ["EnhancedCLI"]

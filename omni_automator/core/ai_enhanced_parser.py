@@ -94,14 +94,16 @@ class AIEnhancedParser:
                         for step in complex_command.steps
                     ])
                     
-                    if optimization.get('optimized_steps'):
+                    if optimization and optimization.get('optimized_steps'):
                         complex_command = self._apply_optimizations(complex_command, optimization)
                     
                     # Add optimization info to context
-                    complex_command.context['ai_optimizations'] = optimization.get('improvements', [])
-                    complex_command.context['parallel_groups'] = optimization.get('parallel_groups', [])
+                    if optimization:
+                        complex_command.context['ai_optimizations'] = optimization.get('improvements', [])
+                        complex_command.context['parallel_groups'] = optimization.get('parallel_groups', [])
                 except Exception as opt_error:
-                    self.logger.warning(f"AI optimization failed: {opt_error}")
+                    self.logger.warning(f"Workflow optimization skipped due to: {opt_error}")
+                    # Continue without optimization - don't fail the entire parse
             
             return complex_command
             

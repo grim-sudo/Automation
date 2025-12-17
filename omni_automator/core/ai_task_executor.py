@@ -281,6 +281,8 @@ class AITaskExecutor:
         # Folder and File Operations
         self.execution_handlers['create_folder'] = self._handle_create_folder
         self.execution_handlers['create_folders'] = self._handle_create_folders
+        self.execution_handlers['create_bulk_folders'] = self._handle_create_bulk_folders
+        self.execution_handlers['create_nested_folders'] = self._handle_create_nested_folders
         self.execution_handlers['delete_folder'] = self._handle_delete_folder
         self.execution_handlers['delete_folders'] = self._handle_delete_folder
         self.execution_handlers['verify_deletion'] = self._handle_verify_deletion
@@ -305,6 +307,11 @@ class AITaskExecutor:
         self.execution_handlers['install_dependencies'] = self._handle_install_dependencies
         self.execution_handlers['install_packages'] = self._handle_install_packages
         self.execution_handlers['generate_code'] = self._handle_generate_code
+        # Alias for namespaced actions from some AI planners
+        self.execution_handlers['filesystem:generate_code'] = self._handle_generate_code
+        # Natural language filesystem parser/executor
+        self.execution_handlers['parse_and_execute_nl'] = self.parse_and_execute_nl
+        self.execution_handlers['execute_nl'] = self.parse_and_execute_nl
         
         # DevOps Operations
         self.execution_handlers['setup_docker'] = self._handle_setup_docker
@@ -323,7 +330,18 @@ class AITaskExecutor:
         self.execution_handlers['enable_feature'] = self._handle_enable_feature
         self.execution_handlers['restart_system'] = self._handle_restart_system
         
+        # Control Flow Operations
+        self.execution_handlers['control:loop'] = self._handle_control_loop
+        self.execution_handlers['control:end_loop'] = self._handle_control_end_loop
+        self.execution_handlers['control:condition'] = self._handle_control_condition
+        self.execution_handlers['control:end_condition'] = self._handle_control_end_condition
+        
         self.logger.info(f"Registered {len(self.execution_handlers)} execution handlers")
+
+        # Register namespaced action aliases used by some AI planners
+        self.execution_handlers.setdefault('filesystem:resolve_path', self._handle_resolve_path)
+        self.execution_handlers.setdefault('gui:open_file', self._handle_open_file)
+        self.execution_handlers.setdefault('system:display_results', self._handle_display_results)
     
     # ===== Folder and File Handlers =====
     
@@ -383,6 +401,102 @@ class AITaskExecutor:
             }
         except Exception as e:
             self.logger.error(f"Failed to create folders: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_create_bulk_folders(self, base_path: str = None, folder_prefix: str = "", start: int = 1, end: int = 10, separator: str = "", **kwargs) -> Dict[str, Any]:
+        """Create multiple folders with naming pattern (bulk operation)"""
+        try:
+            if not base_path:
+                return {'success': False, 'error': 'base_path is required'}
+            
+            base_path = os.path.abspath(base_path)
+            if not os.path.exists(base_path):
+                return {'success': False, 'error': f'Base path not found: {base_path}'}
+            
+            created = []
+            failed = []
+            
+            for i in range(start, end + 1):
+                folder_name = f"{folder_prefix}{separator}{i}"
+                folder_path = os.path.join(base_path, folder_name)
+                
+                try:
+                    os.makedirs(folder_path, exist_ok=True)
+                    created.append(folder_path)
+                    self.logger.info(f"Created folder: {folder_path}")
+                except Exception as e:
+                    failed.append({'name': folder_name, 'error': str(e)})
+            
+            return {
+                'success': True,
+                'created_count': len(created),
+                'failed_count': len(failed),
+                'created_folders': created,
+                'failed_folders': failed,
+                'created_resources': created
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to create bulk folders: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_create_nested_folders(self, base_path: str = None, main_folder: str = "", sub_folders: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+        """Create a main folder with nested subfolders"""
+        try:
+            if not base_path or not main_folder:
+                return {'success': False, 'error': 'base_path and main_folder are required'}
+            
+            base_path = os.path.abspath(base_path)
+            if not os.path.exists(base_path):
+                return {'success': False, 'error': f'Base path not found: {base_path}'}
+            
+            # Create main folder
+            main_path = os.path.join(base_path, main_folder)
+            os.makedirs(main_path, exist_ok=True)
+            created = [main_path]
+            failed = []
+            
+            # Create subfolders if specified
+            if sub_folders:
+                if isinstance(sub_folders, dict):
+                    # Pattern-based creation (e.g., prefix=test, start=2, end=101)
+                    prefix = sub_folders.get('prefix', 'folder')
+                    start = int(sub_folders.get('start', 1))
+                    end = int(sub_folders.get('end', 10))
+                    separator = sub_folders.get('separator', '')
+                    
+                    for i in range(start, end + 1):
+                        subfolder_name = f"{prefix}{separator}{i}"
+                        subfolder_path = os.path.join(main_path, subfolder_name)
+                        
+                        try:
+                            os.makedirs(subfolder_path, exist_ok=True)
+                            created.append(subfolder_path)
+                            self.logger.info(f"Created subfolder: {subfolder_path}")
+                        except Exception as e:
+                            failed.append({'name': subfolder_name, 'error': str(e)})
+                elif isinstance(sub_folders, list):
+                    # Direct list of subfolder names
+                    for subfolder_name in sub_folders:
+                        subfolder_path = os.path.join(main_path, subfolder_name)
+                        
+                        try:
+                            os.makedirs(subfolder_path, exist_ok=True)
+                            created.append(subfolder_path)
+                            self.logger.info(f"Created subfolder: {subfolder_path}")
+                        except Exception as e:
+                            failed.append({'name': subfolder_name, 'error': str(e)})
+            
+            return {
+                'success': True,
+                'main_folder': main_path,
+                'created_count': len(created),
+                'failed_count': len(failed),
+                'created_folders': created,
+                'failed_folders': failed,
+                'created_resources': created
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to create nested folders: {str(e)}")
             return {'success': False, 'error': str(e)}
     
     def _handle_delete_folder(self, path: str = None, name: str = None, location: str = None, permanent: bool = False, **kwargs) -> Dict[str, Any]:
@@ -991,19 +1105,106 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to install packages: {e}")
             return {'success': False, 'error': str(e)}    
-    def _handle_generate_code(self, module_name: str, code_type: str = "class", **kwargs) -> Dict[str, Any]:
-        """Generate code file"""
+    def _handle_generate_code(self, module_name: str = None, code_type: str = "class", location: str = None, base_path: str = None, folder_prefix: str = "x", start: int = 1, end: int = 20, table_size: int = 10, create_multiplication_tables: bool = False, **kwargs) -> Dict[str, Any]:
+        """Generate code file or pattern-based filesystem artifacts.
+
+        Behavior:
+        - If `create_multiplication_tables` is True (or module_name suggests multiplication),
+          create a folder named `module_name` (or `base_path`), then create numbered subfolders
+          using `folder_prefix` from `start` to `end` and place a multiplication table file
+          (`multiplication_table.txt`) inside each with tables starting from 1 up to `table_size`.
+        - Otherwise fall back to AI-driven code generation (previous behavior).
+        """
         try:
-            self.logger.info(f"Generated {code_type}: {module_name}")
-            
-            return {
-                'success': True,
-                'module': module_name,
-                'type': code_type,
-                'message': f'Generated {code_type}: {module_name}'
-            }
+            # Determine where to create resources
+            desktop = os.path.expanduser('~/Desktop')
+            target_base = None
+
+            if base_path:
+                target_base = os.path.abspath(base_path)
+            elif location:
+                target_base = os.path.abspath(location)
+            elif module_name:
+                # If module_name looks like a folder to create, use Desktop by default
+                target_base = os.path.join(desktop, module_name)
+            else:
+                target_base = desktop
+
+            # If target_base is a file path to create (not existing dir), ensure parent exists
+            if not os.path.exists(target_base):
+                try:
+                    os.makedirs(target_base, exist_ok=True)
+                except Exception:
+                    # If creating the named module folder failed because module_name is intended as module, fallback to Desktop
+                    target_base = desktop
+                    os.makedirs(target_base, exist_ok=True)
+
+            created = []
+
+            # Heuristic: if requested to create multiplication tables or module_name mentions "multiplication" or "table"
+            should_create_tables = create_multiplication_tables or (module_name and any(k in module_name.lower() for k in ['multiplication', 'table']))
+
+            if should_create_tables:
+                main_folder = target_base if os.path.isdir(target_base) else os.path.join(desktop, module_name or 'generated')
+                os.makedirs(main_folder, exist_ok=True)
+                created.append(main_folder)
+
+                for i in range(start, end + 1):
+                    sub_name = f"{folder_prefix}{i}"
+                    sub_path = os.path.join(main_folder, sub_name)
+                    os.makedirs(sub_path, exist_ok=True)
+                    created.append(sub_path)
+
+                    # Create multiplication table file
+                    table_lines = []
+                    for a in range(1, table_size + 1):
+                        row = '\t'.join(str(a * b) for b in range(1, table_size + 1))
+                        table_lines.append(f"{a}: {row}")
+
+                    file_path = os.path.join(sub_path, 'multiplication_table.txt')
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write('\n'.join(table_lines))
+                    created.append(file_path)
+
+                self.logger.info(f"Created multiplication tables under: {main_folder}")
+
+                return {
+                    'success': True,
+                    'main_folder': main_folder,
+                    'created_count': len(created),
+                    'created_resources': created,
+                    'message': f'Created {end - start + 1} folders with multiplication_table.txt files'
+                }
+
+            # Fallback: generate code using WorkflowEngine (existing behavior)
+            if module_name:
+                try:
+                    from .workflow_engine import WorkflowEngine
+                    engine = WorkflowEngine()
+                    code = engine._generate_algorithm_code(module_name, f"{module_name}.py")
+
+                    out_path = os.path.join(os.getcwd(), f"{module_name}.py")
+                    with open(out_path, 'w', encoding='utf-8') as file:
+                        file.write(code)
+
+                    created.append(out_path)
+                    self.logger.info(f"Generated {code_type}: {module_name} -> {out_path}")
+
+                    return {
+                        'success': True,
+                        'module': module_name,
+                        'type': code_type,
+                        'path': out_path,
+                        'created_resources': created,
+                        'message': f'Generated {code_type}: {module_name}'
+                    }
+                except Exception as e:
+                    self.logger.error(f"AI generation fallback failed: {str(e)}")
+                    return {'success': False, 'error': str(e)}
+
+            return {'success': False, 'error': 'No module_name provided and no table generation requested'}
         except Exception as e:
-            self.logger.error(f"Failed to generate code: {str(e)}")
+            self.logger.error(f"Failed to generate code or artifacts: {str(e)}")
             return {'success': False, 'error': str(e)}
     
     # ===== DevOps Operation Handlers =====
@@ -1070,6 +1271,182 @@ services:
         except Exception as e:
             self.logger.error(f"Failed to configure deployment: {str(e)}")
             return {'success': False, 'error': str(e)}
+
+    def parse_and_execute_nl(self, command: str, confirm: bool = False, **kwargs) -> Dict[str, Any]:
+        """Heuristic parser for common complex filesystem NL prompts.
+
+        Supports patterns like:
+        - Create a folder called <name> on Desktop and create N subfolders named <prefix>_1..N
+        - In each subfolder create specified child folders (e.g., src, module, config)
+        - Create a text file in each child folder containing a message referencing the parent
+
+        This is a pragmatic fallback when the AI planner emits a single complex step.
+        """
+        try:
+            import re
+            cmd = (command or '').strip()
+            if not cmd:
+                return {'success': False, 'error': 'No command provided'}
+
+            # Default targets
+            desktop = os.path.expanduser('~/Desktop')
+            main_folder = None
+            main_location = desktop
+            prefix = None
+            count = None
+            inner_folders = []
+            create_text_in_children = False
+
+            # Find main folder name
+            m = re.search(r"create a folder (?:called|named)\s+([\w\-]+)", cmd, re.IGNORECASE)
+            if m:
+                main_folder = m.group(1)
+
+            # Find location=Desktop
+            if re.search(r"on the desktop|on desktop", cmd, re.IGNORECASE):
+                main_location = desktop
+
+            # Find count of subfolders
+            m2 = re.search(r"create\s+(?:about\s+)?(\d{1,3})\s+folders?\s+called\s+([\w\-]+)_?1", cmd, re.IGNORECASE)
+            if m2:
+                count = int(m2.group(1))
+                prefix = m2.group(2)
+            else:
+                # alternative: "create 15 folders called java_1 and so on"
+                m3 = re.search(r"create\s+(\d{1,3})\s+folders?\s+called\s+([\w\-]+)_(?:1|one)", cmd, re.IGNORECASE)
+                if m3:
+                    count = int(m3.group(1))
+                    prefix = m3.group(2)
+
+            # fallback: look for pattern 'called java_1 to java_10' or 'java_1 to java_15'
+            if count is None:
+                m4 = re.search(r"([\w\-]+)_(?:1)\s+to\s+\1_(\d{1,3})", cmd, re.IGNORECASE)
+                if m4:
+                    prefix = m4.group(1)
+                    count = int(m4.group(2))
+
+            # If not parsed, try to find 'java_1 to java_10' directly
+            if count is None:
+                m5 = re.search(r"([\w\-]+)_(?:1)\s+to\s+(?:[\w\-]+)_(\d{1,3})", cmd, re.IGNORECASE)
+                if m5:
+                    prefix = m5.group(1)
+                    count = int(m5.group(2))
+
+            # Find inner folders list like 'create folders called src and module and config'
+            m6 = re.search(r"create folders? called\s+([\w\s,]+(?:and\s+[\w\-]+)?)", cmd, re.IGNORECASE)
+            if m6:
+                parts = re.split(r",|and", m6.group(1))
+                inner_folders = [p.strip() for p in parts if p.strip()]
+
+            # Alternative phrasing: 'create folders called src and module and config module'
+            if not inner_folders:
+                m7 = re.search(r"in each of those [\w\d_\s]+ create folders called\s+([\w\s,]+)", cmd, re.IGNORECASE)
+                if m7:
+                    parts = re.split(r",|and", m7.group(1))
+                    inner_folders = [p.strip() for p in parts if p.strip()]
+
+            # Sanitize inner folder names: remove filler tokens and tiny fragments
+            filler = {'also', 'along', 'with', 'those', 'the', 'and', 'folder', 'folders', 'create', 'createa', 'createan', 'a', 'an', 'to', 'up', 'upto', 'so', 'in', 'each', 'of'}
+            clean_folders = []
+            for f in inner_folders:
+                # normalize and keep alphanumeric, underscore, hyphen
+                name = re.sub(r"[^A-Za-z0-9_\-]", "", f.lower())
+                if not name or len(name) < 2:
+                    continue
+                if name in filler:
+                    continue
+                # common mapping corrections
+                if name in ('configmodule', 'configmodule'):
+                    # split combined words into two entries
+                    clean_folders.extend(['config', 'module'])
+                    continue
+                if name in ('moduleconfig',):
+                    clean_folders.extend(['module', 'config'])
+                    continue
+                clean_folders.append(name)
+
+            # Deduplicate while preserving order
+            seen = set()
+            inner_folders = []
+            for nf in clean_folders:
+                if nf not in seen:
+                    seen.add(nf)
+                    inner_folders.append(nf)
+
+            # Detect request to create text docs in each child folder
+            if re.search(r"text file|text document|text doc|create a text", cmd, re.IGNORECASE):
+                create_text_in_children = True
+
+            # If main folder or prefix not found, attempt simple heuristics
+            if not main_folder:
+                # try to find first noun after 'create a folder called'
+                m8 = re.search(r"create a folder\s+([^\s]+)", cmd, re.IGNORECASE)
+                if m8:
+                    main_folder = m8.group(1)
+
+            # sanitize main folder name
+            if main_folder:
+                mf = re.sub(r"[^A-Za-z0-9_\-]", "", main_folder)
+                if not mf:
+                    main_folder = None
+                else:
+                    main_folder = mf
+
+            # If still missing critical info, return failure
+            if not main_folder or not prefix or not count:
+                return {'success': False, 'error': 'Could not parse command fully', 'parsed': {'main_folder': main_folder, 'prefix': prefix, 'count': count, 'inner_folders': inner_folders}}
+
+            # Build main path — default to Desktop to avoid creating in CWD
+            if not main_location or not os.path.exists(main_location):
+                main_location = os.path.expanduser('~/Desktop')
+            main_path = os.path.join(main_location, main_folder)
+
+            performing_creation = bool(confirm)
+            created = []
+
+            # Create or simulate creating main folder
+            if performing_creation:
+                os.makedirs(main_path, exist_ok=True)
+            created.append(main_path)
+
+            # Create subfolders prefix1..prefixN
+            for i in range(1, count + 1):
+                sub_name = f"{prefix}_{i}"
+                sub_path = os.path.join(main_path, sub_name)
+                if performing_creation:
+                    os.makedirs(sub_path, exist_ok=True)
+                created.append(sub_path)
+
+                # Create requested inner folders
+                for child in inner_folders:
+                    # sanitize child name
+                    child_name = re.sub(r"[^A-Za-z0-9_\-]", "", child)
+                    child_path = os.path.join(sub_path, child_name)
+                    if performing_creation:
+                        os.makedirs(child_path, exist_ok=True)
+                    created.append(child_path)
+
+                    # Optionally create text file inside child folder
+                    if create_text_in_children:
+                        fname = os.path.join(child_path, f"info_{sub_name}.txt")
+                        content = f"hi i am {sub_name}"
+                        if performing_creation:
+                            with open(fname, 'w', encoding='utf-8') as f:
+                                f.write(content)
+                        created.append(fname)
+
+            return {
+                'success': True,
+                'main_folder': main_path,
+                'created_count': len(created),
+                'created_resources': created,
+                'dry_run': not performing_creation,
+                'note': 'No filesystem changes made unless confirm=True'
+            }
+
+        except Exception as e:
+            self.logger.error(f"Failed to parse_and_execute_nl: {str(e)}")
+            return {'success': False, 'error': str(e)}
     
     # ===== Windows System Operations (Bare-Metal Automation) =====
     
@@ -1105,6 +1482,92 @@ services:
         except subprocess.TimeoutExpired:
             return {'success': False, 'error': 'PowerShell script timeout (>30s)'}
         except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_resolve_path(self, path_hint: str = None, **kwargs) -> Dict[str, Any]:
+        """Resolve a path hint to an absolute path using existing resolution logic."""
+        try:
+            if not path_hint:
+                return {'success': False, 'error': 'path_hint required'}
+
+            # Try absolute
+            if os.path.isabs(path_hint) and os.path.exists(path_hint):
+                return {'success': True, 'resolved_path': os.path.abspath(path_hint)}
+
+            resolved = self._resolve_file_with_disambiguation(path_hint)
+            if resolved:
+                return {'success': True, 'resolved_path': resolved}
+
+            # Try common locations
+            desktop = os.path.expanduser('~/Desktop')
+            candidate = os.path.join(desktop, path_hint)
+            if os.path.exists(candidate):
+                return {'success': True, 'resolved_path': os.path.abspath(candidate)}
+
+            return {'success': False, 'error': f'Could not resolve path: {path_hint}'}
+        except Exception as e:
+            self.logger.error(f"_handle_resolve_path error: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _handle_open_file(self, path: str = None, read: bool = False, **kwargs) -> Dict[str, Any]:
+        """Open a file with the system default (Windows) or return contents if requested."""
+        try:
+            if not path:
+                return {'success': False, 'error': 'path required'}
+
+            # Resolve relative paths
+            if not os.path.isabs(path):
+                resolved = self._resolve_file_with_disambiguation(path)
+                if resolved:
+                    path = resolved
+
+            if not os.path.exists(path):
+                return {'success': False, 'error': f'File not found: {path}'}
+
+            # If read requested, return text content
+            if read:
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    return {'success': True, 'file_path': path, 'content': content}
+                except Exception as e:
+                    return {'success': False, 'error': f'Failed to read file: {e}'}
+
+            # Try to open with default application on Windows
+            try:
+                if os.name == 'nt':
+                    os.startfile(path)
+                else:
+                    # Fallback: spawn system opener
+                    import subprocess, shutil
+                    if shutil.which('xdg-open'):
+                        subprocess.Popen(['xdg-open', path])
+                    elif shutil.which('open'):
+                        subprocess.Popen(['open', path])
+                return {'success': True, 'file_path': path, 'message': 'Opened with system default'}
+            except Exception:
+                # If open fails, return file contents as fallback
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    return {'success': True, 'file_path': path, 'content': content, 'note': 'Returned content as fallback'}
+                except Exception as e:
+                    return {'success': False, 'error': f'Failed to open or read file: {e}'}
+
+        except Exception as e:
+            self.logger.error(f"_handle_open_file error: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _handle_display_results(self, results: dict = None, **kwargs) -> Dict[str, Any]:
+        """Display or log results returned by workflow steps. Returns success and echo of results."""
+        try:
+            if results is None:
+                return {'success': False, 'error': 'No results provided'}
+            # For now, just log and return the payload
+            self.logger.info(f"Display Results: {results}")
+            return {'success': True, 'displayed': True, 'results': results}
+        except Exception as e:
+            self.logger.error(f"_handle_display_results error: {e}")
             return {'success': False, 'error': str(e)}
     
     def _handle_run_command(self, command: str, args: List[str] = None, **kwargs) -> Dict[str, Any]:
@@ -1359,6 +1822,61 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
                 'reason': reason,
                 'note': 'Restart was not executed - manual confirmation required',
                 'command': f'shutdown /s /t {delay} /c "{reason}"'
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    # ===== Control Flow Handlers =====
+    
+    def _handle_control_loop(self, iterations: int = None, variable: str = None, start: int = None, end: int = None, **kwargs) -> Dict[str, Any]:
+        """Begin a loop - marked for control flow tracking"""
+        try:
+            loop_info = {
+                'iterations': iterations,
+                'variable': variable,
+                'start': start,
+                'end': end,
+                'loop_id': f"loop_{len(self.execution_history)}"
+            }
+            self.logger.info(f"Loop control: iterations={iterations}, variable={variable}, range={start}-{end}")
+            return {
+                'success': True,
+                'action': 'loop_start',
+                'loop_info': loop_info
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_control_end_loop(self, **kwargs) -> Dict[str, Any]:
+        """End a loop - marked for control flow tracking"""
+        try:
+            self.logger.info("Loop control: end")
+            return {
+                'success': True,
+                'action': 'loop_end'
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_control_condition(self, condition: str = None, **kwargs) -> Dict[str, Any]:
+        """Begin a conditional block"""
+        try:
+            self.logger.info(f"Conditional control: {condition}")
+            return {
+                'success': True,
+                'action': 'condition_start',
+                'condition': condition
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _handle_control_end_condition(self, **kwargs) -> Dict[str, Any]:
+        """End a conditional block"""
+        try:
+            self.logger.info("Conditional control: end")
+            return {
+                'success': True,
+                'action': 'condition_end'
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}

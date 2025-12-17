@@ -9,7 +9,6 @@ import platform
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from .command_parser import CommandParser
 from .plugin_manager import PluginManager
 from .advanced_parser import AdvancedCommandParser, CommandComplexity
 from .workflow_engine import WorkflowEngine
@@ -33,7 +32,7 @@ class OmniAutomator:
             
             # Initialize core components with error handling
             self.os_adapter = OSAdapterFactory.create_adapter()
-            self.command_parser = CommandParser()
+            self.command_parser = AdvancedCommandParser()
             self.advanced_parser = AdvancedCommandParser()
             
             # Initialize AI parser with fallback

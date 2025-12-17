@@ -64,7 +64,29 @@ class AIPoweredTaskPlanner:
             }
         
         # Step 2: Execute the task plan
-        execution_result = self.executor.execute_task_plan(task_plan)
+        # If the generated plan contains unknown action names, fallback to NL executor
+        unknown_actions = []
+        try:
+            known = set(self.executor.execution_handlers.keys())
+            for step in task_plan.get('execution_steps', []):
+                action_name = (step.get('action') or '').lower()
+                if action_name and action_name not in known:
+                    unknown_actions.append(action_name)
+        except Exception:
+            unknown_actions = []
+
+        if unknown_actions:
+            # Use natural-language fallback in dry-run mode and inform the user
+            self.logger.warning(f"Task plan contains unknown actions: {unknown_actions}. Using NL fallback (dry-run).")
+            try:
+                nl_result = self.executor.parse_and_execute_nl(request, confirm=False)
+                # Attach note instructing user how to confirm execution
+                nl_result['note'] = 'NL fallback executed in dry-run mode. To perform actual filesystem changes, re-run in interactive mode and confirm, or call with confirm=True.'
+                execution_result = nl_result
+            except Exception as e:
+                execution_result = {'success': False, 'error': f'NL fallback failed: {e}'}
+        else:
+            execution_result = self.executor.execute_task_plan(task_plan)
         
         # Add to history
         self.task_history.append({

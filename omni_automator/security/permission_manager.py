@@ -139,7 +139,7 @@ class PermissionManager:
         """Load user-granted permissions"""
         return {
             'filesystem_write': True,
-            'filesystem_delete': False,
+            'filesystem_delete': True,
             'process_terminate': False,
             'system_settings': False,
             'power_management': False
@@ -251,12 +251,24 @@ class PermissionManager:
         """Map command category/action to ActionCategory"""
         mapping = {
             ('filesystem', 'list'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'list_folders'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'list_files'): ActionCategory.FILESYSTEM_READ,
             ('filesystem', 'get_info'): ActionCategory.FILESYSTEM_READ,
             ('filesystem', 'create_folder'): ActionCategory.FILESYSTEM_WRITE,
             ('filesystem', 'create_file'): ActionCategory.FILESYSTEM_WRITE,
             ('filesystem', 'copy'): ActionCategory.FILESYSTEM_WRITE,
+            ('filesystem', 'copy_file'): ActionCategory.FILESYSTEM_WRITE,
             ('filesystem', 'move'): ActionCategory.FILESYSTEM_WRITE,
+            ('filesystem', 'move_file'): ActionCategory.FILESYSTEM_WRITE,
             ('filesystem', 'delete'): ActionCategory.FILESYSTEM_DELETE,
+            ('filesystem', 'delete_folder'): ActionCategory.FILESYSTEM_DELETE,
+            ('filesystem', 'delete_file'): ActionCategory.FILESYSTEM_DELETE,
+            ('filesystem', 'verify_file_creation'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'verify_folder_exists'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'verify_files_created'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'verify_deletion'): ActionCategory.FILESYSTEM_READ,
+            ('filesystem', 'create_bulk_folders'): ActionCategory.FILESYSTEM_WRITE,
+            ('filesystem', 'create_nested_folders'): ActionCategory.FILESYSTEM_WRITE,
             ('process', 'start'): ActionCategory.PROCESS_START,
             ('process', 'terminate'): ActionCategory.PROCESS_TERMINATE,
             ('gui', 'click'): ActionCategory.GUI_AUTOMATION,

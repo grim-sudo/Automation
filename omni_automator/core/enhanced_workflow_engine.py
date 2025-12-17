@@ -10,7 +10,7 @@ import json
 import os
 from datetime import datetime
 
-from .enhanced_command_parser import EnhancedCommandParser
+from .advanced_parser import AdvancedCommandParser as EnhancedCommandParser
 from .ai_model_manager import get_ai_manager, AIResponse
 from .flexible_nlp import get_nlp_processor
 from .ai_task_planner import get_ai_task_planner
