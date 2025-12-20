@@ -44,17 +44,21 @@ class OmniAutomator:
                 
             self.ai_parser = AIEnhancedParser(api_key)
             self.plugin_manager = PluginManager()
+            # Optional category -> plugin name aliases for backward compatibility
+            self.plugin_aliases = {
+                'devops': 'devops_generator',
+                'project': 'project_generator',
+                'web': 'web_automation',
+                'folder_ops': 'folder_operations'
+            }
             self.permission_manager = PermissionManager()
             self.workflow_engine = WorkflowEngine(self)
             
             # Execution state
             self.is_running = False
             self.execution_history = []
-            self.sandbox_mode = self.config.get('sandbox_mode', False)
-            
-            # Apply sandbox mode if configured
-            if self.sandbox_mode:
-                self.enable_sandbox_mode()
+            # Sandbox mode removed: always run in normal mode
+            self.sandbox_mode = False
             
             self.logger.info(f"OmniAutomator initialized on {platform.system()} {platform.release()}")
             
@@ -120,6 +124,28 @@ class OmniAutomator:
                 return True
         
         return False
+
+    def _normalize_screenshot_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize various filename/path keys into a consistent `path` key for screenshots."""
+        if not isinstance(params, dict):
+            return params
+
+        filename_keys = ['filename', 'file', 'path', 'dest', 'destination', 'save_to', 'output', 'save_path', 'target']
+        for k in filename_keys:
+            if k in params and params.get(k):
+                # prefer an explicit 'path' key for downstream plugins
+                params['path'] = params.get(k)
+                break
+
+        # Also accept nested context
+        if 'workflow_context' in params and isinstance(params['workflow_context'], dict):
+            wc = params['workflow_context']
+            for k in filename_keys:
+                if k in wc and wc.get(k) and not params.get('path'):
+                    params['path'] = wc.get(k)
+                    break
+
+        return params
     
     def execute(self, command: str, **kwargs) -> Dict[str, Any]:
         """Execute an automation command (simple or complex)"""
@@ -240,6 +266,24 @@ class OmniAutomator:
         action = parsed_command.get('action')
         category = parsed_command.get('category')
         params = parsed_command.get('params', {})
+        # Prefer plugins that advertise the capability for this action
+        try:
+            if hasattr(self.plugin_manager, 'get_plugin_by_capability'):
+                candidates = self.plugin_manager.get_plugin_by_capability(action)
+                if candidates:
+                    # Prefer a loaded plugin from the candidates
+                    preferred = None
+                    for pname in candidates:
+                        if pname in getattr(self.plugin_manager, 'plugins', {}):
+                            preferred = pname
+                            break
+                    preferred = preferred or candidates[0]
+                    params_with_ctx = dict(params or {})
+                    params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
+                    return self.plugin_manager.execute(preferred, action, params_with_ctx)
+        except Exception:
+            # If plugin dispatch fails, fall back to adapters
+            pass
         
         # Route to appropriate handler
         if category == 'filesystem':
@@ -247,6 +291,23 @@ class OmniAutomator:
         elif category == 'process':
             return self.os_adapter.process.execute(action, params)
         elif category == 'gui':
+            # Prefer web_automation plugin when it supports the requested GUI/browser alias
+            try:
+                if hasattr(self, 'plugin_manager') and 'web_automation' in getattr(self.plugin_manager, 'plugins', {}):
+                    plugin = self.plugin_manager.plugins['web_automation']
+                    try:
+                        caps = plugin.get_capabilities()
+                    except Exception:
+                        caps = []
+
+                    if action in caps:
+                        params_with_ctx = dict(params or {})
+                        params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
+                        return self.plugin_manager.execute('web_automation', action, params_with_ctx)
+            except Exception:
+                # Fall back to OS GUI adapter on any plugin error
+                pass
+
             return self.os_adapter.gui.execute(action, params)
         elif category == 'system':
             return self.os_adapter.system.execute(action, params)
@@ -261,8 +322,41 @@ class OmniAutomator:
             elif action == 'write_file':
                 return self._handle_write_file(params)
         else:
-            # Try plugins
-            return self.plugin_manager.execute(category, action, params)
+            # Prefer plugin registered under the category name if present
+            if hasattr(self.plugin_manager, 'plugins') and category in self.plugin_manager.plugins:
+                try:
+                    params_with_ctx = dict(params or {})
+                    return self.plugin_manager.execute(category, action, params_with_ctx)
+                except Exception as e:
+                    self.logger.warning(f"Plugin '{category}' failed: {e}")
+
+            # Capability-based dispatch: find a plugin that advertises the action
+            try:
+                candidates = self.plugin_manager.get_plugin_by_capability(action)
+                if candidates:
+                    # Prefer a loaded plugin from the candidates
+                    preferred = None
+                    for pname in candidates:
+                        if pname in getattr(self.plugin_manager, 'plugins', {}):
+                            preferred = pname
+                            break
+                    # Fallback to first candidate name if none loaded (will raise later)
+                    preferred = preferred or candidates[0]
+                    self.logger.info(f"Dispatching action '{action}' to plugin '{preferred}' by capability")
+                    params_with_ctx = dict(params or {})
+                    params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
+                    return self.plugin_manager.execute(preferred, action, params_with_ctx)
+            except Exception as e:
+                self.logger.debug(f"Capability-based plugin dispatch failed: {e}")
+
+            # Final fallback: attempt plugin by category name (legacy behavior)
+            params_with_ctx = dict(params or {})
+            params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
+            # If category is an alias for a real plugin name, use it
+            plugin_name = category
+            if hasattr(self, 'plugin_aliases') and category in self.plugin_aliases:
+                plugin_name = self.plugin_aliases[category]
+            return self.plugin_manager.execute(plugin_name, action, params_with_ctx)
     
     def _log_execution(self, original_command: str, parsed_command: Dict[str, Any], result: Any):
         """Log command execution for audit trail"""
@@ -339,7 +433,6 @@ class OmniAutomator:
         """Get current execution context for AI analysis"""
         return {
             'platform': platform.system(),
-            'sandbox_mode': self.sandbox_mode,
             'recent_commands': [record['original_command'] for record in self.execution_history[-5:]],
             'available_capabilities': list(self.get_capabilities().keys()),
             'current_directory': os.getcwd(),
@@ -383,16 +476,12 @@ class OmniAutomator:
         return success
     
     def enable_sandbox_mode(self):
-        """Enable sandbox mode for safe testing"""
-        self.sandbox_mode = True
-        self.permission_manager.enable_sandbox_mode()
-        self.logger.info("Sandbox mode enabled")
+        """Sandbox mode support removed - no-op"""
+        self.logger.warning("Sandbox mode support has been removed; enable_sandbox_mode() is a no-op")
     
     def disable_sandbox_mode(self):
-        """Disable sandbox mode"""
-        self.sandbox_mode = False
-        self.permission_manager.disable_sandbox_mode()
-        self.logger.info("Sandbox mode disabled")
+        """Sandbox mode support removed - no-op"""
+        self.logger.warning("Sandbox mode support has been removed; disable_sandbox_mode() is a no-op")
     
     def shutdown(self):
         """Clean shutdown of the automation engine"""

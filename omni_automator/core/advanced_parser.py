@@ -46,6 +46,15 @@ class AdvancedCommandParser:
         self.context_keywords = self._load_context_keywords()
         self.conjunction_words = ['and', 'then', 'after', 'next', 'also', 'plus', 'followed by']
         self.conditional_words = ['if', 'when', 'unless', 'after', 'before', 'while']
+        # Map logical categories to actual plugin names where applicable
+        self.plugin_category_map = {
+            'devops': 'devops_generator',
+            'project_generator': 'project_generator',
+            'web': 'web_automation',
+            'folder_ops': 'folder_operations',
+            'universal': 'universal_automation',
+            'package_manager': 'universal_automation'
+        }
     
     def parse_complex_command(self, command: str) -> ComplexCommand:
         """Parse a complex natural language command into executable steps"""
@@ -71,7 +80,128 @@ class AdvancedCommandParser:
         
         # Estimate duration
         duration = self._estimate_duration(steps)
-        
+
+        # Remap logical categories to concrete plugin names when appropriate
+        try:
+            for s in steps:
+                if hasattr(self, 'plugin_category_map') and s.category in self.plugin_category_map:
+                    s.category = self.plugin_category_map[s.category]
+            # Normalize screenshot parameter keys so downstream engine/plugins see a consistent `path` key
+            for s in steps:
+                if s.action in ('take_screenshot', 'screenshot', 'save_screenshot'):
+                    params = s.params or {}
+                    candidate_keys = ['filename', 'file', 'path', 'dest', 'destination', 'save_to', 'output', 'save_path', 'target']
+                    for k in candidate_keys:
+                        if k in params and params.get(k):
+                            params['path'] = params.get(k)
+                            break
+                    s.params = params
+                    # Normalize install/uninstall intents: prefer explicit uninstall when user mentions uninstall/remove
+                    uninstall_keywords = ['uninstall', 'remove', 'delete', 'uninstalling', 'remove program', 'remove app', 'remove application']
+                    install_keywords = ['install', 'setup', 'installing', 'install program', 'install app']
+                    try:
+                        if any(k in normalized_command for k in uninstall_keywords):
+                            for s in steps:
+                                act = (s.action or '').lower()
+                                if 'install' in act or act in ('install_package', 'install_software', 'execute_installer', 'download_and_install'):
+                                    s.action = 'uninstall_software'
+                                    s.category = 'package_manager'
+                        elif any(k in normalized_command for k in install_keywords):
+                            for s in steps:
+                                act = (s.action or '').lower()
+                                if 'uninstall' in act or act in ('uninstall_software',):
+                                    s.action = 'install_software'
+                                    s.category = 'package_manager'
+                    except Exception:
+                        pass
+                    # Map common package/app names to platform package IDs to reduce ambiguity
+                    try:
+                        package_name_map = {
+                            'vlc': 'VideoLAN.VLC',
+                            'video lan vlc': 'VideoLAN.VLC',
+                            'vscode': 'Microsoft.VisualStudioCode',
+                            'visual studio code': 'Microsoft.VisualStudioCode',
+                            'google chrome': 'Google.Chrome',
+                            'chrome': 'Google.Chrome',
+                            'firefox': 'Mozilla.Firefox',
+                            'git': 'Git.Git',
+                            'nodejs': 'OpenJS.NodeJS',
+                            'node.js': 'OpenJS.NodeJS',
+                            'python': 'Python.Python.3'
+                        }
+
+                        for s in steps:
+                            act_low = (s.action or '').lower()
+                            if act_low in ('install_software', 'uninstall_software', 'install_package', 'uninstall_package'):
+                                params = s.params or {}
+                                software = params.get('software') or params.get('package') or params.get('name')
+                                if not software:
+                                    # Find any known package name mentioned in the command
+                                    for name, pkg_id in package_name_map.items():
+                                        if name in normalized_command:
+                                            params['software'] = pkg_id
+                                            params['software_name'] = name
+                                            s.params = params
+                                            break
+                                else:
+                                    # Normalize provided software string to an ID if possible
+                                    sw_lower = str(software).lower()
+                                    for name, pkg_id in package_name_map.items():
+                                        if name in sw_lower:
+                                            params['software'] = pkg_id
+                                            params['software_name'] = software
+                                            s.params = params
+                                            break
+                    except Exception:
+                        pass
+        except Exception:
+            # Non-fatal: if remapping fails, return steps as-is
+            pass
+
+        # If parser produced no explicit install/uninstall steps but the user command
+        # clearly requests installation or removal, synthesize a package_manager step
+        try:
+            has_installation_steps = any(
+                (s.action or '').lower() in ('install_software', 'uninstall_software', 'install_package', 'uninstall_package')
+                for s in steps
+            )
+
+            if not has_installation_steps:
+                uninstall_kw = ['uninstall', 'remove', 'delete']
+                install_kw = ['install', 'setup']
+                package_name_map = {
+                    'vlc': 'VideoLAN.VLC',
+                    'vscode': 'Microsoft.VisualStudioCode',
+                    'visual studio code': 'Microsoft.VisualStudioCode',
+                    'google chrome': 'Google.Chrome',
+                    'chrome': 'Google.Chrome',
+                    'firefox': 'Mozilla.Firefox',
+                    'git': 'Git.Git',
+                    'nodejs': 'OpenJS.NodeJS',
+                    'python': 'Python.Python.3'
+                }
+
+                if any(k in normalized_command for k in uninstall_kw):
+                    for name, pkg in package_name_map.items():
+                        if name in normalized_command:
+                            steps.append(ParsedStep(
+                                action='uninstall_software',
+                                category='package_manager',
+                                params={'software': pkg, 'software_name': name}
+                            ))
+                            break
+                elif any(k in normalized_command for k in install_kw):
+                    for name, pkg in package_name_map.items():
+                        if name in normalized_command:
+                            steps.append(ParsedStep(
+                                action='install_software',
+                                category='package_manager',
+                                params={'software': pkg, 'software_name': name}
+                            ))
+                            break
+        except Exception:
+            pass
+
         return ComplexCommand(
             original_command=command,
             complexity=complexity,

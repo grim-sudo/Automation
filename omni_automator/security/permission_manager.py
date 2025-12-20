@@ -74,6 +74,9 @@ class PermissionManager:
             # Project generator actions
             'create_python_project': PermissionLevel.MODERATE,
             'create_c_project': PermissionLevel.MODERATE,
+            'create_virtual_environment': PermissionLevel.MODERATE,
+            'create_virtualenv': PermissionLevel.MODERATE,
+            'initialize_git_repo': PermissionLevel.MODERATE,
             'create_web_scraping_project': PermissionLevel.MODERATE,
             'create_data_analysis_project': PermissionLevel.MODERATE,
             'create_news_scraper': PermissionLevel.MODERATE,
@@ -193,12 +196,7 @@ class PermissionManager:
                 print(f"Operation blocked: {operation_id}")
                 return False
             
-            # In sandbox mode, only allow safe operations
-            if self.sandbox_mode:
-                is_safe = self._is_safe_operation(category, action, params)
-                if not is_safe:
-                    print(f"Operation not allowed in sandbox mode: {category}:{action}")
-                return is_safe
+            # Sandbox mode has been removed; perform normal permission checks
             
             # Get action category
             action_category = self._map_to_action_category(category, action)
@@ -240,12 +238,28 @@ class PermissionManager:
             'gui': ['screenshot', 'wait'],
             'system': ['get_info'],
             'network': ['http_get'],
-            'project_generator': ['create_python_project', 'create_c_project', 'create_web_scraping_project', 'create_data_analysis_project', 'create_news_scraper'],
-            'package_manager': ['install_packages'],
+            'project_generator': ['create_python_project', 'create_c_project', 'create_web_scraping_project', 'create_data_analysis_project', 'create_news_scraper', 'create_virtualenv', 'create_virtual_environment', 'initialize_git_repo'],
+            'package_manager': ['install_packages', 'install_package', 'check_package_installed', 'check_installed_packages', 'list_installed_packages', 'check_package_manager', 'check_version', 'get_package_info', 'check_package'],
+            'devops': ['initialize_git_repo', 'check_docker_installed', 'check_docker_installation', 'check_docker_running', 'check_kubectl_installed', 'check_kubectl'],
             'data_generator': ['generate_sample_data']
         }
-        
-        return action in safe_operations.get(category, [])
+
+        # Allow virtualenv creation and git initialization as sandbox-safe no-op operations
+        safe_operations['project_generator'].extend(['create_virtual_environment', 'initialize_git_repo'])
+
+        # If explicitly listed as safe for the category, allow it
+        if action in safe_operations.get(category, []):
+            return True
+
+        # Allow common "check", "list", "get", and "verify" actions across categories
+        if action.startswith(('check_', 'list_', 'get_', 'verify_')):
+            return True
+
+        # Allow explicit install simulation names
+        if action in ('install_package', 'install_packages'):
+            return True
+
+        return False
     
     def _map_to_action_category(self, category: str, action: str) -> Optional[ActionCategory]:
         """Map command category/action to ActionCategory"""
@@ -269,15 +283,31 @@ class PermissionManager:
             ('filesystem', 'verify_deletion'): ActionCategory.FILESYSTEM_READ,
             ('filesystem', 'create_bulk_folders'): ActionCategory.FILESYSTEM_WRITE,
             ('filesystem', 'create_nested_folders'): ActionCategory.FILESYSTEM_WRITE,
+            ('filesystem', 'create_shortcut'): ActionCategory.FILESYSTEM_WRITE,
             ('process', 'start'): ActionCategory.PROCESS_START,
             ('process', 'terminate'): ActionCategory.PROCESS_TERMINATE,
+            ('process', 'execute_installer'): ActionCategory.PROCESS_START,
+            ('process', 'run_installer'): ActionCategory.PROCESS_START,
+            ('process', 'execute_file'): ActionCategory.PROCESS_START,
+            ('process', 'execute_command'): ActionCategory.PROCESS_START,
             ('gui', 'click'): ActionCategory.GUI_AUTOMATION,
             ('gui', 'type'): ActionCategory.GUI_AUTOMATION,
             ('gui', 'press_key'): ActionCategory.GUI_AUTOMATION,
+            ('gui', 'create_shortcut'): ActionCategory.GUI_AUTOMATION,
             ('system', 'set_volume'): ActionCategory.SYSTEM_SETTINGS,
             ('system', 'power_action'): ActionCategory.POWER_MANAGEMENT,
+            ('system', 'verify_installation'): ActionCategory.FILESYSTEM_READ,
+            ('system', 'check_installed_applications'): ActionCategory.FILESYSTEM_READ,
             ('network', 'download'): ActionCategory.NETWORK_ACCESS,
             ('network', 'http_get'): ActionCategory.NETWORK_ACCESS,
+            ('network', 'download_file'): ActionCategory.NETWORK_ACCESS,
+            ('package_manager', 'check_winget_availability'): ActionCategory.PROCESS_START,
+            ('package_manager', 'check_package_manager'): ActionCategory.PROCESS_START,
+            ('package_manager', 'search_package'): ActionCategory.NETWORK_ACCESS,
+            ('package_manager', 'install_package'): ActionCategory.PROCESS_START,
+            ('package_manager', 'execute_command'): ActionCategory.PROCESS_START,
+            ('package_manager', 'verify_installation'): ActionCategory.FILESYSTEM_READ,
+            ('package_manager', 'list_installed_packages'): ActionCategory.FILESYSTEM_READ,
         }
         
         return mapping.get((category, action))
@@ -351,12 +381,12 @@ class PermissionManager:
         self._save_config()
     
     def enable_sandbox_mode(self):
-        """Enable sandbox mode (only safe operations allowed)"""
-        self.sandbox_mode = True
+        """Sandbox mode removed - no-op"""
+        print("Sandbox mode support removed; enable_sandbox_mode() is a no-op")
     
     def disable_sandbox_mode(self):
-        """Disable sandbox mode"""
-        self.sandbox_mode = False
+        """Sandbox mode removed - no-op"""
+        print("Sandbox mode support removed; disable_sandbox_mode() is a no-op")
     
     def get_permission_summary(self) -> Dict[str, Any]:
         """Get summary of current permissions"""

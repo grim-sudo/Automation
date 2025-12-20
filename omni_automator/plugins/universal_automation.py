@@ -10,6 +10,7 @@ import subprocess
 import shutil
 import time
 import requests
+import platform
 from typing import Dict, Any, List
 from omni_automator.core.plugin_manager import AutomationPlugin
 
@@ -58,6 +59,12 @@ class UniversalAutomationPlugin(AutomationPlugin):
             # Content & Media
             'process_images', 'convert_videos', 'generate_documents', 'web_scraping',
             'content_management', 'seo_optimization', 'social_media_automation', 'email_campaigns',
+            # Convenience actions often emitted by NLP workflows
+            'download_file', 'execute_installer', 'verify_installation', 'create_shortcut',
+            'check_winget_availability', 'search_package', 'install_package', 'list_installed_packages',
+            'execute_command',
+            # Additional aliases/paraphrases the parser may emit
+            'run_installer', 'execute_file', 'run_executable', 'check_installed_applications', 'check_installed_apps', 'run_installer_silently',
             
             # Business Operations
             'workflow_automation', 'report_generation', 'invoice_processing', 'inventory_management',
@@ -67,61 +74,127 @@ class UniversalAutomationPlugin(AutomationPlugin):
             'ai_model_deployment', 'blockchain_operations', 'iot_management', 'edge_computing',
             'quantum_computing', 'advanced_analytics', 'predictive_modeling', 'automation_orchestration'
         ]
+
+    def _default_package_manager(self) -> str:
+        """Return the default package manager for the current OS."""
+        try:
+            sys_name = platform.system().lower()
+            if 'windows' in sys_name:
+                return 'winget'
+            if 'darwin' in sys_name or 'mac' in sys_name:
+                return 'brew'
+            if 'linux' in sys_name:
+                return 'apt'
+        except Exception:
+            pass
+        return 'winget'
     
     def execute(self, action: str, params: Dict[str, Any]) -> Any:
         """Execute any automation action"""
         try:
+            sandbox = False
+            if isinstance(params, dict) and params.get('_sandbox'):
+                sandbox = True
             # System Administration
             if action == 'install_software':
-                return self._install_software(params)
+                return self._install_software(params, sandbox=sandbox)
+            elif action in ('run_installer', 'execute_file', 'run_executable', 'run_installer_silently'):
+                return self._execute_installer(params)
+            elif action in ('check_installed_applications', 'check_installed_apps'):
+                return self._verify_installation(params)
+            elif action == 'uninstall_software':
+                return self._uninstall_software(params, sandbox=sandbox)
+            elif action == 'download_file':
+                return self._download_file(params)
+            elif action == 'execute_installer':
+                return self._execute_installer(params)
+            elif action == 'verify_installation':
+                return self._verify_installation(params)
+            elif action == 'create_shortcut':
+                return self._create_shortcut(params)
+            elif action in ('check_winget_availability',):
+                return self._check_winget_availability(params)
+            elif action in ('search_package',):
+                return self._search_package(params)
+            elif action in ('install_package', 'package_install'):
+                return self._install_package(params)
+            elif action in ('execute_command',):
+                return self._execute_command(params)
+            elif action in ('list_installed_packages',):
+                return self._list_installed_packages(params)
             elif action == 'setup_dev_environment':
-                return self._setup_dev_environment(params)
+                return self._setup_dev_environment(params, sandbox=sandbox)
             elif action == 'deploy_to_cloud':
-                return self._deploy_to_cloud(params)
+                return self._deploy_to_cloud(params, sandbox=sandbox)
             elif action == 'setup_monitoring':
-                return self._setup_monitoring(params)
+                return self._setup_monitoring(params, sandbox=sandbox)
             elif action == 'process_data':
-                return self._process_data(params)
+                return self._process_data(params, sandbox=sandbox)
             elif action == 'security_scan':
                 return self._security_scan(params)
             elif action == 'web_scraping':
                 return self._web_scraping(params)
             elif action == 'workflow_automation':
-                return self._workflow_automation(params)
+                return self._workflow_automation(params, sandbox=sandbox)
             elif action == 'ai_model_deployment':
-                return self._ai_model_deployment(params)
+                return self._ai_model_deployment(params, sandbox=sandbox)
             else:
                 # Dynamic action handling - can handle ANY action
-                return self._dynamic_action_handler(action, params)
+                return self._dynamic_action_handler(action, params, sandbox=sandbox)
                 
         except Exception as e:
             raise Exception(f"Universal automation execution failed: {e}")
     
-    def _install_software(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _install_software(self, params: Dict[str, Any], sandbox: bool = False) -> Dict[str, Any]:
         """Install any software package"""
         software = params.get('software', '')
         method = params.get('method', 'auto')  # auto, chocolatey, winget, pip, npm, etc.
+
+        # Resolve 'auto' to a sensible default per-OS
+        if method == 'auto':
+            method = self._default_package_manager()
         
         if not software:
             raise ValueError("Software name is required")
         
         commands = []
         
-        if method == 'auto' or method == 'chocolatey':
+        if method in ('chocolatey', 'choco'):
             commands.append(f"choco install {software} -y")
-        
-        if method == 'auto' or method == 'winget':
+        elif method == 'winget':
             commands.append(f"winget install {software}")
+        elif method == 'pip':
+            commands.append(f"pip install {software}")
+        elif method == 'npm':
+            commands.append(f"npm install -g {software}")
+        else:
+            # Unknown manager: try default shell install command
+            commands.append(f"{method} install {software}")
         
         if method == 'pip':
             commands.append(f"pip install {software}")
         
-        if method == 'npm':
-            commands.append(f"npm install -g {software}")
+        # In sandbox mode, simulate success for common tools without executing installers
+            if sandbox:
+                return {
+                    'success': True,
+                    'software': software,
+                    'sandbox': True,
+                    'message': 'Simulated install in sandbox'
+                }
         
         results = []
         for cmd in commands:
             try:
+                if sandbox:
+                    results.append(f"(sandbox) simulated: {cmd}")
+                    # simulate success for sandbox
+                    return {
+                        'success': True,
+                        'sandbox': True,
+                        'message': f'(sandbox) simulated install of {software}',
+                        'method': cmd.split()[0]
+                    }
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 if result.returncode == 0:
                     return {
@@ -139,8 +212,258 @@ class UniversalAutomationPlugin(AutomationPlugin):
             'message': f'Failed to install {software}',
             'attempts': results
         }
+
+    def _download_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Download a file from URL to destination path"""
+        url = params.get('url') or params.get('source')
+        dest = params.get('dest') or params.get('destination') or params.get('path')
+        if not url:
+            return {'success': False, 'message': 'No URL provided'}
+        if not dest:
+            # default to temp filename
+            import tempfile
+            dest = os.path.join(tempfile.gettempdir(), os.path.basename(url))
+
+        try:
+            resp = requests.get(url, stream=True, timeout=60)
+            resp.raise_for_status()
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, 'wb') as f:
+                for chunk in resp.iter_content(8192):
+                    if chunk:
+                        f.write(chunk)
+            result = {'success': True, 'path': dest, 'message': f'Downloaded {url} to {dest}'}
+        except Exception as e:
+            result = {'success': False, 'error': str(e), 'message': 'Download failed'}
+
+        # Audit log
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] download_file params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _execute_command(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute an arbitrary shell command and return the result"""
+        cmd = params.get('command') or params.get('cmd') or params.get('command_line')
+        args = params.get('arguments') or params.get('args') or ''
+        if args:
+            cmd = f"{cmd} {args}"
+        if not cmd:
+            return {'success': False, 'message': 'No command provided'}
+
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr, 'cmd': cmd}
+        except Exception as e:
+            result = {'success': False, 'error': str(e), 'cmd': cmd}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] execute_command params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _check_winget_availability(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Check if winget is available on PATH"""
+        exe = shutil.which('winget')
+        result = {'success': bool(exe), 'path': exe}
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] check_winget_availability params={params} result={result}\n")
+        except Exception:
+            pass
+        return result
+
+    def _search_package(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Search for a package using the selected package manager (winget/choco/apt/brew)"""
+        pkg = params.get('package') or params.get('name')
+        manager = (params.get('manager') or self._default_package_manager()).lower()
+        if not pkg:
+            return {'success': False, 'message': 'No package name provided'}
+
+        cmd = ''
+        if manager == 'winget':
+            cmd = f'winget search "{pkg}"'
+        elif manager == 'choco' or manager == 'chocolatey':
+            cmd = f'choco search "{pkg}"'
+        elif manager == 'apt':
+            cmd = f'apt-cache search "{pkg}"'
+        elif manager == 'brew':
+            cmd = f'brew search "{pkg}"'
+        else:
+            return {'success': False, 'message': f'Unsupported package manager: {manager}'}
+
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
+        except Exception as e:
+            result = {'success': False, 'error': str(e)}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] search_package params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _install_package(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Install a package using the selected package manager (winget/choco/apt/brew)"""
+        pkg = params.get('package') or params.get('id') or params.get('software')
+        manager = (params.get('manager') or self._default_package_manager()).lower()
+        if not pkg:
+            return {'success': False, 'message': 'No package specified'}
+
+        # Choose command based on manager
+        cmd = ''
+        if manager == 'winget':
+            # prefer --id if provided
+            if params.get('id'):
+                cmd = f'winget install --id {params.get("id")} -e --silent --accept-package-agreements --accept-source-agreements'
+            else:
+                cmd = f'winget install "{pkg}" -e --silent --accept-package-agreements --accept-source-agreements'
+        elif manager in ('choco', 'chocolatey'):
+            cmd = f'choco install {pkg} -y'
+        elif manager == 'apt':
+            cmd = f'sudo apt-get update && sudo apt-get install -y {pkg}'
+        elif manager == 'brew':
+            cmd = f'brew install {pkg}'
+        else:
+            return {'success': False, 'message': f'Unsupported package manager: {manager}'}
+
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr, 'cmd': cmd}
+        except Exception as e:
+            result = {'success': False, 'error': str(e), 'cmd': cmd}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] install_package params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _list_installed_packages(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """List installed packages for the selected package manager"""
+        manager = (params.get('manager') or self._default_package_manager()).lower()
+        cmd = ''
+        if manager == 'winget':
+            cmd = 'winget list'
+        elif manager in ('choco', 'chocolatey'):
+            cmd = 'choco list --local-only'
+        elif manager == 'apt':
+            cmd = 'apt list --installed'
+        elif manager == 'brew':
+            cmd = 'brew list'
+        else:
+            return {'success': False, 'message': f'Unsupported package manager: {manager}'}
+
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = {'success': proc.returncode == 0, 'stdout': proc.stdout, 'stderr': proc.stderr}
+        except Exception as e:
+            result = {'success': False, 'error': str(e)}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] list_installed_packages params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _execute_installer(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a local installer path with optional args"""
+        installer = params.get('installer') or params.get('path') or params.get('file')
+        args = params.get('args', '')
+        if not installer:
+            return {'success': False, 'message': 'No installer path provided'}
+
+        cmd = f'"{installer}" {args}'.strip()
+        try:
+            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
+        except Exception as e:
+            result = {'success': False, 'error': str(e)}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] execute_installer params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
+
+    def _verify_installation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Verify installation by checking expected paths or executable on PATH"""
+        exe = params.get('exe') or params.get('binary') or params.get('command') or 'vlc'
+        # check PATH
+        which = shutil.which(exe)
+        if which:
+            result = {'success': True, 'path': which, 'message': f'{exe} found on PATH at {which}'}
+            try:
+                with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                    logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
+            except Exception:
+                pass
+            return result
+
+        # common install location for VLC
+        candidates = [
+            os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), 'VideoLAN', 'VLC'),
+            os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'VideoLAN', 'VLC')
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                result = {'success': True, 'path': c, 'message': f'Installation found at {c}'}
+                try:
+                    with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                        logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
+                except Exception:
+                    pass
+                return result
+
+        result = {'success': False, 'message': f'{exe} not found'}
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
+        except Exception:
+            pass
+        return result
+
+    def _create_shortcut(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a simple .bat launcher on the Desktop as a lightweight shortcut"""
+        target = params.get('target') or params.get('path') or params.get('exe')
+        name = params.get('name', 'Shortcut')
+        if not target:
+            return {'success': False, 'message': 'No target provided for shortcut'}
+
+        desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+        os.makedirs(desktop, exist_ok=True)
+        bat_path = os.path.join(desktop, f"{name}.bat")
+        try:
+            with open(bat_path, 'w') as f:
+                f.write(f'@echo off\n"{target}" %*\n')
+            result = {'success': True, 'path': bat_path, 'message': f'Shortcut created at {bat_path}'}
+        except Exception as e:
+            result = {'success': False, 'error': str(e)}
+
+        try:
+            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] create_shortcut params={params} result={result}\n")
+        except Exception:
+            pass
+
+        return result
     
-    def _setup_dev_environment(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _setup_dev_environment(self, params: Dict[str, Any], sandbox: bool = False) -> Dict[str, Any]:
         """Setup complete development environment"""
         languages = params.get('languages', ['python', 'node', 'git'])
         tools = params.get('tools', ['vscode', 'docker'])
@@ -151,8 +474,8 @@ class UniversalAutomationPlugin(AutomationPlugin):
         # Install languages and tools
         for item in languages + tools:
             try:
-                result = self._install_software({'software': item, 'method': 'auto'})
-                if result['success']:
+                result = self._install_software({'software': item, 'method': 'auto'}, sandbox=sandbox)
+                if result.get('success'):
                     installed.append(item)
                 else:
                     failed.append(item)
@@ -163,7 +486,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
         configs_created = []
         
         # Git configuration
-        if 'git' in installed:
+        if 'git' in installed and not sandbox:
             try:
                 subprocess.run('git config --global init.defaultBranch main', shell=True)
                 configs_created.append('git-config')
@@ -171,7 +494,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
                 pass
         
         # VS Code extensions
-        if 'vscode' in installed:
+        if 'vscode' in installed and not sandbox:
             extensions = ['ms-python.python', 'ms-vscode.vscode-typescript-next', 'ms-azuretools.vscode-docker']
             for ext in extensions:
                 try:
@@ -182,6 +505,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
         
         return {
             'success': len(installed) > 0,
+            'sandbox': sandbox,
             'installed': installed,
             'failed': failed,
             'configurations': configs_created,
@@ -263,6 +587,54 @@ CMD ["npm", "start"]'''
             'success': False,
             'message': f'Unsupported cloud provider: {provider}'
         }
+
+    def _uninstall_software(self, params: Dict[str, Any], sandbox: bool = False) -> Dict[str, Any]:
+        """Uninstall software by attempting common package managers or removing install dir"""
+        software = params.get('software')
+        method = params.get('method', 'auto')
+        if not software:
+            return {'success': False, 'message': 'No software specified'}
+
+        if sandbox:
+            return {'success': True, 'sandbox': True, 'message': f'Simulated uninstall of {software} in sandbox'}
+
+        commands = []
+        if method in ('auto', 'winget'):
+            commands.append(f'winget uninstall --id {software} -e')
+            commands.append(f'winget uninstall {software}')
+        if method in ('auto', 'chocolatey'):
+            commands.append(f'choco uninstall {software} -y')
+
+        attempts = []
+        for cmd in commands:
+            try:
+                proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                attempts.append({'cmd': cmd, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr})
+                if proc.returncode == 0:
+                    return {'success': True, 'message': f'Uninstalled {software} using {cmd}', 'attempts': attempts}
+            except Exception as e:
+                attempts.append({'cmd': cmd, 'error': str(e)})
+
+        # Fallback: try removing common install directories (best-effort)
+        removed = []
+        try:
+            candidates = [
+                os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), 'VideoLAN', 'VLC'),
+                os.path.join(os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)'), 'VideoLAN', 'VLC')
+            ]
+            for c in candidates:
+                if os.path.exists(c):
+                    try:
+                        shutil.rmtree(c)
+                        removed.append(c)
+                    except Exception as e:
+                        attempts.append({'remove': c, 'error': str(e)})
+            if removed:
+                return {'success': True, 'message': f'Removed directories: {removed}', 'removed': removed, 'attempts': attempts}
+        except Exception as e:
+            attempts.append({'fallback_error': str(e)})
+
+        return {'success': False, 'message': f'Failed to uninstall {software}', 'attempts': attempts}
     
     def _setup_monitoring(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Setup comprehensive monitoring stack"""

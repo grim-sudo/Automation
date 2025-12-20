@@ -243,7 +243,8 @@ class LinuxGUIAdapter(BaseGUIAdapter):
             raise ValueError(f"Unknown GUI action: {action}")
     
     def get_capabilities(self) -> List[str]:
-        return ['click', 'type', 'press_key', 'screenshot', 'wait']
+        # Include GUI controls and Linux-specific headless/browser helpers
+        return ['click', 'type', 'press_key', 'screenshot', 'wait', 'open_browser', 'launch_headless_browser', 'take_screenshot', 'close_browser', 'navigate_to_url']
     
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
         try:

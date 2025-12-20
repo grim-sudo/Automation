@@ -391,7 +391,8 @@ class WindowsGUIAdapter(BaseGUIAdapter):
             raise ValueError(f"Unknown GUI action: {action}")
     
     def get_capabilities(self) -> List[str]:
-        return ['click', 'type', 'press_key', 'screenshot', 'wait']
+        # Windows GUI capabilities (no headless browser on Windows)
+        return ['click', 'type', 'press_key', 'screenshot', 'wait', 'open_browser', 'navigate_to_url', 'take_screenshot', 'close_browser']
     
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
         """Click at coordinates or current position"""

@@ -87,6 +87,7 @@ Examples:
         type=str,
         help='Specify AI model to use'
     )
+    # Note: sandbox mode removed from CLI
     parser.add_argument(
         '--list-models',
         action='store_true',
@@ -145,6 +146,8 @@ Examples:
     
     # Create enhanced CLI
     cli = EnhancedCLI(mode)
+
+    # sandbox CLI option removed; sandbox handling is no-op
     
     # Switch AI model if specified
     if args.model:
