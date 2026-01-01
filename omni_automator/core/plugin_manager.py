@@ -131,9 +131,27 @@ class PluginManager:
         
         plugin = self.plugins[plugin_name]
         
-        if action not in plugin.get_capabilities():
+        # Allow prefix-capability matching: e.g., 'navigate_to_search_engine' matches 'navigate_to'
+        try:
+            caps = plugin.get_capabilities() or []
+        except Exception:
+            caps = []
+
+        supported = False
+        if action in caps:
+            supported = True
+        else:
+            for cap in caps:
+                try:
+                    if isinstance(cap, str) and action.startswith(cap):
+                        supported = True
+                        break
+                except Exception:
+                    continue
+
+        if not supported:
             raise ValueError(f"Action '{action}' not supported by plugin '{plugin_name}'")
-        
+
         return plugin.execute(action, params)
     
     def get_available_plugins(self) -> Dict[str, Dict[str, Any]]:
@@ -154,8 +172,24 @@ class PluginManager:
         matching_plugins = []
         
         for name, plugin in self.plugins.items():
-            if capability in plugin.get_capabilities():
+            try:
+                caps = plugin.get_capabilities() or []
+            except Exception:
+                caps = []
+
+            # Exact match
+            if capability in caps:
                 matching_plugins.append(name)
+                continue
+
+            # Prefix match: allow capabilities like 'navigate_to_search_engine' to match 'navigate_to'
+            for cap in caps:
+                try:
+                    if isinstance(cap, str) and capability.startswith(cap):
+                        matching_plugins.append(name)
+                        break
+                except Exception:
+                    continue
         
         return matching_plugins
     

@@ -33,3 +33,4 @@ seaborn>=0.12.0
 pywin32>=306; sys_platform == "win32"
 AppKit>=0.2.8; sys_platform == "darwin"
 python-xlib>=0.33; sys_platform == "linux"
+send2trash>=1.8.0

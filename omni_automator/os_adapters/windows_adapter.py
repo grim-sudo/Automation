@@ -290,8 +290,11 @@ class WindowsProcessAdapter(BaseProcessAdapter):
     
     def execute(self, action: str, params: Dict[str, Any]) -> Any:
         """Execute process action"""
-        if action == 'start':
-            return self.start_process(params.get('program'), params.get('args'))
+        if action == 'start' or action == 'launch_application':
+            # Accept both 'start' and 'launch_application' as aliases
+            # normalize parameter names: program or application or exe
+            prog = params.get('program') or params.get('application') or params.get('exe') or params.get('path')
+            return self.start_process(prog, params.get('args'))
         elif action == 'terminate':
             return self.terminate_process(params.get('program'))
         elif action == 'list':
@@ -300,7 +303,7 @@ class WindowsProcessAdapter(BaseProcessAdapter):
             raise ValueError(f"Unknown process action: {action}")
     
     def get_capabilities(self) -> List[str]:
-        return ['start', 'terminate', 'list']
+        return ['start', 'launch_application', 'terminate', 'list']
     
     def start_process(self, program: str, args: List[str] = None) -> int:
         """Start a new process"""
@@ -387,12 +390,16 @@ class WindowsGUIAdapter(BaseGUIAdapter):
         elif action == 'wait':
             time.sleep(float(params.get('duration', 1)))
             return True
+        elif action == 'wait_for_page_load':
+            # Best-effort: wait a short time for browser to load content
+            time.sleep(float(params.get('timeout', 2)))
+            return True
         else:
             raise ValueError(f"Unknown GUI action: {action}")
     
     def get_capabilities(self) -> List[str]:
         # Windows GUI capabilities (no headless browser on Windows)
-        return ['click', 'type', 'press_key', 'screenshot', 'wait', 'open_browser', 'navigate_to_url', 'take_screenshot', 'close_browser']
+        return ['click', 'type', 'press_key', 'screenshot', 'wait', 'wait_for_page_load', 'open_browser', 'navigate_to_url', 'take_screenshot', 'close_browser']
     
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
         """Click at coordinates or current position"""

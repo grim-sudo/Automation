@@ -754,23 +754,32 @@ scrape_configs:
         try:
             # Convert action to command
             command = action.replace('_', ' ')
-            
+
+            # Avoid executing ambiguous single-word commands like 'browser'
+            if len(command.split()) == 1:
+                return {
+                    'success': False,
+                    'message': f"Refusing to execute ambiguous command '{command}'.",
+                    'error': 'Ambiguous single-word action',
+                    'suggestion': "Use a specific action such as 'open_browser' or 'perform_search' or provide a full command string."
+                }
+
             # Add common parameters
             if 'name' in params:
                 command += f" {params['name']}"
             if 'location' in params:
                 command += f" in {params['location']}"
-            
+
             # Execute as system command
             result = subprocess.run(command, shell=True, capture_output=True, text=True)
-            
+
             return {
                 'success': result.returncode == 0,
                 'message': f'Executed: {command}',
                 'output': result.stdout,
                 'error': result.stderr if result.returncode != 0 else None
             }
-            
+
         except Exception as e:
             return {
                 'success': False,

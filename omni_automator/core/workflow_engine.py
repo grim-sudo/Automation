@@ -59,6 +59,16 @@ class WorkflowEngine:
         self.current_workflow = complex_command
         self.step_executions = [StepExecution(step) for step in complex_command.steps]
         self.workflow_context = complex_command.context.copy()
+
+        # Log detailed step info for debugging complex workflows
+        try:
+            for idx, s in enumerate(complex_command.steps, 1):
+                try:
+                    self.logger.debug(f"Workflow step {idx}: action={s.action}, category={s.category}, params={s.params}")
+                except Exception:
+                    self.logger.debug(f"Workflow step {idx}: action={s.action}, category={s.category}")
+        except Exception:
+            pass
         
         try:
             if complex_command.complexity == CommandComplexity.SIMPLE:
@@ -235,6 +245,10 @@ class WorkflowEngine:
                             params_with_ctx['workflow_context'] = getattr(self, 'workflow_context', {})
                             try:
                                 result = pm.execute(preferred, step.action, params_with_ctx)
+                                # Validate plugin result: if plugin returned a dict with success False, treat as failure
+                                if isinstance(result, dict) and result.get('success') is False:
+                                    raise Exception(f"Plugin {preferred} failed for {step.action}: {result.get('error') or result}")
+
                                 step_exec.end_time = time.time()
                                 step_exec.result = result
                                 step_exec.status = StepStatus.COMPLETED
@@ -270,6 +284,10 @@ class WorkflowEngine:
                         try:
                             self.logger.info(f"Dispatching GUI action '{step.action}' to web_automation plugin")
                             result = pm.execute('web_automation', step.action, plugin_params)
+                            # If plugin returned a failure dict, treat it as an exception so retries/abort happen
+                            if isinstance(result, dict) and result.get('success') is False:
+                                raise Exception(f"web_automation plugin failed for {step.action}: {result.get('error') or result}")
+
                             step_exec.end_time = time.time()
                             step_exec.result = result
                             step_exec.status = StepStatus.COMPLETED
@@ -342,6 +360,44 @@ class WorkflowEngine:
                         result = self._execute_create_bulk_folders(step)
                     elif step.action == 'create_nested_folders':
                         result = self._execute_create_nested_folders(step)
+                    elif step.action == 'resolve_path':
+                        # Resolve special path names (e.g., Desktop, Downloads) to actual paths
+                        try:
+                            resolved = self._resolve_paths(step.params or {})
+                            result = {'success': True, 'resolved': resolved, 'message': 'Resolved paths', 'resolved_params': resolved}
+                        except Exception as e:
+                            result = {'success': False, 'message': f'Failed to resolve path: {e}'}
+                    elif step.action == 'move_folder':
+                        # Prefer plugin handling for move_folder
+                        pm = getattr(self.automator, 'plugin_manager', None)
+                        if pm and 'folder_operations' in getattr(pm, 'plugins', {}):
+                            try:
+                                plugin_params = dict(step.params or {})
+                                plugin_params['workflow_context'] = getattr(self, 'workflow_context', {})
+                                pres = pm.execute('folder_operations', 'move_folder', plugin_params)
+                                if isinstance(pres, dict) and pres.get('success') is False:
+                                    result = {'success': False, 'message': pres.get('error')}
+                                else:
+                                    result = {'success': True, 'message': pres}
+                            except Exception as e:
+                                result = {'success': False, 'message': f'Plugin move_folder failed: {e}'}
+                        else:
+                            # Fallback: try moving via shutil if params provide paths
+                            try:
+                                src = step.params.get('path') or step.params.get('source') or step.params.get('folder')
+                                dest = step.params.get('destination') or step.params.get('dest') or step.params.get('to')
+                                import shutil
+                                if src and dest:
+                                    if not os.path.isabs(dest):
+                                        dest = os.path.abspath(dest)
+                                    os.makedirs(dest, exist_ok=True)
+                                    target = os.path.join(dest, os.path.basename(src))
+                                    shutil.move(src, target)
+                                    result = {'success': True, 'message': f'Moved {src} -> {target}'}
+                                else:
+                                    result = {'success': False, 'message': 'Insufficient parameters for move_folder'}
+                            except Exception as e:
+                                result = {'success': False, 'message': f'move_folder fallback failed: {e}'}
                     elif step.action == 'verify_file_creation':
                         # Handle verification - just check if file exists
                         path = step.params.get('path') or step.params.get('file')
@@ -367,59 +423,81 @@ class WorkflowEngine:
                             'message': f'Verified {len(verified)}/{len(paths)} files'
                         }
                     elif step.action == 'delete_folder':
-                        # Handle folder deletion (safe - moves to recycle bin)
+                        # Handle folder deletion: require explicit confirm; use recycle bin by default
                         path = step.params.get('path') or step.params.get('folder')
+                        # If parser didn't include explicit confirm, assume user intent to delete but not permanently.
+                        confirm = step.params.get('confirm') if 'confirm' in (step.params or {}) else True
                         permanent = step.params.get('permanent', False)
-                        if path:
-                            try:
-                                if os.path.exists(path):
+
+                        if not path:
+                            result = {'success': False, 'message': 'No path specified for deletion'}
+                        else:
+                            if not os.path.exists(path):
+                                result = {'success': False, 'message': f'Folder not found: {path}'}
+                            elif not confirm and not permanent:
+                                result = {'success': False, 'message': 'Deletion requires confirm=True (or set permanent=True to force)'}
+                            else:
+                                try:
                                     if permanent:
                                         import shutil
                                         shutil.rmtree(path)
-                                        result = {'success': True, 'message': f'Permanently deleted folder: {path}'}
+                                        result = {'success': True, 'message': f'Permanently deleted folder: {path}', 'permanent': True}
                                     else:
-                                        # Use Windows recycle bin (safe deletion)
-                                        import subprocess
                                         try:
-                                            subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{path}" -Recurse -Force'], check=True)
-                                            result = {'success': True, 'message': f'Deleted folder to recycle bin: {path}'}
-                                        except:
-                                            # Fallback to shutil
-                                            import shutil
-                                            shutil.rmtree(path)
-                                            result = {'success': True, 'message': f'Deleted folder: {path}'}
-                                else:
-                                    result = {'success': False, 'message': f'Folder not found: {path}'}
-                            except Exception as e:
-                                result = {'success': False, 'message': f'Failed to delete folder: {e}'}
-                        else:
-                            result = {'success': False, 'message': 'No path specified for deletion'}
+                                            from send2trash import send2trash
+                                            send2trash(path)
+                                            result = {'success': True, 'message': f'Moved folder to recycle bin: {path}', 'moved_to_trash': True}
+                                        except Exception:
+                                            # Fallback: attempt PowerShell move to recycle via Shell.Application COM (best-effort)
+                                            try:
+                                                import subprocess
+                                                # Best-effort: use PowerShell to move to Recycle Bin via .NET (requires PowerShell 5+)
+                                                ps_cmd = (
+                                                    "[Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null; "
+                                                    f"[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('{path.replace("'", "''")}', 'OnlyTopDirectory', '\\u0000')"
+                                                )
+                                                subprocess.run(['powershell', '-Command', ps_cmd], check=True)
+                                                result = {'success': True, 'message': f'Deleted folder (PowerShell fallback): {path}'}
+                                            except Exception:
+                                                import shutil
+                                                shutil.rmtree(path)
+                                                result = {'success': True, 'message': f'Deleted folder: {path} (fallback permanent)'}
+                                except Exception as e:
+                                    result = {'success': False, 'message': f'Failed to delete folder: {e}'}
                     elif step.action == 'delete_file':
-                        # Handle file deletion (safe - moves to recycle bin)
+                        # Handle file deletion: require confirm; use recycle bin by default
                         path = step.params.get('path') or step.params.get('file')
+                        # Default confirm to True when parser omitted it (safe, non-permanent deletion)
+                        confirm = step.params.get('confirm') if 'confirm' in (step.params or {}) else True
                         permanent = step.params.get('permanent', False)
-                        if path:
-                            try:
-                                if os.path.exists(path):
+
+                        if not path:
+                            result = {'success': False, 'message': 'No path specified for deletion'}
+                        else:
+                            if not os.path.exists(path):
+                                result = {'success': False, 'message': f'File not found: {path}'}
+                            elif not confirm and not permanent:
+                                result = {'success': False, 'message': 'Deletion requires confirm=True (or set permanent=True to force)'}
+                            else:
+                                try:
                                     if permanent:
                                         os.remove(path)
-                                        result = {'success': True, 'message': f'Permanently deleted file: {path}'}
+                                        result = {'success': True, 'message': f'Permanently deleted file: {path}', 'permanent': True}
                                     else:
-                                        # Use Windows recycle bin (safe deletion)
-                                        import subprocess
                                         try:
-                                            subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{path}" -Force'], check=True)
-                                            result = {'success': True, 'message': f'Deleted file to recycle bin: {path}'}
-                                        except:
-                                            # Fallback
-                                            os.remove(path)
-                                            result = {'success': True, 'message': f'Deleted file: {path}'}
-                                else:
-                                    result = {'success': False, 'message': f'File not found: {path}'}
-                            except Exception as e:
-                                result = {'success': False, 'message': f'Failed to delete file: {e}'}
-                        else:
-                            result = {'success': False, 'message': 'No path specified for deletion'}
+                                            from send2trash import send2trash
+                                            send2trash(path)
+                                            result = {'success': True, 'message': f'Moved file to recycle bin: {path}', 'moved_to_trash': True}
+                                        except Exception:
+                                            try:
+                                                import subprocess
+                                                subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{path}" -Force'], check=True)
+                                                result = {'success': True, 'message': f'Deleted file to recycle bin (PS fallback): {path}'}
+                                            except Exception:
+                                                os.remove(path)
+                                                result = {'success': True, 'message': f'Deleted file: {path} (fallback permanent)'}
+                                except Exception as e:
+                                    result = {'success': False, 'message': f'Failed to delete file: {e}'}
                     elif step.action == 'copy_file':
                         # Handle file copy
                         source = step.params.get('source') or step.params.get('file')
@@ -619,7 +697,11 @@ class WorkflowEngine:
 
         for plugin_name in candidates:
             try:
-                return pm.execute(plugin_name, cap, plugin_params)
+                result = pm.execute(plugin_name, cap, plugin_params)
+                if isinstance(result, dict) and result.get('success') is False:
+                    # plugin attempted action but reported failure
+                    raise Exception(f"Plugin {plugin_name} failed for {cap}: {result.get('error') or result}")
+                return result
             except Exception as e:
                 try:
                     self.logger.warning(f"Plugin {plugin_name} failed for {cap}: {e}")
@@ -630,7 +712,7 @@ class WorkflowEngine:
     
     def _execute_create_folder(self, step: ParsedStep) -> Dict[str, Any]:
         """Execute create_folder step"""
-        import os
+        # use module-level os
         
         name = step.params.get('name', '')
         location = step.params.get('location', '.')
@@ -663,7 +745,7 @@ class WorkflowEngine:
     
     def _execute_create_file(self, step: ParsedStep) -> Dict[str, Any]:
         """Execute create_file step"""
-        import os
+        # use module-level os
         
         name = step.params.get('name', '')
         content = step.params.get('content', '')
@@ -1190,7 +1272,7 @@ int main() {
     
     def _execute_create_bulk_folders(self, step: ParsedStep) -> Dict[str, Any]:
         """Execute create_bulk_folders step - creates multiple folders with naming pattern"""
-        import os
+        # use module-level os
         
         base_name = step.params.get('base_name', '')
         start = step.params.get('start', 1)
@@ -1219,7 +1301,7 @@ int main() {
     
     def _execute_create_nested_folders(self, step: ParsedStep) -> Dict[str, Any]:
         """Execute create_nested_folders step - creates parent folder with nested subfolders"""
-        import os
+        # use module-level os
         
         parent_name = step.params.get('parent_name', '')
         subfolders = step.params.get('subfolders', [])
