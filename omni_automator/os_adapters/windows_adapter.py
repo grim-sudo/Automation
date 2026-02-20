@@ -8,10 +8,15 @@ import shutil
 import subprocess
 import time
 import psutil
-import pyautogui
 import requests
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+
+# Make pyautogui optional (only needed on Windows)
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
 
 from .base_adapter import (
     BaseOSAdapter, BaseFilesystemAdapter, BaseProcessAdapter,

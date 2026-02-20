@@ -85,7 +85,8 @@ class PluginManager:
     def _load_plugin_from_module(self, module_name: str):
         """Load a plugin from a Python module"""
         try:
-            module = importlib.import_module(module_name)
+            # Use fully-qualified package path so relative imports inside plugins work
+            module = importlib.import_module(f'omni_automator.plugins.{module_name}')
             
             # Find plugin classes in the module
             for name, obj in inspect.getmembers(module):

@@ -59,12 +59,22 @@ class UniversalAutomationPlugin(AutomationPlugin):
             # Content & Media
             'process_images', 'convert_videos', 'generate_documents', 'web_scraping',
             'content_management', 'seo_optimization', 'social_media_automation', 'email_campaigns',
+            
+            # Document Creation & Management
+            'create_word_document', 'create_word_doc', 'generate_word', 'write_word_document',
+            'create_powerpoint', 'create_ppt', 'generate_ppt', 'create_presentation',
+            'create_excel', 'create_spreadsheet', 'generate_excel', 'write_excel',
+            'create_pdf', 'generate_pdf',
+            'create_folder', 'make_directory', 'ensure_folder',
+            'save_to_document', 'write_to_file', 'append_to_document',
+            
             # Convenience actions often emitted by NLP workflows
             'download_file', 'execute_installer', 'verify_installation', 'create_shortcut',
             'check_winget_availability', 'search_package', 'install_package', 'list_installed_packages',
             'execute_command',
             # Additional aliases/paraphrases the parser may emit
-            'run_installer', 'execute_file', 'run_executable', 'check_installed_applications', 'check_installed_apps', 'run_installer_silently',
+            'run_installer', 'execute_file', 'run_executable', 'check_installed_applications', 
+            'check_installed_apps', 'run_installer_silently',
             
             # Business Operations
             'workflow_automation', 'report_generation', 'invoice_processing', 'inventory_management',
@@ -84,6 +94,21 @@ class UniversalAutomationPlugin(AutomationPlugin):
             if 'darwin' in sys_name or 'mac' in sys_name:
                 return 'brew'
             if 'linux' in sys_name:
+                # Detect Arch Linux
+                if os.path.exists('/usr/bin/pacman'):
+                    # Prefer AUR helpers
+                    if shutil.which('yay'):
+                        return 'yay'
+                    elif shutil.which('paru'):
+                        return 'paru'
+                    return 'pacman'
+                # Debian/Ubuntu
+                elif os.path.exists('/usr/bin/apt'):
+                    return 'apt'
+                # RedHat/Fedora
+                elif os.path.exists('/usr/bin/dnf'):
+                    return 'dnf'
+                # Fallback
                 return 'apt'
         except Exception:
             pass
@@ -138,6 +163,20 @@ class UniversalAutomationPlugin(AutomationPlugin):
                 return self._workflow_automation(params, sandbox=sandbox)
             elif action == 'ai_model_deployment':
                 return self._ai_model_deployment(params, sandbox=sandbox)
+            
+            # Document creation actions
+            elif action in ('create_word_document', 'create_word_doc', 'generate_word', 'write_word_document'):
+                return self._create_word_document(params)
+            elif action in ('create_powerpoint', 'create_ppt', 'generate_ppt', 'create_presentation'):
+                return self._create_powerpoint(params)
+            elif action in ('create_excel', 'create_spreadsheet', 'generate_excel', 'write_excel'):
+                return self._create_excel(params)
+            elif action in ('create_pdf', 'generate_pdf'):
+                return self._create_pdf(params)
+            elif action in ('create_folder', 'make_directory', 'ensure_folder'):
+                return self._create_folder(params)
+            elif action in ('save_to_document', 'write_to_file', 'append_to_document'):
+                return self._save_to_document(params)
             else:
                 # Dynamic action handling - can handle ANY action
                 return self._dynamic_action_handler(action, params, sandbox=sandbox)
@@ -238,7 +277,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
 
         # Audit log
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] download_file params={params} result={result}\n")
         except Exception:
             pass
@@ -261,7 +300,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e), 'cmd': cmd}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] execute_command params={params} result={result}\n")
         except Exception:
             pass
@@ -273,14 +312,14 @@ class UniversalAutomationPlugin(AutomationPlugin):
         exe = shutil.which('winget')
         result = {'success': bool(exe), 'path': exe}
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] check_winget_availability params={params} result={result}\n")
         except Exception:
             pass
         return result
 
     def _search_package(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Search for a package using the selected package manager (winget/choco/apt/brew)"""
+        """Search for a package using the selected package manager (winget/choco/apt/brew/pacman/yay)"""
         pkg = params.get('package') or params.get('name')
         manager = (params.get('manager') or self._default_package_manager()).lower()
         if not pkg:
@@ -295,6 +334,10 @@ class UniversalAutomationPlugin(AutomationPlugin):
             cmd = f'apt-cache search "{pkg}"'
         elif manager == 'brew':
             cmd = f'brew search "{pkg}"'
+        elif manager in ('pacman', 'yay', 'paru'):
+            cmd = f'{manager} -Ss "{pkg}"'
+        elif manager == 'dnf':
+            cmd = f'dnf search "{pkg}"'
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
@@ -305,7 +348,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e)}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] search_package params={params} result={result}\n")
         except Exception:
             pass
@@ -313,7 +356,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
         return result
 
     def _install_package(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Install a package using the selected package manager (winget/choco/apt/brew)"""
+        """Install a package using the selected package manager (winget/choco/apt/brew/pacman/yay)"""
         pkg = params.get('package') or params.get('id') or params.get('software')
         manager = (params.get('manager') or self._default_package_manager()).lower()
         if not pkg:
@@ -333,6 +376,13 @@ class UniversalAutomationPlugin(AutomationPlugin):
             cmd = f'sudo apt-get update && sudo apt-get install -y {pkg}'
         elif manager == 'brew':
             cmd = f'brew install {pkg}'
+        elif manager == 'pacman':
+            cmd = f'sudo pacman -S --noconfirm {pkg}'
+        elif manager in ('yay', 'paru'):
+            # AUR helpers don't need sudo
+            cmd = f'{manager} -S --noconfirm {pkg}'
+        elif manager == 'dnf':
+            cmd = f'sudo dnf install -y {pkg}'
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
@@ -343,7 +393,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e), 'cmd': cmd}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] install_package params={params} result={result}\n")
         except Exception:
             pass
@@ -362,6 +412,10 @@ class UniversalAutomationPlugin(AutomationPlugin):
             cmd = 'apt list --installed'
         elif manager == 'brew':
             cmd = 'brew list'
+        elif manager in ('pacman', 'yay', 'paru'):
+            cmd = f'{manager} -Q'
+        elif manager == 'dnf':
+            cmd = 'dnf list installed'
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
@@ -372,7 +426,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e)}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] list_installed_packages params={params} result={result}\n")
         except Exception:
             pass
@@ -394,7 +448,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e)}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] execute_installer params={params} result={result}\n")
         except Exception:
             pass
@@ -409,7 +463,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
         if which:
             result = {'success': True, 'path': which, 'message': f'{exe} found on PATH at {which}'}
             try:
-                with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                     logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
             except Exception:
                 pass
@@ -424,7 +478,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             if os.path.exists(c):
                 result = {'success': True, 'path': c, 'message': f'Installation found at {c}'}
                 try:
-                    with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+                    with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                         logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
                 except Exception:
                     pass
@@ -432,7 +486,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
 
         result = {'success': False, 'message': f'{exe} not found'}
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] verify_installation params={params} result={result}\n")
         except Exception:
             pass
@@ -456,7 +510,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             result = {'success': False, 'error': str(e)}
 
         try:
-            with open(os.path.join(os.path.expanduser('~'), 'Desktop', 'omni_action_log.txt'), 'a', encoding='utf-8') as logf:
+            with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
                 logf.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] create_shortcut params={params} result={result}\n")
         except Exception:
             pass
@@ -893,3 +947,482 @@ main {
             'location': location,
             'type': site_type
         }
+
+    def _create_word_document(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Word document with content"""
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except ImportError:
+            return {'success': False, 'error': 'python-docx not installed. Run: pip install python-docx'}
+        
+        try:
+            # Get parameters
+            filename = params.get('filename') or params.get('file') or params.get('path') or 'document.docx'
+            title = params.get('title', '')
+            content = params.get('content') or params.get('text') or params.get('data', '')
+            headings = params.get('headings', [])
+            folder = params.get('folder') or params.get('directory')
+            
+            # Resolve folder path
+            if folder:
+                folder = self._resolve_path(folder)
+                os.makedirs(folder, exist_ok=True)
+                filepath = os.path.join(folder, filename if not filename.startswith('/') else os.path.basename(filename))
+            else:
+                filepath = self._resolve_path(filename)
+            
+            # Ensure .docx extension
+            if not filepath.endswith('.docx'):
+                filepath += '.docx'
+            
+            # Create directory if needed
+            os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+            
+            # Create document
+            doc = Document()
+            
+            # Add title
+            if title:
+                title_para = doc.add_heading(title, 0)
+                title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Add content based on type
+            if isinstance(content, str):
+                # Split by paragraphs
+                paragraphs = content.split('\n\n') if '\n\n' in content else content.split('\n')
+                for para in paragraphs:
+                    if para.strip():
+                        # Check if it looks like a heading
+                        if para.strip().isupper() and len(para.strip()) < 100:
+                            doc.add_heading(para.strip(), level=2)
+                        else:
+                            doc.add_paragraph(para.strip())
+            
+            elif isinstance(content, dict):
+                # Structured content
+                for key, value in content.items():
+                    doc.add_heading(str(key), level=2)
+                    if isinstance(value, list):
+                        for item in value:
+                            doc.add_paragraph(str(item), style='List Bullet')
+                    else:
+                        doc.add_paragraph(str(value))
+            
+            elif isinstance(content, list):
+                # List of items
+                for item in content:
+                    if isinstance(item, dict):
+                        for k, v in item.items():
+                            doc.add_heading(str(k), level=2)
+                            doc.add_paragraph(str(v))
+                    else:
+                        doc.add_paragraph(str(item))
+            
+            # Add additional headings with content
+            if headings:
+                for heading in headings:
+                    if isinstance(heading, dict):
+                        h_title = heading.get('title', '')
+                        h_content = heading.get('content', '')
+                        h_level = heading.get('level', 2)
+                        doc.add_heading(h_title, level=h_level)
+                        if h_content:
+                            doc.add_paragraph(h_content)
+            
+            # Save document
+            doc.save(filepath)
+            
+            return {
+                'success': True,
+                'message': f'Word document created successfully',
+                'filepath': filepath,
+                'filename': os.path.basename(filepath)
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Word document creation failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _create_powerpoint(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a PowerPoint presentation"""
+        try:
+            from pptx import Presentation
+            from pptx.util import Inches, Pt
+        except ImportError:
+            return {'success': False, 'error': 'python-pptx not installed. Run: pip install python-pptx'}
+        
+        try:
+            # Get parameters
+            filename = params.get('filename') or params.get('file') or params.get('path') or 'presentation.pptx'
+            title = params.get('title', 'Presentation')
+            slides_data = params.get('slides') or params.get('content', [])
+            folder = params.get('folder') or params.get('directory')
+            
+            # Resolve folder path
+            if folder:
+                folder = self._resolve_path(folder)
+                os.makedirs(folder, exist_ok=True)
+                filepath = os.path.join(folder, filename if not filename.startswith('/') else os.path.basename(filename))
+            else:
+                filepath = self._resolve_path(filename)
+            
+            # Ensure .pptx extension
+            if not filepath.endswith('.pptx'):
+                filepath += '.pptx'
+            
+            # Create directory if needed
+            os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+            
+            # Create presentation
+            prs = Presentation()
+            
+            # Title slide
+            title_slide_layout = prs.slide_layouts[0]
+            slide = prs.slides.add_slide(title_slide_layout)
+            slide.shapes.title.text = title
+            if params.get('subtitle'):
+                slide.placeholders[1].text = params.get('subtitle')
+            
+            # Add content slides
+            if isinstance(slides_data, str):
+                # Convert string to slides (split by double newline or headers)
+                sections = slides_data.split('\n\n')
+                for section in sections:
+                    if section.strip():
+                        bullet_slide_layout = prs.slide_layouts[1]
+                        slide = prs.slides.add_slide(bullet_slide_layout)
+                        lines = section.split('\n')
+                        slide.shapes.title.text = lines[0][:100] if lines else 'Content'
+                        if len(lines) > 1:
+                            text_frame = slide.placeholders[1].text_frame
+                            for line in lines[1:]:
+                                if line.strip():
+                                    p = text_frame.add_paragraph()
+                                    p.text = line.strip()
+                                    p.level = 0
+            
+            elif isinstance(slides_data, list):
+                for slide_content in slides_data:
+                    bullet_slide_layout = prs.slide_layouts[1]
+                    slide = prs.slides.add_slide(bullet_slide_layout)
+                    
+                    if isinstance(slide_content, dict):
+                        slide.shapes.title.text = slide_content.get('title', 'Slide')
+                        content = slide_content.get('content', [])
+                        
+                        if isinstance(content, list):
+                            text_frame = slide.placeholders[1].text_frame
+                            text_frame.clear()
+                            for item in content:
+                                p = text_frame.add_paragraph()
+                                p.text = str(item)
+                                p.level = 0
+                        elif isinstance(content, str):
+                            slide.placeholders[1].text = content
+                    else:
+                        slide.shapes.title.text = str(slide_content)[:100]
+            
+            # Save presentation
+            prs.save(filepath)
+            
+            return {
+                'success': True,
+                'message': f'PowerPoint presentation created successfully',
+                'filepath': filepath,
+                'filename': os.path.basename(filepath),
+                'slides_count': len(prs.slides)
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('PowerPoint creation failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _create_excel(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create an Excel spreadsheet"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            return {'success': False, 'error': 'openpyxl not installed. Run: pip install openpyxl'}
+        
+        try:
+            # Get parameters
+            filename = params.get('filename') or params.get('file') or params.get('path') or 'spreadsheet.xlsx'
+            data = params.get('data') or params.get('content', [])
+            headers = params.get('headers', [])
+            sheet_name = params.get('sheet_name', 'Sheet1')
+            folder = params.get('folder') or params.get('directory')
+            
+            # Resolve folder path
+            if folder:
+                folder = self._resolve_path(folder)
+                os.makedirs(folder, exist_ok=True)
+                filepath = os.path.join(folder, filename if not filename.startswith('/') else os.path.basename(filename))
+            else:
+                filepath = self._resolve_path(filename)
+            
+            # Ensure .xlsx extension
+            if not filepath.endswith('.xlsx'):
+                filepath += '.xlsx'
+            
+            # Create directory if needed
+            os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+            
+            # Create workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = sheet_name
+            
+            # Add headers if provided
+            if headers:
+                for col, header in enumerate(headers, start=1):
+                    cell = ws.cell(row=1, column=col, value=header)
+                    cell.font = Font(bold=True)
+                    cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+                    cell.alignment = Alignment(horizontal='center')
+            
+            # Add data
+            start_row = 2 if headers else 1
+            
+            if isinstance(data, list):
+                for row_idx, row_data in enumerate(data, start=start_row):
+                    if isinstance(row_data, list):
+                        for col_idx, value in enumerate(row_data, start=1):
+                            ws.cell(row=row_idx, column=col_idx, value=value)
+                    elif isinstance(row_data, dict):
+                        for col_idx, key in enumerate(headers if headers else row_data.keys(), start=1):
+                            ws.cell(row=row_idx, column=col_idx, value=row_data.get(key, ''))
+                    else:
+                        ws.cell(row=row_idx, column=1, value=str(row_data))
+            
+            elif isinstance(data, dict):
+                # Convert dict to rows
+                for row_idx, (key, value) in enumerate(data.items(), start=start_row):
+                    ws.cell(row=row_idx, column=1, value=key)
+                    if isinstance(value, list):
+                        for col_idx, item in enumerate(value, start=2):
+                            ws.cell(row=row_idx, column=col_idx, value=item)
+                    else:
+                        ws.cell(row=row_idx, column=2, value=value)
+            
+            # Auto-adjust column widths
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
+            
+            # Save workbook
+            wb.save(filepath)
+            
+            return {
+                'success': True,
+                'message': f'Excel spreadsheet created successfully',
+                'filepath': filepath,
+                'filename': os.path.basename(filepath),
+                'rows': len(data) if isinstance(data, list) else len(data.keys()) if isinstance(data, dict) else 0
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Excel creation failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _create_pdf(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a PDF document"""
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        except ImportError:
+            return {'success': False, 'error': 'reportlab not installed. Run: pip install reportlab'}
+        
+        try:
+            # Get parameters
+            filename = params.get('filename') or params.get('file') or params.get('path') or 'document.pdf'
+            title = params.get('title', '')
+            content = params.get('content') or params.get('text') or params.get('data', '')
+            folder = params.get('folder') or params.get('directory')
+            
+            # Resolve folder path
+            if folder:
+                folder = self._resolve_path(folder)
+                os.makedirs(folder, exist_ok=True)
+                filepath = os.path.join(folder, filename if not filename.startswith('/') else os.path.basename(filename))
+            else:
+                filepath = self._resolve_path(filename)
+            
+            # Ensure .pdf extension
+            if not filepath.endswith('.pdf'):
+                filepath += '.pdf'
+            
+            # Create directory if needed
+            os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+            
+            # Create PDF
+            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            if title:
+                title_style = ParagraphStyle(
+                    'CustomTitle',
+                    parent=styles['Heading1'],
+                    fontSize=24,
+                    textColor='#1f4788',
+                    spaceAfter=30,
+                    alignment=TA_CENTER
+                )
+                story.append(Paragraph(title, title_style))
+                story.append(Spacer(1, 0.2*inch))
+            
+            # Content
+            if isinstance(content, str):
+                paragraphs = content.split('\n\n') if '\n\n' in content else content.split('\n')
+                for para in paragraphs:
+                    if para.strip():
+                        story.append(Paragraph(para.strip(), styles['BodyText']))
+                        story.append(Spacer(1, 0.1*inch))
+            
+            elif isinstance(content, list):
+                for item in content:
+                    story.append(Paragraph(str(item), styles['BodyText']))
+                    story.append(Spacer(1, 0.1*inch))
+            
+            # Build PDF
+            doc.build(story)
+            
+            return {
+                'success': True,
+                'message': f'PDF document created successfully',
+                'filepath': filepath,
+                'filename': os.path.basename(filepath)
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('PDF creation failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _create_folder(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a folder/directory"""
+        try:
+            folder_path = params.get('path') or params.get('folder') or params.get('directory') or params.get('name')
+            
+            if not folder_path:
+                return {'success': False, 'error': 'No folder path provided'}
+            
+            # Resolve path
+            folder_path = self._resolve_path(folder_path)
+            
+            # Create folder
+            os.makedirs(folder_path, exist_ok=True)
+            
+            return {
+                'success': True,
+                'message': f'Folder created successfully',
+                'path': folder_path
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _save_to_document(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Save content to a document (auto-detect format or append)"""
+        try:
+            filepath = params.get('file') or params.get('path') or params.get('filename')
+            content = params.get('content') or params.get('text') or params.get('data', '')
+            append = params.get('append', False)
+            
+            if not filepath:
+                return {'success': False, 'error': 'No filepath provided'}
+            
+            filepath = self._resolve_path(filepath)
+            
+            # Detect format and delegate
+            if filepath.endswith('.docx'):
+                # For Word, we need to handle append differently
+                if append and os.path.exists(filepath):
+                    # Read existing and append
+                    try:
+                        from docx import Document
+                        doc = Document(filepath)
+                        if isinstance(content, str):
+                            for para in content.split('\n'):
+                                if para.strip():
+                                    doc.add_paragraph(para.strip())
+                        doc.save(filepath)
+                        return {'success': True, 'filepath': filepath, 'mode': 'append'}
+                    except:
+                        pass
+                return self._create_word_document({**params, 'filename': filepath, 'content': content})
+            
+            elif filepath.endswith('.pptx'):
+                return self._create_powerpoint({**params, 'filename': filepath})
+            
+            elif filepath.endswith('.xlsx'):
+                return self._create_excel({**params, 'filename': filepath})
+            
+            elif filepath.endswith('.pdf'):
+                return self._create_pdf({**params, 'filename': filepath})
+            
+            else:
+                # Plain text file
+                os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+                mode = 'a' if append else 'w'
+                with open(filepath, mode, encoding='utf-8') as f:
+                    f.write(str(content))
+                    if not str(content).endswith('\n'):
+                        f.write('\n')
+                
+                return {
+                    'success': True,
+                    'filepath': filepath,
+                    'mode': 'append' if append else 'write'
+                }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _resolve_path(self, path: str) -> str:
+        """Resolve path with Desktop and other special folders"""
+        if not path:
+            return path
+        
+        # Expand user home
+        path = os.path.expanduser(path)
+        
+        # Normalize separators
+        path = path.replace('\\', '/')
+        
+        # Handle Desktop references
+        parts = path.split('/')
+        lower_parts = [p.lower() for p in parts]
+        
+        if 'desktop' in lower_parts:
+            idx = lower_parts.index('desktop')
+            tail = parts[idx+1:] if idx+1 < len(parts) else []
+            home = os.path.expanduser('~')
+            if tail:
+                path = os.path.join(home, 'Desktop', *tail)
+            else:
+                path = os.path.join(home, 'Desktop')
+        
+        # If not absolute, make it absolute
+        if not os.path.isabs(path):
+            path = os.path.abspath(path)
+        
+        return path

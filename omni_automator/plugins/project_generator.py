@@ -83,7 +83,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
     def _create_c_project(self, project_name: str, location: str = None) -> Dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
-            project_path = (os.path.join(location, project_name) if location else os.path.join(os.path.expanduser('~'), 'Desktop', project_name))
+            project_path = (os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name))
             os.makedirs(project_path, exist_ok=True)
             src_dir = os.path.join(project_path, 'src')
             include_dir = os.path.join(project_path, 'include')
@@ -114,7 +114,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
             if not filename.endswith('.c'):
                 filename = filename + '.c'
             filename = self._sanitize_name(filename)
-            file_path = os.path.join(location, filename) if location else os.path.join(os.path.expanduser('~'), 'Desktop', filename)
+            file_path = os.path.join(location, filename) if location else os.path.join(os.getcwd(), filename)
             if program_type == 'addition':
                 content = """#include <stdio.h>\n\nint main() {\n    int a = 2;\n    int b = 3;\n    printf("Sum: %d\\n", a + b);\n    return 0;\n}\n"""
             else:
@@ -397,7 +397,7 @@ if __name__ == '__main__':
                 raise ValueError(f'Unsupported language: {language}')
 
             filename = name + ext
-            file_path = os.path.join(location, filename) if location else os.path.join(os.path.expanduser('~'), 'Desktop', filename)
+            file_path = os.path.join(location, filename) if location else os.path.join(os.getcwd(), filename)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return {'file_path': file_path, 'message': f'{language} hello world program "{filename}" created successfully'}
@@ -407,7 +407,7 @@ if __name__ == '__main__':
     def _create_python_project(self, project_name: str, location: str = None) -> Dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
-            project_path = os.path.join(location, project_name) if location else os.path.join(os.path.expanduser('~'), 'Desktop', project_name)
+            project_path = os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name)
             os.makedirs(project_path, exist_ok=True)
 
             main = '#!/usr/bin/env python3\\n\\ndef main():\\n    print("Hello from Python project!")\\n\\nif __name__ == "__main__":\\n    main()\\n'
@@ -440,7 +440,7 @@ if __name__ == '__main__':
             sandbox = params.get('_sandbox', False)
             env_name = params.get('env_name', 'venv')
             if not project_path:
-                project_path = params.get('location') or os.path.join(os.path.expanduser('~'), 'Desktop')
+                project_path = params.get('location') or os.getcwd()
             project_path = os.path.abspath(project_path)
             env_path = os.path.join(project_path, env_name)
 

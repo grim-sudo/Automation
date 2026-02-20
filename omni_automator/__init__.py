@@ -3,7 +3,7 @@ OmniAutomator - Universal OS Automation Framework
 """
 
 from .core.engine import OmniAutomator
-from .core.advanced_parser import AdvancedCommandParser as CommandParser
+from .parsers.command_parser import AdvancedCommandParser as CommandParser
 from .security.permission_manager import PermissionManager
 
 __version__ = "1.0.0"

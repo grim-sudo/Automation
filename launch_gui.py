@@ -49,7 +49,7 @@ def launch_gui():
             print("Tip: Set OPENROUTER_API_KEY environment variable for AI features")
         
         # Import and run GUI
-        from omni_automator.ui.gui_app import ModernOmniAutomatorGUI
+        from omni_automator.ui.gui import ModernOmniAutomatorGUI
         
         app = ModernOmniAutomatorGUI()
         app.run()

@@ -19,9 +19,9 @@ if sys.platform == 'win32':
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from omni_automator.ui.enhanced_cli import EnhancedCLI, InteractionMode
-from omni_automator.core.ai_model_manager import get_ai_manager, AIModelConfig
-from omni_automator.core.ai_task_executor import get_ai_task_executor
+from omni_automator.ui.cli import EnhancedCLI, InteractionMode
+from omni_automator.ai.model_manager import get_ai_manager, AIModelConfig
+from omni_automator.ai.task_executor import get_ai_task_executor
 
 
 def setup_default_ai_models():

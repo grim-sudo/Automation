@@ -10,9 +10,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from .plugin_manager import PluginManager
-from .advanced_parser import AdvancedCommandParser, CommandComplexity
-from .workflow_engine import WorkflowEngine
-from .ai_enhanced_parser import AIEnhancedParser
+from ..parsers.command_parser import AdvancedCommandParser, CommandComplexity
+from ..workflow.engine import WorkflowEngine
+from ..parsers.ai_parser import AIEnhancedParser
 from ..os_adapters.adapter_factory import OSAdapterFactory
 from ..security.permission_manager import PermissionManager
 from ..utils.logger import setup_logger
@@ -475,6 +475,23 @@ class OmniAutomator:
             self.logger.error("Failed to enable OpenRouter AI")
         return success
     
+    def switch_ai_model(self, model_name: str) -> bool:
+        """Switch the active AI model by name."""
+        try:
+            ai_manager = getattr(self, 'ai_manager', None)
+            if ai_manager is None:
+                from ..ai.model_manager import get_ai_manager
+                ai_manager = get_ai_manager()
+                self.ai_manager = ai_manager
+            if ai_manager.switch_model(model_name):
+                self.logger.info(f"Switched AI model to: {model_name}")
+                return True
+            self.logger.warning(f"AI model not found: {model_name}")
+            return False
+        except Exception as e:
+            self.logger.error(f"switch_ai_model failed: {e}")
+            return False
+
     def enable_sandbox_mode(self):
         """Sandbox mode support removed - no-op"""
         self.logger.warning("Sandbox mode support has been removed; enable_sandbox_mode() is a no-op")
@@ -694,9 +711,8 @@ class OmniAutomator:
             if not os.path.isabs(file_path):
                 resolved_path = self._resolve_file_with_disambiguation(file_path)
                 if not resolved_path:
-                    # If not found, use Desktop as default location
-                    desktop_path = os.path.expanduser('~/Desktop')
-                    file_path = os.path.join(desktop_path, file_path)
+                    # If not found, default to CWD
+                    file_path = os.path.join(os.getcwd(), file_path)
                 else:
                     file_path = resolved_path
             elif not os.path.exists(file_path):

@@ -10,7 +10,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from omni_automator.ui.chatbot_mode import get_chatbot
+from omni_automator.ui.chatbot import get_chatbot
 
 
 def main():

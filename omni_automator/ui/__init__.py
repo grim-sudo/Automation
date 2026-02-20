@@ -2,6 +2,8 @@
 User interfaces for OmniAutomator
 """
 
-from .enhanced_cli import EnhancedCLI
+from .cli import EnhancedCLI
+from .chatbot import ChatbotMode, get_chatbot
+from .gui import ModernOmniAutomatorGUI
 
-__all__ = ["EnhancedCLI"]
+__all__ = ["EnhancedCLI", "ChatbotMode", "get_chatbot", "ModernOmniAutomatorGUI"]

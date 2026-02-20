@@ -5,9 +5,23 @@ Web automation plugin using Selenium
 from typing import Dict, Any, List
 import sys
 import os
+import re
+import time as time_module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omni_automator.core.plugin_manager import AutomationPlugin
+
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 try:
     from selenium import webdriver
@@ -72,11 +86,14 @@ class WebAutomationPlugin(AutomationPlugin):
             'take_screenshot', 'screenshot', 'save_screenshot',
             'close_browser', 'close', 'quit_browser',
             'find_element', 'find',
-            'wait_for_element', 'wait'
-            , 'perform_search'
+            'wait_for_element', 'wait', 'wait_for_page_load',
+            'perform_search', 'search_web', 'web_search',
+            'scrape_website', 'extract_data', 'scrape_page', 'get_page_content',
+            'extract_text', 'extract_links', 'extract_images',
+            'scrape_table', 'extract_table_data',
+            'get_article_content', 'extract_article',
+            'search_and_extract', 'browse_and_scrape'
         ]
-        # also accept a page-load wait alias
-        caps.append('wait_for_page_load')
     
     def initialize(self) -> bool:
         """Initialize the web automation plugin"""
@@ -229,6 +246,22 @@ class WebAutomationPlugin(AutomationPlugin):
                             return {'success': True}
                 except Exception as e:
                     return {'success': False, 'error': f'wait_for_page_load failed: {e}'}
+            
+            # Advanced web scraping and data extraction
+            elif action in ('scrape_website', 'extract_data', 'scrape_page', 'get_page_content'):
+                res = self._scrape_website(params)
+            elif action in ('extract_text', 'get_text_content'):
+                res = self._extract_text(params)
+            elif action in ('extract_links',):
+                res = self._extract_links(params)
+            elif action in ('extract_images',):
+                res = self._extract_images(params)
+            elif action in ('scrape_table', 'extract_table_data'):
+                res = self._scrape_table(params)
+            elif action in ('get_article_content', 'extract_article'):
+                res = self._extract_article(params)
+            elif action in ('search_and_extract', 'browse_and_scrape'):
+                res = self._search_and_extract(params)
             else:
                 return {'success': False, 'error': f'Unknown web automation action: {action}'}
 
@@ -807,3 +840,370 @@ class WebAutomationPlugin(AutomationPlugin):
     def cleanup(self):
         """Cleanup plugin resources"""
         self._close_browser()
+
+    def _scrape_website(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Scrape website content with intelligent extraction"""
+        url = params.get('url') or params.get('website')
+        if not url:
+            return {'success': False, 'error': 'No URL provided'}
+        
+        try:
+            # Try to get page content
+            html_content = None
+            
+            # Try using active browser first
+            if self.driver or getattr(self, '_playwright_active', False):
+                try:
+                    nav_result = self._navigate_to(url)
+                    if isinstance(nav_result, dict) and nav_result.get('success'):
+                        time_module.sleep(2)  # Wait for dynamic content
+                        
+                        if getattr(self, '_playwright_active', False):
+                            html_content = self._pw_page.content()
+                        else:
+                            html_content = self.driver.page_source
+                except Exception as e:
+                    pass
+            
+            # Fallback to requests if no browser or browser failed
+            if not html_content and HAS_REQUESTS:
+                try:
+                    response = requests.get(url, timeout=15, headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    })
+                    response.raise_for_status()
+                    html_content = response.text
+                except Exception as e:
+                    return {'success': False, 'error': f'Failed to fetch content: {e}'}
+            
+            if not html_content:
+                return {'success': False, 'error': 'Could not retrieve page content'}
+            
+            # Parse with BeautifulSoup
+            if not HAS_BS4:
+                return {'success': True, 'raw_html': html_content, 'note': 'BeautifulSoup not available, returning raw HTML'}
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Extract structured data
+            data = {
+                'url': url,
+                'title': soup.title.string if soup.title else '',
+                'headings': {
+                    'h1': [h.get_text(strip=True) for h in soup.find_all('h1')],
+                    'h2': [h.get_text(strip=True) for h in soup.find_all('h2')],
+                    'h3': [h.get_text(strip=True) for h in soup.find_all('h3')]
+                },
+                'paragraphs': [p.get_text(strip=True) for p in soup.find_all('p') if p.get_text(strip=True)],
+                'links': [{'text': a.get_text(strip=True), 'href': a.get('href')} for a in soup.find_all('a', href=True)],
+                'images': [{'alt': img.get('alt', ''), 'src': img.get('src')} for img in soup.find_all('img')],
+                'meta': {meta.get('name', meta.get('property', '')): meta.get('content', '') 
+                        for meta in soup.find_all('meta') if meta.get('content')}
+            }
+            
+            return {'success': True, 'data': data, 'raw_html': html_content}
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Scraping failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _extract_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract clean text content from a webpage"""
+        url = params.get('url')
+        selector = params.get('selector')
+        
+        try:
+            # Navigate to page if URL provided
+            if url:
+                nav_result = self._navigate_to(url)
+                if isinstance(nav_result, dict) and not nav_result.get('success'):
+                    # Try requests fallback
+                    if HAS_REQUESTS:
+                        response = requests.get(url, timeout=15, headers={
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        })
+                        html_content = response.text
+                        if HAS_BS4:
+                            soup = BeautifulSoup(html_content, 'html.parser')
+                            if selector:
+                                elements = soup.select(selector)
+                                text = '\n'.join([el.get_text(strip=True) for el in elements])
+                            else:
+                                # Remove script and style elements
+                                for script in soup(['script', 'style', 'nav', 'footer', 'header']):
+                                    script.decompose()
+                                text = soup.get_text(separator='\n', strip=True)
+                            return {'success': True, 'text': text, 'length': len(text)}
+            
+            # Get text from browser
+            if selector:
+                text = self._get_text(selector)
+            else:
+                # Get all visible text
+                if getattr(self, '_playwright_active', False):
+                    text = self._pw_page.inner_text('body')
+                else:
+                    text = self.driver.find_element(By.TAG_NAME, 'body').text
+            
+            return {'success': True, 'text': text, 'length': len(text)}
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _extract_links(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract all links from a webpage"""
+        url = params.get('url')
+        filter_pattern = params.get('filter')
+        
+        try:
+            if url:
+                self._navigate_to(url)
+            
+            links = []
+            
+            if getattr(self, '_playwright_active', False):
+                elements = self._pw_page.query_selector_all('a[href]')
+                links = [{'text': el.inner_text(), 'href': el.get_attribute('href')} for el in elements]
+            else:
+                elements = self.driver.find_elements(By.TAG_NAME, 'a')
+                links = [{'text': el.text, 'href': el.get_attribute('href')} for el in elements if el.get_attribute('href')]
+            
+            # Apply filter if provided
+            if filter_pattern:
+                links = [link for link in links if re.search(filter_pattern, link['href'] or '')]
+            
+            return {'success': True, 'links': links, 'count': len(links)}
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _extract_images(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract all images from a webpage"""
+        url = params.get('url')
+        
+        try:
+            if url:
+                self._navigate_to(url)
+            
+            images = []
+            
+            if getattr(self, '_playwright_active', False):
+                elements = self._pw_page.query_selector_all('img')
+                images = [{'src': el.get_attribute('src'), 'alt': el.get_attribute('alt')} for el in elements]
+            else:
+                elements = self.driver.find_elements(By.TAG_NAME, 'img')
+                images = [{'src': el.get_attribute('src'), 'alt': el.get_attribute('alt')} for el in elements]
+            
+            return {'success': True, 'images': images, 'count': len(images)}
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _scrape_table(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract table data from webpage"""
+        url = params.get('url')
+        table_index = params.get('table_index', 0)
+        
+        try:
+            if url:
+                self._navigate_to(url)
+            
+            # Get page source
+            if getattr(self, '_playwright_active', False):
+                html_content = self._pw_page.content()
+            else:
+                html_content = self.driver.page_source
+            
+            if not HAS_BS4:
+                return {'success': False, 'error': 'BeautifulSoup required for table extraction'}
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            tables = soup.find_all('table')
+            
+            if not tables:
+                return {'success': False, 'error': 'No tables found on page'}
+            
+            if table_index >= len(tables):
+                return {'success': False, 'error': f'Table index {table_index} out of range (found {len(tables)} tables)'}
+            
+            table = tables[table_index]
+            
+            # Extract headers
+            headers = []
+            header_row = table.find('thead')
+            if header_row:
+                headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+            else:
+                # Try first row
+                first_row = table.find('tr')
+                if first_row:
+                    headers = [th.get_text(strip=True) for th in first_row.find_all(['th', 'td'])]
+            
+            # Extract rows
+            rows = []
+            tbody = table.find('tbody') or table
+            for tr in tbody.find_all('tr')[1 if not table.find('thead') else 0:]:
+                cells = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                if cells:
+                    rows.append(cells)
+            
+            return {
+                'success': True,
+                'headers': headers,
+                'rows': rows,
+                'row_count': len(rows),
+                'column_count': len(headers)
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _extract_article(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract main article content from webpage (intelligent extraction)"""
+        url = params.get('url')
+        
+        try:
+            if url:
+                nav_result = self._navigate_to(url)
+                time_module.sleep(1)  # Wait for content to load
+            
+            # Get page source
+            if getattr(self, '_playwright_active', False):
+                html_content = self._pw_page.content()
+            elif self.driver:
+                html_content = self.driver.page_source
+            elif HAS_REQUESTS and url:
+                response = requests.get(url, timeout=15, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+                html_content = response.text
+            else:
+                return {'success': False, 'error': 'No content source available'}
+            
+            if not HAS_BS4:
+                return {'success': False, 'error': 'BeautifulSoup required for article extraction'}
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove unwanted elements
+            for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'iframe', 'noscript']):
+                element.decompose()
+            
+            # Try to find main content area
+            article = None
+            for selector in ['article', '[role="main"]', 'main', '.content', '#content', '.post-content', '.article-content']:
+                article = soup.select_one(selector)
+                if article:
+                    break
+            
+            if not article:
+                article = soup.find('body')
+            
+            # Extract title
+            title = ''
+            title_elem = soup.find('h1') or soup.find('title')
+            if title_elem:
+                title = title_elem.get_text(strip=True)
+            
+            # Extract text content
+            paragraphs = article.find_all('p') if article else []
+            content = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 20])
+            
+            # Extract headings
+            headings = []
+            if article:
+                for h in article.find_all(['h1', 'h2', 'h3', 'h4']):
+                    headings.append({
+                        'level': h.name,
+                        'text': h.get_text(strip=True)
+                    })
+            
+            # Extract images in article
+            images = []
+            if article:
+                for img in article.find_all('img'):
+                    images.append({
+                        'src': img.get('src'),
+                        'alt': img.get('alt', ''),
+                        'title': img.get('title', '')
+                    })
+            
+            return {
+                'success': True,
+                'title': title,
+                'content': content,
+                'headings': headings,
+                'images': images,
+                'word_count': len(content.split()),
+                'url': url
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Article extraction failed')
+            return {'success': False, 'error': str(e)}
+    
+    def _search_and_extract(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform web search and extract data from results"""
+        query = params.get('query') or params.get('search_term')
+        num_results = params.get('num_results', 5)
+        extract_from_first = params.get('extract_from_first', True)
+        
+        try:
+            # Perform search
+            search_result = self.execute('perform_search', {
+                'query': query,
+                'use_system_browser': False,
+                'headless': params.get('headless', False)
+            })
+            
+            if not search_result.get('success'):
+                return search_result
+            
+            time_module.sleep(2)  # Wait for results
+            
+            # Extract search result links
+            results = []
+            
+            if getattr(self, '_playwright_active', False):
+                # Get search result links
+                links = self._pw_page.query_selector_all('a[href]')
+                for link in links[:num_results]:
+                    href = link.get_attribute('href')
+                    text = link.inner_text()
+                    if href and text and 'http' in href:
+                        results.append({'title': text, 'url': href})
+            else:
+                # Selenium
+                links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href]')
+                for link in links[:num_results * 2]:  # Get more to filter
+                    try:
+                        href = link.get_attribute('href')
+                        text = link.text
+                        if href and text and 'http' in href and len(text) > 10:
+                            results.append({'title': text, 'url': href})
+                            if len(results) >= num_results:
+                                break
+                    except:
+                        continue
+            
+            # Extract content from first result if requested
+            extracted_content = None
+            if extract_from_first and results:
+                first_url = results[0]['url']
+                article_result = self._extract_article({'url': first_url})
+                if article_result.get('success'):
+                    extracted_content = article_result
+            
+            return {
+                'success': True,
+                'query': query,
+                'results': results,
+                'extracted_content': extracted_content
+            }
+            
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('Search and extract failed')
+            return {'success': False, 'error': str(e)}

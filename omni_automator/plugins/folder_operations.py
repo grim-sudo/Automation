@@ -50,23 +50,26 @@ class FolderOperations(AutomationPlugin):
         """
         Create multiple folders with naming pattern
         params:
-            base_path: where to create folders
-            folder_prefix: prefix for folder names
+            base_path / location: root directory for folder creation
+            parent_folder: subfolder inside location to create folders in
+            folder_prefix: prefix for folder names (optional, defaults to numeric only)
             start: starting number
             end: ending number
-            separator: separator between prefix and number (default: '')
         """
         try:
-            # Accept multiple param styles: parser may send naming_pattern, parent_folder, location
-            base_path = params.get('base_path') or params.get('location')
-            # If parser passed a parent folder name, combine with location (desktop fallback)
+            # Resolve base path: prefer explicit base_path, then location+parent_folder
+            base_path = params.get('base_path')
+            location = params.get('location', '.')
             parent_folder = params.get('parent_folder') or params.get('parent') or params.get('container')
 
-            if not base_path and parent_folder:
-                desktop = os.path.expanduser('~/Desktop')
-                base_path = os.path.join(desktop, parent_folder)
+            if not base_path:
+                if parent_folder:
+                    # Combine location + parent_folder relative to CWD
+                    base_path = os.path.join(os.path.abspath(location), parent_folder)
+                else:
+                    base_path = os.path.abspath(location)
 
-            # Naming information: plugin-friendly keys or parser naming_pattern
+            # Naming information
             prefix = params.get('folder_prefix', '')
             separator = params.get('separator', '')
             start = None
@@ -74,47 +77,35 @@ class FolderOperations(AutomationPlugin):
 
             naming = params.get('naming_pattern') or {}
             if naming:
-                # naming_pattern may be dict with type/start/end/prefix
                 prefix = prefix or naming.get('prefix', '')
                 separator = separator or naming.get('separator', '')
                 if naming.get('type') in ('numeric', 'alphanumeric', 'decimal'):
                     start = int(naming.get('start', 1))
                     end = int(naming.get('end', 10))
 
-            # Fallback to explicit start/end keys
             if start is None:
                 start = int(params.get('start', params.get('from', 1)))
             if end is None:
                 end = int(params.get('end', params.get('to', params.get('count', start))))
 
-            # Default prefix when none provided
-            if not prefix:
-                prefix = params.get('folder_prefix', 'folder')
+            os.makedirs(base_path, exist_ok=True)
 
-            if not base_path or not os.path.exists(os.path.dirname(base_path) if parent_folder and not os.path.exists(base_path) else base_path):
-                # If base_path doesn't exist, try Desktop as a fallback root
-                desktop = os.path.expanduser('~/Desktop')
-                if parent_folder:
-                    base_path = os.path.join(desktop, parent_folder)
-                elif not base_path:
-                    return {'success': False, 'error': f'Invalid base path: {base_path}'}
-            
             created_folders = []
             failed_folders = []
-            
+
             for i in range(start, end + 1):
-                folder_name = f"{prefix}{separator}{i}" if prefix else f"{i}"
+                folder_name = f"{prefix}{separator}{i}" if prefix else str(i)
                 folder_path = os.path.join(base_path, folder_name)
-                
                 try:
                     os.makedirs(folder_path, exist_ok=True)
                     created_folders.append(folder_path)
                 except Exception as e:
                     failed_folders.append({'name': folder_name, 'error': str(e)})
-            
+
             return {
                 'success': True,
                 'operation': 'create_bulk_folders',
+                'base_path': base_path,
                 'total_requested': end - start + 1,
                 'created_count': len(created_folders),
                 'failed_count': len(failed_folders),
@@ -135,16 +126,51 @@ class FolderOperations(AutomationPlugin):
                 - If dict: create with pattern (prefix, start, end, separator)
         """
         try:
-            # Accept parser-style params: location / container / main_folder
-            base_path = params.get('base_path') or params.get('location')
-            main_folder = params.get('main_folder') or params.get('container') or params.get('name') or 'main'
-            # sub_folders may be list of names or dict pattern or nested instructions
-            sub_folders = params.get('sub_folders') or params.get('children') or params.get('nested') or []
+            # Accept parser-style params: location / container / main_folder / nested_in_each
+            location = params.get('location', '.')
+            parent_folder = params.get('parent_folder') or params.get('container') or params.get('name')
+            base_path = params.get('base_path')
 
-            # If base_path not provided, try Desktop or current working dir
             if not base_path:
-                desktop = os.path.expanduser('~/Desktop')
-                base_path = params.get('location') or desktop
+                base_path = os.path.abspath(location)
+
+            # Handle nested_in_each mode: create N subfolders inside every existing dir in base_path
+            nested_in_each = params.get('nested_in_each', False)
+            if nested_in_each and parent_folder:
+                root = os.path.join(base_path, parent_folder)
+            else:
+                root = base_path
+
+            if nested_in_each:
+                start = int(params.get('start', 1))
+                end = int(params.get('end', params.get('count', 10)))
+                prefix = params.get('folder_prefix', '')
+                created_folders = []
+                failed_folders = []
+                if os.path.exists(root):
+                    parent_dirs = sorted([d for d in os.listdir(root)
+                                         if os.path.isdir(os.path.join(root, d))])
+                    for pd in parent_dirs:
+                        pd_path = os.path.join(root, pd)
+                        for i in range(start, end + 1):
+                            name = f"{prefix}{i}" if prefix else str(i)
+                            p = os.path.join(pd_path, name)
+                            try:
+                                os.makedirs(p, exist_ok=True)
+                                created_folders.append(p)
+                            except Exception as e:
+                                failed_folders.append({'name': name, 'error': str(e)})
+                return {
+                    'success': True,
+                    'operation': 'create_nested_folders',
+                    'total_created': len(created_folders),
+                    'failed_count': len(failed_folders),
+                    'created_folders': created_folders,
+                    'failed_folders': failed_folders
+                }
+
+            main_folder = params.get('main_folder') or parent_folder or 'main'
+            sub_folders = params.get('sub_folders') or params.get('children') or params.get('nested') or []
 
             # Create main folder path
             main_path = os.path.join(base_path, main_folder)
@@ -312,26 +338,30 @@ class FolderOperations(AutomationPlugin):
             src_parent = params.get('from') or params.get('from_location') or params.get('src_location')
             dest = params.get('destination') or params.get('dest') or params.get('to') or params.get('location')
 
-            # Resolve common names like Desktop/Downloads
-            home = os.path.expanduser('~')
-            desktop = os.path.join(home, 'Desktop')
-            downloads = os.path.join(home, 'Downloads')
-
             if not src:
                 return {'success': False, 'error': 'Source folder not specified'}
 
-            # If src is a simple name, try to resolve with src_parent, Desktop, cwd
+            # If src is a simple name, resolve: try src_parent, then CWD, then Desktop
             if not os.path.isabs(str(src)):
-                candidate = os.path.join(src_parent or desktop, src) if src_parent else os.path.join(desktop, src)
+                cwd = os.getcwd()
+                home = os.path.expanduser('~')
+                desktop = os.path.join(home, 'Desktop')
+
+                if src_parent:
+                    candidate = os.path.join(src_parent, src)
+                else:
+                    candidate = os.path.join(cwd, src)
+
                 if os.path.exists(candidate):
                     src_path = os.path.abspath(candidate)
                 else:
-                    # try cwd
-                    candidate2 = os.path.abspath(os.path.join(os.getcwd(), src))
+                    # try CWD explicitly
+                    candidate2 = os.path.join(cwd, src)
                     if os.path.exists(candidate2):
                         src_path = candidate2
+                    elif os.path.exists(os.path.join(desktop, src)):
+                        src_path = os.path.abspath(os.path.join(desktop, src))
                     else:
-                        # last resort: treat src as given (may be absolute)
                         src_path = os.path.abspath(src)
             else:
                 src_path = os.path.abspath(src)
@@ -343,12 +373,13 @@ class FolderOperations(AutomationPlugin):
             if not dest:
                 return {'success': False, 'error': 'Destination not specified'}
 
-            # Accept common keywords
+            # Accept common keywords for destination
             dest_lower = str(dest).lower()
+            home = os.path.expanduser('~')
             if 'desktop' in dest_lower:
-                dest_root = desktop
+                dest_root = os.path.join(home, 'Desktop')
             elif 'download' in dest_lower:
-                dest_root = downloads
+                dest_root = os.path.join(home, 'Downloads')
             else:
                 # if not absolute, assume relative to home or cwd
                 if not os.path.isabs(dest):

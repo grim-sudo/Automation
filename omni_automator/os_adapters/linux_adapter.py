@@ -7,9 +7,14 @@ import shutil
 import subprocess
 import time
 import psutil
-import pyautogui
 import requests
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+
+# Make pyautogui optional (may not be available on headless systems)
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
 from pathlib import Path
 
 from .base_adapter import (
@@ -40,13 +45,20 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return self.copy(params.get('source'), params.get('destination'))
         elif action == 'move':
             return self.move(params.get('source'), params.get('destination'))
+        elif action == 'rename':
+            old = params.get('old_name') or params.get('source') or params.get('path')
+            new = params.get('new_name') or params.get('destination')
+            if old and new and os.path.exists(old):
+                shutil.move(old, new)
+                return True
+            return False
         elif action == 'list':
             return self.list_directory(params.get('path', '.'))
         else:
             raise ValueError(f"Unknown filesystem action: {action}")
     
     def get_capabilities(self) -> List[str]:
-        return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'list']
+        return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'rename', 'list']
     
     def create_folder(self, name: str, location: str = None) -> bool:
         if location:

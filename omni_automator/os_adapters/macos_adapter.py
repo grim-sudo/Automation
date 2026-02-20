@@ -7,9 +7,14 @@ import shutil
 import subprocess
 import time
 import psutil
-import pyautogui
 import requests
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+
+# Make pyautogui optional (may not be available on headless systems)
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
 from pathlib import Path
 
 from .base_adapter import (
