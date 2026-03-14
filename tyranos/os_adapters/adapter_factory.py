@@ -5,6 +5,8 @@ Factory for creating OS-specific adapters
 import os
 import platform
 
+from loguru import logger
+
 from .arch_adapter import ArchLinuxAdapter
 from .base_adapter import BaseOSAdapter
 from .linux_adapter import LinuxAdapter
@@ -49,10 +51,10 @@ class OSAdapterFactory:
         elif system == "linux":
             # Detect specific Linux distribution
             if is_arch_based():
-                print("🐧 Detected Arch Linux-based system")
+                logger.info("Detected Arch Linux-based system")
                 return ArchLinuxAdapter()
             else:
-                print("🐧 Detected Linux system (generic)")
+                logger.info("Detected Linux system (generic)")
                 return LinuxAdapter()
         elif system == "darwin":  # macOS
             return MacOSAdapter()

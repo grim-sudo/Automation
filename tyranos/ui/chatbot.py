@@ -8,6 +8,8 @@ import os
 from datetime import datetime
 from typing import Any
 
+from loguru import logger
+
 from ..nlp.spell_corrector import get_spell_corrector
 from ..utils.logger import get_logger
 from ..workflow.error_handler import get_smart_error_handler
@@ -57,8 +59,8 @@ class ChatbotMode:
     def start_interactive_session(self):
         """Start an interactive chatbot session"""
         self._print_banner()
-        print(self.system_messages["greeting"])
-        print("\n" + "=" * 60)
+        logger.info(self.system_messages["greeting"])
+        logger.info("=" * 60)
 
         while True:
             try:
@@ -82,12 +84,12 @@ class ChatbotMode:
                 self._process_automation_command(user_input)
 
             except KeyboardInterrupt:
-                print("\n\n👋 Goodbye!")
+                logger.info("Goodbye!")
                 break
             except Exception as e:
                 self.logger.error(f"Session error: {e}")
-                print(f"❌ Error: {e}")
-                print("Try '/help' for assistance")
+                logger.error(f"Error: {e}")
+                logger.info("Try '/help' for assistance")
 
     def _get_user_input(self) -> str:
         """Get user input with prompt and formatting"""
@@ -102,13 +104,13 @@ class ChatbotMode:
 
     def _process_automation_command(self, command: str):
         """Process an automation command"""
-        print(f"\n⏳ Processing: {command[:60]}{'...' if len(command) > 60 else ''}\n")
+        logger.info(f"Processing: {command[:60]}{'...' if len(command) > 60 else ''}")
 
         # Apply spell correction
         corrected_command = self.spell_corrector.correct_text(command)
 
         if corrected_command != command:
-            print(f"💡 Corrected to: {corrected_command}")
+            logger.info(f"Corrected to: {corrected_command}")
             self._ask_confirmation("Use corrected command?", corrected_command)
             command = corrected_command
 
@@ -127,18 +129,18 @@ class ChatbotMode:
 
     def _show_command_analysis(self, command: str):
         """Show analysis of what the command will do"""
-        print("📋 Command Analysis:")
-        print(f"  • Input: {command}")
-        print(
-            f"  • Keywords detected: {list(self.spell_corrector.extract_keywords(command).keys())}"
+        logger.info("Command Analysis:")
+        logger.info(f"Input: {command}")
+        logger.info(
+            f"Keywords detected: {list(self.spell_corrector.extract_keywords(command).keys())}"
         )
-        print(f"  • Current directory: {self.user_context['current_directory']}")
-        print("\n✓ Ready to execute. Continue with next command or use /help")
+        logger.info(f"Current directory: {self.user_context['current_directory']}")
+        logger.info("Ready to execute. Continue with next command or use /help")
 
     def _ask_confirmation(self, question: str, context: str = "") -> bool:
         """Ask for user confirmation"""
         if context:
-            print(f"  Context: {context}")
+            logger.info(f"Context: {context}")
 
         response = input(f"\n{question} (yes/no): ").strip().lower()
         return response in ["yes", "y", "true"]
@@ -152,85 +154,85 @@ class ChatbotMode:
         if cmd in self.command_handlers:
             self.command_handlers[cmd](args)
         else:
-            print(f"❌ Unknown command: /{cmd}")
-            print("Use '/help' for available commands")
+            logger.error(f"Unknown command: /{cmd}")
+            logger.info("Use '/help' for available commands")
 
     # Special command handlers
 
     def handle_help(self, args: str = ""):
         """Show help information"""
-        print(self.system_messages["help"])
+        logger.info(self.system_messages["help"])
 
     def handle_status(self, args: str = ""):
         """Show current status"""
-        print("\n📊 Status:")
-        print(f"  • Current Directory: {self.user_context['current_directory']}")
-        print(f"  • Last Operation: {self.user_context['last_operation'] or 'None'}")
-        print(f"  • Resources Created: {len(self.user_context['created_resources'])}")
-        print(f"  • Failed Operations: {len(self.user_context['failed_operations'])}")
-        print(f"  • Commands in History: {len(self.conversation_history)}")
+        logger.info("Status:")
+        logger.info(f"Current Directory: {self.user_context['current_directory']}")
+        logger.info(f"Last Operation: {self.user_context['last_operation'] or 'None'}")
+        logger.info(f"Resources Created: {len(self.user_context['created_resources'])}")
+        logger.info(f"Failed Operations: {len(self.user_context['failed_operations'])}")
+        logger.info(f"Commands in History: {len(self.conversation_history)}")
 
     def handle_clear(self, args: str = ""):
         """Clear screen"""
         os.system("cls" if os.name == "nt" else "clear")
-        print(self.system_messages["greeting"])
+        logger.info(self.system_messages["greeting"])
 
     def handle_context(self, args: str = ""):
         """Show conversation context"""
-        print("\n📝 Conversation Context:")
-        print(self.user_context["context_summary"]())
+        logger.info("Conversation Context:")
+        logger.info(self.user_context["context_summary"]())
 
     def handle_history(self, args: str = ""):
         """Show command history"""
-        print("\n📜 Conversation History:")
+        logger.info("Conversation History:")
         if not self.conversation_history:
-            print("  (empty)")
+            logger.info("(empty)")
             return
 
         for i, entry in enumerate(self.conversation_history[-10:], start=1):
             speaker = "You" if entry["type"] == "user" else "Bot"
             content = entry["content"][:50]
-            print(f"  {i}. [{speaker}] {content}...")
+            logger.info(f"{i}. [{speaker}] {content}...")
 
     def handle_cd(self, args: str = ""):
         """Change directory"""
         if not args:
-            print(f"Current directory: {os.getcwd()}")
+            logger.info(f"Current directory: {os.getcwd()}")
             return
 
         try:
             os.chdir(args)
             self.user_context["current_directory"] = os.getcwd()
-            print(f"✓ Changed to: {os.getcwd()}")
+            logger.info(f"Changed to: {os.getcwd()}")
         except FileNotFoundError:
-            print(f"❌ Directory not found: {args}")
+            logger.error(f"Directory not found: {args}")
         except Exception as e:
-            print(f"❌ Error: {e}")
+            logger.error(f"Error: {e}")
 
     def handle_pwd(self, args: str = ""):
         """Print working directory"""
-        print(f"📁 {os.getcwd()}")
+        logger.info(f"{os.getcwd()}")
 
     def handle_ls(self, args: str = ""):
         """List directory contents"""
         directory = args or os.getcwd()
         try:
             items = os.listdir(directory)
-            print(f"\n📂 Contents of {directory}:")
+            logger.info(f"Contents of {directory}:")
             for item in items[:20]:
                 full_path = os.path.join(directory, item)
-                indicator = "📁" if os.path.isdir(full_path) else "📄"
-                print(f"  {indicator} {item}")
+                item_type = "DIR" if os.path.isdir(full_path) else "FILE"
+                logger.info(f"  [{item_type}] {item}")
             if len(items) > 20:
-                print(f"  ... and {len(items) - 20} more items")
+                logger.info(f"  ... and {len(items) - 20} more items")
         except FileNotFoundError:
-            print(f"❌ Directory not found: {directory}")
+            logger.error(f"Directory not found: {directory}")
         except Exception as e:
-            print(f"❌ Error: {e}")
+            logger.error(f"Error: {e}")
 
     def handle_exit(self, args: str = ""):
         """Exit the chatbot"""
-        print("\n👋 Thanks for using Tyranos! Goodbye!")
+        logger.info("Thanks for using Tyranos! Goodbye!")
         import sys
 
         sys.exit(0)
@@ -238,7 +240,7 @@ class ChatbotMode:
     def handle_explain(self, args: str = ""):
         """Explain the last command"""
         if not self.conversation_history:
-            print("No command history")
+            logger.info("No command history")
             return
 
         last_user_cmd = None
@@ -248,21 +250,21 @@ class ChatbotMode:
                 break
 
         if last_user_cmd:
-            print(f"\n📖 Explaining: {last_user_cmd}")
+            logger.info(f"Explaining: {last_user_cmd}")
             keywords = self.spell_corrector.extract_keywords(last_user_cmd)
-            print("\nDetected operations:")
+            logger.info("Detected operations:")
             for keyword, found_text in keywords.items():
-                print(f"  • {keyword.capitalize()}: {found_text}")
+                logger.info(f"  {keyword.capitalize()}: {found_text}")
         else:
-            print("No command to explain")
+            logger.info("No command to explain")
 
     def handle_undo(self, args: str = ""):
         """Undo last operation"""
         if self.user_context["last_operation"]:
-            print(f"⏮️  Undoing: {self.user_context['last_operation']}")
-            print("(Undo not yet fully implemented)")
+            logger.info(f"Undoing: {self.user_context['last_operation']}")
+            logger.info("(Undo not yet fully implemented)")
         else:
-            print("Nothing to undo")
+            logger.info("Nothing to undo")
 
     def _get_help_message(self) -> str:
         """Get help message"""
@@ -314,11 +316,11 @@ TIPS:
         """Print welcome banner"""
         banner = """
 ╔═══════════════════════════════════════════════════════════╗
-║        🤖 OMNI AUTOMATOR - INTERACTIVE CHATBOT MODE      ║
+║        OMNI AUTOMATOR - INTERACTIVE CHATBOT MODE         ║
 ║                Smart Automation Assistant                  ║
 ╚═══════════════════════════════════════════════════════════╝
 """
-        print(banner)
+        logger.info(banner)
 
 
 # Global instance

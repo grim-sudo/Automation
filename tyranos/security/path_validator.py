@@ -197,16 +197,16 @@ class PathValidator:
         if not self.safe_mode:
             return True
 
-        print(
-            f"\n[SAFE MODE] WARNING: About to perform a potentially destructive "
-            f"operation.\n"
+        logger.info(
+            "\n[SAFE MODE] WARNING: About to perform a potentially destructive "
+            "operation.\n"
             f"  Operation : {operation}\n"
             f"  Target    : {target}\n"
         )
         try:
             answer = input("Type 'yes' to continue, anything else to abort: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print("\nAborted.")
+            logger.info("Aborted.")
             return False
 
         confirmed = answer == "yes"

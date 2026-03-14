@@ -9,6 +9,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from loguru import logger
+
 
 class PermissionLevel(Enum):
     """Permission levels for different operations"""
@@ -158,7 +160,7 @@ class PermissionManager:
                     self.user_permissions.update(config.get("permissions", {}))
                     self.blocked_operations.update(config.get("blocked_operations", []))
         except Exception as e:
-            print(f"Warning: Could not load permission config: {e}")
+            logger.warning(f"Could not load permission config: {e}")
 
     def _save_config(self):
         """Save configuration to file"""
@@ -172,14 +174,14 @@ class PermissionManager:
             with open(self.config_file, "w") as f:
                 json.dump(config, f, indent=2)
         except Exception as e:
-            print(f"Warning: Could not save permission config: {e}")
+            logger.warning(f"Could not save permission config: {e}")
 
     def check_permission(self, parsed_command: dict[str, Any]) -> bool:
         """Check if a parsed command is allowed to execute"""
         try:
             # Input validation
             if not isinstance(parsed_command, dict):
-                print("Error: parsed_command must be a dictionary")
+                logger.error("parsed_command must be a dictionary")
                 return False
 
             action = parsed_command.get("action")
@@ -188,13 +190,13 @@ class PermissionManager:
 
             # Validate required fields
             if not action or not category:
-                print("Error: action and category are required")
+                logger.error("action and category are required")
                 return False
 
             # Check if operation is explicitly blocked
             operation_id = f"{category}:{action}"
             if operation_id in self.blocked_operations:
-                print(f"Operation blocked: {operation_id}")
+                logger.info(f"Operation blocked: {operation_id}")
                 return False
 
             # Sandbox mode has been removed; perform normal permission checks
@@ -203,7 +205,7 @@ class PermissionManager:
             action_category = self._map_to_action_category(category, action)
             if not action_category:
                 # Log unknown actions but allow them (with warning)
-                print(f"Warning: Unknown action category for {category}:{action}")
+                logger.warning(f"Unknown action category for {category}:{action}")
                 return True
 
             # Check permission rule
@@ -214,19 +216,19 @@ class PermissionManager:
             # Check user permissions
             permission_key = action_category.value
             if not self.user_permissions.get(permission_key, True):
-                print(f"Permission denied: {permission_key}")
+                logger.warning(f"Permission denied: {permission_key}")
                 return False
 
             # Check path restrictions
             if not self._check_path_permissions(rule, params):
-                print(f"Path restriction violation for {category}:{action}")
+                logger.warning(f"Path restriction violation for {category}:{action}")
                 return False
 
             # All checks passed
             return True
 
         except Exception as e:
-            print(f"Error checking permissions: {e}")
+            logger.error(f"Error checking permissions: {e}")
             import traceback
 
             traceback.print_exc()
@@ -432,11 +434,11 @@ class PermissionManager:
             action_category.value, False
         ):
             # In a real implementation, this would show a GUI dialog or prompt
-            print("\nPermission Request:")
-            print(f"Action: {rule.description}")
-            print(f"Risk Level: {rule.permission_level.value}")
+            logger.info("\nPermission Request:")
+            logger.info(f"Action: {rule.description}")
+            logger.info(f"Risk Level: {rule.permission_level.value}")
             if description:
-                print(f"Details: {description}")
+                logger.info(f"Details: {description}")
 
             # For now, automatically grant moderate and below, deny high and critical
             if rule.permission_level in [PermissionLevel.SAFE, PermissionLevel.MODERATE]:
@@ -462,11 +464,11 @@ class PermissionManager:
 
     def enable_sandbox_mode(self):
         """Sandbox mode removed - no-op"""
-        print("Sandbox mode support removed; enable_sandbox_mode() is a no-op")
+        logger.info("Sandbox mode support removed; enable_sandbox_mode() is a no-op")
 
     def disable_sandbox_mode(self):
         """Sandbox mode removed - no-op"""
-        print("Sandbox mode support removed; disable_sandbox_mode() is a no-op")
+        logger.info("Sandbox mode support removed; disable_sandbox_mode() is a no-op")
 
     def get_permission_summary(self) -> dict[str, Any]:
         """Get summary of current permissions"""

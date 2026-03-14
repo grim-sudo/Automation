@@ -1017,7 +1017,7 @@ def distro_profiles() -> None:
     """
     # Look in the dedicated distro_builder profiles directory first
     search_dirs = [
-        Path(__file__).parent / "tyranos" / "distro_builder" / "profiles",
+        Path(__file__).parent / "distro_builder" / "profiles",
         Path.home() / ".tyranos" / "profiles",
         Path("/etc/tyranos/profiles"),
         Path("./profiles"),

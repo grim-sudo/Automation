@@ -202,3 +202,175 @@ pytest tests/ -v --tb=short --asyncio-mode=auto \
 The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultEventLoopPolicy` being slated for removal in Python 3.16. It does not affect any test result.
 
 ---
+
+# Post-Rename Fixes (Phase 2–5)
+
+> **Scope:** All bugs found and fixed during capability testing after the omni_automator → tyranos rename.
+
+---
+
+## Fix #1 — mypy "Duplicate module named tyranos"
+
+**Date:** 2026-03-14
+**Phase:** 1 (CI Fix)
+**File(s):** `.github/workflows/ci.yml`
+**Bug:** `mypy tyranos/ tyranos.py` produced `error: Duplicate module named "tyranos" (also at "tyranos/__init__.py")` causing 3×12 = 36 CI annotation errors.
+**Root Cause:** The `mypy` command included both the `tyranos/` package directory and the `tyranos.py` root script. Python resolves both as module `"tyranos"`, and mypy treats this as a fatal duplication.
+**Fix:** Removed `tyranos.py` from the mypy command — now runs `mypy tyranos/` only.
+**Verified:** `mypy tyranos/ --ignore-missing-imports --no-error-summary --warn-return-any` → 0 errors.
+
+---
+
+## Fix #2 — Shim files importing wrong module
+
+**Date:** 2026-03-14
+**Phase:** 1 (CI Fix)
+**File(s):** `launch_gui.py`, `launch_chatbot.py`
+**Bug:** Both files contained `from tyranos import app` which raises `ImportError: cannot import name 'app' from 'tyranos'` at runtime.
+**Root Cause:** The Typer `app` object lives in `tyranos._cli`, not in `tyranos.__init__`. After the rename, the shims were not updated to point at the correct module.
+**Fix:** Changed both files to `from tyranos._cli import app`. Also updated docstrings that still referenced the old `omni.py` entry point.
+**Verified:** `python -c "import launch_gui; import launch_chatbot"` → no errors.
+
+---
+
+## Fix #3 — Hardcoded model names in tests
+
+**Date:** 2026-03-14
+**Phase:** 1 (Rule violation)
+**File(s):** `tests/test_model_fallback.py`, `tests/conftest.py`
+**Bug:** Tests contained `"openai/gpt-4o"`, `"anthropic/claude-3.5-sonnet"`, `"google/gemini-2.0-flash"` — hardcoded model names violate the project rule that ALL model resolution goes through `FreeModelResolver`.
+**Root Cause:** Tests were written before the no-hardcoded-models rule was established.
+**Fix:** Replaced all hardcoded production model names with neutral test identifiers: `"test/model-a"`, `"test/model-b"`, `"test/model-c"`, `"test/free-model-large"`.
+**Verified:** `pytest tests/test_model_fallback.py -v` → 20 passed.
+
+---
+
+## Fix #4 — SyntaxError in arch_adapter.py (agent-introduced)
+
+**Date:** 2026-03-14
+**Phase:** 2 (print→loguru migration)
+**File(s):** `tyranos/os_adapters/arch_adapter.py`
+**Bug:** `SyntaxError: invalid syntax` at line 615: `return True                except Exception:` — two separate lines merged into one.
+**Root Cause:** A background agent that was replacing `print()` calls with loguru incorrectly merged a `return True` line with the following `except Exception:` line onto a single line.
+**Fix:** Manually split the merged line back into two separate lines:
+```python
+                return True
+        except Exception:
+```
+**Verified:** `python -c "import tyranos.os_adapters.arch_adapter"` → no errors.
+
+---
+
+## Fix #5 — Distro profiles command showing doubled path
+
+**Date:** 2026-03-14
+**Phase:** 2 (capability testing)
+**File(s):** `tyranos/_cli.py`
+**Bug:** `tyranos distro profiles` showed path `/home/grim/Projects/Automation/tyranos/tyranos/distro_builder/profiles` (doubled `tyranos/tyranos/`).
+**Root Cause:** The original path code was `Path(__file__).parent / "tyranos" / "distro_builder" / "profiles"`. After `_cli.py` was moved inside the `tyranos/` package, `Path(__file__).parent` already points to `tyranos/`, so appending `"tyranos"` doubled the segment.
+**Fix:** Changed to `Path(__file__).parent / "distro_builder" / "profiles"`.
+**Verified:** `tyranos distro profiles` → shows 3 correct profile files.
+
+---
+
+## Fix #6 — print() calls in SmartErrorHandler
+
+**Date:** 2026-03-14
+**Phase:** 3 (print→loguru migration)
+**File(s):** `tyranos/workflow/error_handler.py`
+**Bug:** 32 `print()` calls in interactive error-recovery methods violated Rule 8 ("print() anywhere in tyranos/ is a bug").
+**Root Cause:** The file already used `self.logger = get_logger("SmartErrorHandler")` for backend logging but used bare `print()` for user-facing interactive menus.
+**Fix:** Replaced all `print()` calls with appropriate `self.logger` calls:
+- Error messages → `self.logger.error()`
+- Warning/confirmation prompts → `self.logger.warning()`
+- Menu options and informational messages → `self.logger.info()`
+**Note:** The remaining `print()` calls in `workflow/engine.py`, `core/engine.py`, `ai/task_executor.py`, `plugins/project_generator.py` are inside triple-quoted string templates that generate Python source code — they are content, not execution. The calls in `config.py` docstring and `ai/task_planner.py` docstring are documentation examples.
+**Verified:** `grep -rn "^\s*print(" tyranos/workflow/error_handler.py` → 0 results.
+
+---
+
+## Fix #7 — web_automation.py unsorted import block (I001)
+
+**Date:** 2026-03-14
+**Phase:** 3
+**File(s):** `tyranos/plugins/web_automation.py`
+**Bug:** `ruff check` reported `I001 Import block is un-sorted or un-formatted` because a `sys.path.append()` call was placed between import groups, breaking isort's view of the import block.
+**Root Cause:** A prior print→loguru migration added `import contextlib` and `from loguru import logger` after the `sys.path.append()` rather than before it.
+**Fix:** Ran `ruff check --fix --select I001` to auto-fix the import order, moving all stdlib and third-party imports above the `sys.path.append()` call.
+**Verified:** `ruff check tyranos/ tyranos.py tests/ --output-format=github` → 0 errors.
+
+---
+
+## Fix #8 — "Plugin 'unknown' not found" for "list files" command
+
+**Date:** 2026-03-14
+**Phase:** 3 (capability testing — Bug)
+**File(s):** `tyranos/parsers/command_parser.py`
+**Bug:** `tyranos run "list files"` failed with `Plugin 'unknown' not found`. Same for `ls`, `show files`, `list directory`.
+**Root Cause:** `_parse_simple_command()` had no handler for "list"/"ls"/"show files" verbs. The default fallback at line 1177 returned `action="unknown", category="unknown"`. The core engine's `_execute_parsed_command()` then attempted `plugin_manager.execute("unknown", "unknown", ...)` which raised "Plugin 'unknown' not found".
+**Fix:** Added a list handler in `_parse_simple_command()` before the default fallback:
+```python
+# Handle list/show directory: "list files", "ls", "show files in /path"
+list_keywords = ["list", "ls", "show files", "show directory", "dir"]
+if any(kw in command.lower() for kw in list_keywords):
+    path_match = re.search(
+        r"(?:in|at|inside|of|from)\s+[\"']?([^\s\"']+)[\"']?", command, re.IGNORECASE
+    )
+    path = path_match.group(1) if path_match else "."
+    return [ParsedStep(action="list", category="filesystem", params={"path": path}, priority=1)]
+```
+All OS adapters already supported `action="list"` in their filesystem `execute()` method.
+**Verified:** `tyranos run "list files"` → Success, lists current directory. `tyranos run "list files in /tmp"` → Success, lists /tmp.
+
+---
+
+## Final CI Results (Post-Rename, Post-Capability-Testing)
+
+```
+ruff check tyranos/ tyranos.py tests/ --output-format=github
+→ 0 errors
+
+ruff format --check tyranos/ tyranos.py tests/
+→ 71 files already formatted
+
+pytest tests/ -v --tb=short --asyncio-mode=auto \
+  --cov=tyranos --cov-report=term-missing \
+  --cov-report=xml:coverage.xml \
+  -m "not integration and not slow"
+→ 153 passed, 1 warning
+```
+
+The 1 warning is the same `DeprecationWarning` for `asyncio.DefaultEventLoopPolicy` (Python 3.16 removal notice). No test failures.
+
+### Capability Test Results
+
+| Capability | Status | Notes |
+|---|---|---|
+| `tyranos --help` | ✅ | All commands shown |
+| `tyranos --version` | ✅ | `Tyranos v1.0.0` |
+| `tyranos run "create folder X"` | ✅ | Creates directory |
+| `tyranos run "delete folder X"` | ✅ | Removes directory |
+| `tyranos run "list files"` | ✅ | Fixed (Fix #8) |
+| `tyranos run "list files in /tmp"` | ✅ | Path extraction works |
+| `tyranos run --debug ...` | ✅ | DEBUG level logs shown |
+| `tyranos run --safe-mode ...` | ✅ | Mode flag accepted |
+| `tyranos --log-file /tmp/x.log run ...` | ✅ | JSON logs written to file |
+| `tyranos batch commands.txt` | ✅ | 2/2 commands succeed |
+| `tyranos chatbot --help` | ✅ | Interactive mode accessible |
+| `tyranos n8n --help` | ✅ | n8n commands listed |
+| `tyranos distro --help` | ✅ | Distro commands listed |
+| `tyranos distro profiles` | ✅ | Fixed (Fix #5), 3 profiles |
+| `tyranos distro estimate arch gaming` | ✅ | Size estimate shown |
+| `tyranos distro build` (no root) | ✅ | Fails correctly w/ PermissionError |
+| Shims: `tyranos.py`, `launch_gui.py`, `launch_chatbot.py` | ✅ | Import without errors |
+| NLP engine (SemanticNLPEngine) | ✅ | `analyze()` returns intent |
+| Spell corrector | ✅ | Corrects typos |
+| Path validator (traversal + null byte) | ✅ | 5/5 security test cases pass |
+| FreeModelResolver | ✅ | 28 free models, no hardcoded names |
+| Config module (get_config) | ✅ | Reads defaults correctly |
+| AI parser (offline) | ✅ | Falls back to basic parsing |
+| No `shell=True` anywhere | ✅ | Grep confirms zero instances |
+| No hardcoded model names | ✅ | Only `FreeModelResolver` used |
+| No bare `print()` in tyranos/ | ✅ | All converted to loguru |
+
+---

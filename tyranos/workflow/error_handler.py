@@ -41,20 +41,20 @@ class SmartErrorHandler:
             # Try to suggest similar existing paths
             suggestions = self._suggest_similar_paths(path)
 
-            print(f"\n❌ Path not found: {path}")
+            self.logger.error(f"Path not found: {path}")
             if context:
-                print(f"   Context: {context}")
+                self.logger.info(f"Context: {context}")
 
-            print("\nOptions:")
-            print(f"1. Create the path: {path}")
-            print(f"2. Use current directory: {os.getcwd()}")
+            self.logger.info("Options:")
+            self.logger.info(f"1. Create the path: {path}")
+            self.logger.info(f"2. Use current directory: {os.getcwd()}")
 
             if suggestions:
                 for i, suggestion in enumerate(suggestions[:3], start=3):
-                    print(f"{i}. Use existing path: {suggestion}")
+                    self.logger.info(f"{i}. Use existing path: {suggestion}")
 
-            print("4. Enter a custom path")
-            print("5. Cancel")
+            self.logger.info("4. Enter a custom path")
+            self.logger.info("5. Cancel")
 
             choice = self._get_user_input(
                 "Choose an option (1-5): ", valid_options=["1", "2", "3", "4", "5"]
@@ -63,10 +63,10 @@ class SmartErrorHandler:
             if choice == "1":
                 try:
                     os.makedirs(path, exist_ok=True)
-                    print(f"✓ Created path: {path}")
+                    self.logger.info(f"Created path: {path}")
                     return path
                 except Exception as e:
-                    print(f"✗ Failed to create path: {e}")
+                    self.logger.error(f"Failed to create path: {e}")
                     return self.handle_path_error(path, context)
             elif choice == "2":
                 return os.getcwd()
@@ -79,7 +79,7 @@ class SmartErrorHandler:
                 if custom_path:
                     return self.handle_path_error(custom_path, context)
             else:
-                print("Cancelled")
+                self.logger.info("Cancelled")
                 return None
 
         return path
@@ -94,15 +94,15 @@ class SmartErrorHandler:
         # Try to find similar files
         similar_files = self._find_similar_files(filename)
 
-        print(f"\n❌ File not found: {filename}")
+        self.logger.error(f"File not found: {filename}")
 
         if similar_files:
-            print("\nDid you mean:")
+            self.logger.info("Did you mean:")
             for i, file in enumerate(similar_files[:5], start=1):
-                print(f"{i}. {file}")
+                self.logger.info(f"{i}. {file}")
 
-            print("6. Enter a different path")
-            print("7. Cancel")
+            self.logger.info("6. Enter a different path")
+            self.logger.info("7. Cancel")
 
             choice = self._get_user_input(
                 "Choose (1-7): ", valid_options=["1", "2", "3", "4", "5", "6", "7"]
@@ -115,9 +115,9 @@ class SmartErrorHandler:
             elif choice == "6":
                 return input("Enter file path: ").strip() or None
         else:
-            print("\nOptions:")
-            print("1. Enter a different path")
-            print("2. Cancel")
+            self.logger.info("Options:")
+            self.logger.info("1. Enter a different path")
+            self.logger.info("2. Cancel")
 
             choice = self._get_user_input("Choose (1-2): ", valid_options=["1", "2"])
             if choice == "1":
@@ -130,13 +130,13 @@ class SmartErrorHandler:
         Handle ambiguous user input
         Presents options for user to choose from
         """
-        print(f"\n⚠️  Ambiguous input: '{user_input}'")
-        print("\nDid you mean:")
+        self.logger.warning(f"Ambiguous input: '{user_input}'")
+        self.logger.info("Did you mean:")
 
         for i, option in enumerate(options[:10], start=1):
-            print(f"{i}. {option}")
+            self.logger.info(f"{i}. {option}")
 
-        print(f"{len(options) + 1}. None of the above")
+        self.logger.info(f"{len(options) + 1}. None of the above")
 
         choice = self._get_user_input(
             f"Choose (1-{len(options) + 1}): ",
@@ -156,18 +156,18 @@ class SmartErrorHandler:
         Handle missing required parameters
         Prompts user to provide the value
         """
-        print(f"\n⚠️  Missing required parameter: {parameter}")
+        self.logger.warning(f"Missing required parameter: {parameter}")
         if context:
-            print(f"   Context: {context}")
+            self.logger.info(f"Context: {context}")
         if expected_type:
-            print(f"   Expected type: {expected_type}")
+            self.logger.info(f"Expected type: {expected_type}")
 
         value = input(f"\nProvide {parameter}: ").strip()
 
         if value:
             return value
         else:
-            print("❌ Cancelled - required parameter not provided")
+            self.logger.error("Cancelled - required parameter not provided")
             return None
 
     def handle_permission_error(self, path: str) -> bool:
@@ -177,16 +177,16 @@ class SmartErrorHandler:
         """
         self.logger.warning(f"Permission denied: {path}")
 
-        print(f"\n❌ Permission denied: {path}")
-        print("\nOptions:")
-        print("1. Try with elevated privileges (requires restart)")
-        print("2. Try alternative location")
-        print("3. Cancel")
+        self.logger.error(f"Permission denied: {path}")
+        self.logger.info("Options:")
+        self.logger.info("1. Try with elevated privileges (requires restart)")
+        self.logger.info("2. Try alternative location")
+        self.logger.info("3. Cancel")
 
         choice = self._get_user_input("Choose (1-3): ", valid_options=["1", "2", "3"])
 
         if choice == "1":
-            print("ℹ️  Restart the application with administrator privileges")
+            self.logger.info("Restart the application with administrator privileges")
             return False
         elif choice == "2":
             alt_path = input("Enter alternative path: ").strip()
@@ -199,9 +199,9 @@ class SmartErrorHandler:
         """Universal error handler called by CLI and other components."""
         self.logger.error(f"Error: {error}")
         self.error_history.append({"error": error, "context": context, "type": "string"})
-        print(f"\n\u274c Error: {error}")
+        self.logger.error(f"Error: {error}")
         if context:
-            print(f"   Context: {context}")
+            self.logger.info(f"Context: {context}")
 
     def handle_execution_error(self, error: Exception, context: str = "") -> bool:
         """
@@ -214,22 +214,22 @@ class SmartErrorHandler:
             {"error": error_msg, "context": context, "type": type(error).__name__}
         )
 
-        print(f"\n❌ Error: {error_msg}")
+        self.logger.error(f"Error: {error_msg}")
         if context:
-            print(f"   Context: {context}")
+            self.logger.info(f"Context: {context}")
 
-        print("\nOptions:")
-        print("1. Retry with same parameters")
-        print("2. Skip this step and continue")
-        print("3. View error details")
-        print("4. Cancel")
+        self.logger.info("Options:")
+        self.logger.info("1. Retry with same parameters")
+        self.logger.info("2. Skip this step and continue")
+        self.logger.info("3. View error details")
+        self.logger.info("4. Cancel")
 
         choice = self._get_user_input("Choose (1-4): ", valid_options=["1", "2", "3", "4"])
 
         if choice == "1":
             return True  # Signal retry
         elif choice == "3":
-            print(f"\nFull error:\n{error}")
+            self.logger.error(f"Full error: {error}")
             import traceback
 
             traceback.print_exc()
@@ -249,7 +249,7 @@ class SmartErrorHandler:
         }
 
         message = suggestions.get(error_type, "Would you like to try:")
-        print(f"\n💡 {message}")
+        self.logger.info(message)
 
         return None
 
@@ -257,9 +257,9 @@ class SmartErrorHandler:
         """
         Confirm destructive actions like delete
         """
-        print(f"\n⚠️  WARNING: {action}")
-        print(f"   Target: {target}")
-        print("\nThis action cannot be undone!")
+        self.logger.warning(f"WARNING: {action}")
+        self.logger.info(f"Target: {target}")
+        self.logger.warning("This action cannot be undone!")
 
         confirm = input("\nDo you want to proceed? (yes/no): ").strip().lower()
 
@@ -319,11 +319,13 @@ class SmartErrorHandler:
             try:
                 user_input = input(prompt).strip()
                 if valid_options and user_input not in valid_options:
-                    print(f"Invalid option. Please choose from: {', '.join(valid_options)}")
+                    self.logger.warning(
+                        f"Invalid option. Please choose from: {', '.join(valid_options)}"
+                    )
                     continue
                 return user_input
             except KeyboardInterrupt:
-                print("\n❌ Cancelled by user")
+                self.logger.warning("Cancelled by user")
                 return ""
             except Exception as e:
                 self.logger.error(f"Input error: {e}")

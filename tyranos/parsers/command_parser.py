@@ -1173,6 +1173,22 @@ class AdvancedCommandParser:
                     )
                 ]
 
+        # Handle list/show directory: "list files", "ls", "show files in /path"
+        list_keywords = ["list", "ls", "show files", "show directory", "dir"]
+        if any(kw in command.lower() for kw in list_keywords):
+            path_match = re.search(
+                r"(?:in|at|inside|of|from)\s+[\"']?([^\s\"']+)[\"']?", command, re.IGNORECASE
+            )
+            path = path_match.group(1) if path_match else "."
+            return [
+                ParsedStep(
+                    action="list",
+                    category="filesystem",
+                    params={"path": path},
+                    priority=1,
+                )
+            ]
+
         # Default fallback
         return [
             ParsedStep(

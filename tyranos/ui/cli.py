@@ -8,6 +8,8 @@ import os
 import sys
 from enum import Enum
 
+from loguru import logger
+
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -103,17 +105,17 @@ class EnhancedCLI:
 
     def _run_interactive(self, initial_commands: list[str] | None = None) -> None:
         """Run interactive mode"""
-        print("=" * 60)
-        print("Tyranos - Interactive Mode")
-        print("=" * 60)
-        print("\nAvailable Commands:")
-        print("  /help     - Show help")
-        print("  /history  - Show command history")
-        print("  /status   - Show system status")
-        print("  /cd       - Change directory")
-        print("  /pwd      - Print working directory")
-        print("  /ls       - List files")
-        print("  quit      - Exit\n")
+        logger.info("=" * 60)
+        logger.info("Tyranos - Interactive Mode")
+        logger.info("=" * 60)
+        logger.info("Available Commands:")
+        logger.info("  /help     - Show help")
+        logger.info("  /history  - Show command history")
+        logger.info("  /status   - Show system status")
+        logger.info("  /cd       - Change directory")
+        logger.info("  /pwd      - Print working directory")
+        logger.info("  /ls       - List files")
+        logger.info("  quit      - Exit")
 
         # Execute initial commands if provided
         if initial_commands:
@@ -130,14 +132,14 @@ class EnhancedCLI:
 
                 if user_input.lower() in ["quit", "exit"]:
                     self.running = False
-                    print("Goodbye!")
+                    logger.info("Goodbye!")
                     break
 
                 self._execute_interactive_command(user_input)
             except KeyboardInterrupt:
-                print("\n\nInterrupted. Type 'quit' to exit.")
+                logger.warning("Interrupted. Type 'quit' to exit.")
             except Exception as e:
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
 
     def _execute_interactive_command(self, command: str) -> None:
         """Execute command in interactive mode"""
@@ -150,11 +152,11 @@ class EnhancedCLI:
         corrected_command = self._apply_spell_correction(command)
 
         if corrected_command != command:
-            print(f"Correction: {command} -> {corrected_command}")
+            logger.info(f"Correction: {command} -> {corrected_command}")
 
         # Analyze with semantic NLP
         analysis = self.semantic_nlp.analyze(corrected_command)
-        print(f"Intent: {analysis.intent.value} (Confidence: {analysis.confidence:.1%})")
+        logger.info(f"Intent: {analysis.intent.value} (Confidence: {analysis.confidence:.1%})")
 
         # Execute
         try:
@@ -167,24 +169,24 @@ class EnhancedCLI:
             if self.error_handler:
                 self.error_handler.handle_error(str(e), command)
             else:
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
 
     def _handle_special_command(self, command: str) -> None:
         """Handle special commands like /help"""
         if command == "/help":
-            print("Available commands: /help, /history, /status, /cd, /pwd, /ls")
+            logger.info("Available commands: /help, /history, /status, /cd, /pwd, /ls")
         elif command == "/history":
             for i, cmd in enumerate(self.command_history, 1):
-                print(f"{i:3d}. {cmd}")
+                logger.info(f"{i:3d}. {cmd}")
         elif command == "/status":
-            print("Status: Running")
+            logger.info("Status: Running")
         else:
-            print(f"Unknown command: {command}")
+            logger.info(f"Unknown command: {command}")
 
     def _format_and_display_result(self, result: dict) -> None:
         """Format and display execution results in human-readable format"""
         if not isinstance(result, dict):
-            print(f"Result: {result}")
+            logger.info(f"Result: {result}")
             return
 
         # Check if execution was successful
@@ -195,17 +197,15 @@ class EnhancedCLI:
         execution_time = result.get("total_execution_time", 0)
 
         # Header
-        status_symbol = "✅" if success else "❌"
-        print(
-            f"\n{status_symbol} {'SUCCESS' if success else 'FAILED'} - {completed_steps}/{total_steps} steps completed"
-        )
+        status_word = "SUCCESS" if success else "FAILED"
+        logger.info(f"{status_word} - {completed_steps}/{total_steps} steps completed")
 
         # Display results for each step
         if results_list:
-            print("\n📋 Operation Results:")
+            logger.info("Operation Results:")
             for i, step_result in enumerate(results_list, 1):
                 if isinstance(step_result, dict):
-                    step_status = "✓" if step_result.get("success", False) else "✗"
+                    step_status = "OK" if step_result.get("success", False) else "FAIL"
                     action = step_result.get("action", "Unknown")
                     details = step_result.get("details", "")
                     created_item = (
@@ -215,18 +215,16 @@ class EnhancedCLI:
                     )
 
                     if created_item:
-                        print(f"   {step_status} {i}. {action}: {created_item}")
+                        logger.info(f"  [{step_status}] {i}. {action}: {created_item}")
                     elif details:
-                        print(f"   {step_status} {i}. {action}: {details}")
+                        logger.info(f"  [{step_status}] {i}. {action}: {details}")
                     else:
-                        print(f"   {step_status} {i}. {action}")
+                        logger.info(f"  [{step_status}] {i}. {action}")
 
         # Execution time
         if execution_time:
             time_ms = execution_time * 1000
-            print(f"\n⏱️  Execution Time: {time_ms:.2f} ms")
-
-        print()  # Blank line for readability
+            logger.info(f"Execution Time: {time_ms:.2f} ms")
 
     def _run_batch(self, commands: list[str] | None = None) -> None:
         """Run batch mode"""
@@ -234,12 +232,12 @@ class EnhancedCLI:
             return
 
         for cmd in commands:
-            print(f"\nExecuting: {cmd}")
+            logger.info(f"Executing: {cmd}")
             corrected = self._apply_spell_correction(cmd)
             try:
                 self.base_engine.execute(corrected)
             except Exception as e:
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
 
     def _run_cli(self, commands: list[str] | None = None) -> None:
         """Run CLI mode"""
@@ -254,7 +252,7 @@ class EnhancedCLI:
                 if self.error_handler:
                     self.error_handler.handle_error(str(e), cmd)
                 else:
-                    print(f"Error: {e}")
+                    logger.error(f"Error: {e}")
 
     def _run_gui(self) -> None:
         """Run GUI mode"""
@@ -264,7 +262,7 @@ class EnhancedCLI:
             gui = ModernTyranosGUI()
             gui.run()
         except ImportError:
-            print("GUI mode requires PyQt/Tkinter. Please install required dependencies.")
+            logger.error("GUI mode requires PyQt/Tkinter. Please install required dependencies.")
 
 
 def main():
@@ -290,7 +288,7 @@ def main():
             with open(args.batch) as f:
                 args.commands = [line.strip() for line in f if line.strip()]
         else:
-            print(f"Batch file not found: {args.batch}")
+            logger.error(f"Batch file not found: {args.batch}")
             sys.exit(1)
     else:
         mode = InteractionMode.CLI

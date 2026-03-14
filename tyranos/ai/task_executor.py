@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from loguru import logger
+
 from ..utils.logger import get_logger
 
 
@@ -104,10 +106,10 @@ class AITaskExecutor:
 
         # If multiple files found, prompt user to select with enhanced context
         try:
-            print(f"\n⚠️  Multiple files named '{file_name}' found:")
+            logger.warning(f"Multiple files named '{file_name}' found:")
         except Exception:
-            print(f"\nWARNING: Multiple files named '{file_name}' found:")
-        print(f"    Current working directory: {current_dir}\n")
+            logger.warning(f"Multiple files named '{file_name}' found:")
+        logger.info(f"Current working directory: {current_dir}")
 
         for idx, path in enumerate(found_files, 1):
             # Show location context
@@ -142,9 +144,9 @@ class AITaskExecutor:
             except Exception:
                 size_str = "?"
 
-            print(f"   {idx}. {folder_context}")
-            print(f"       Full path: {abs_path}")
-            print(f"       Size: {size_str}\n")
+            logger.info(f"  {idx}. {folder_context}")
+            logger.info(f"      Full path: {abs_path}")
+            logger.info(f"      Size: {size_str}")
 
         try:
             # Try to get user input
@@ -153,13 +155,13 @@ class AITaskExecutor:
 
             if 0 <= choice_idx < len(found_files):
                 selected_file = found_files[choice_idx]
-                print(f"✓ Selected: {selected_file}\n")
+                logger.info(f"Selected: {selected_file}")
                 return selected_file
             else:
-                print("❌ Invalid choice. Using first option.\n")
+                logger.warning("Invalid choice. Using first option.")
                 return found_files[0]
         except (ValueError, KeyboardInterrupt):
-            print(f"✓ Using first option: {found_files[0]}\n")
+            logger.info(f"Using first option: {found_files[0]}")
             return found_files[0]
 
     def execute_task_plan(self, task_plan: dict[str, Any]) -> dict[str, Any]:

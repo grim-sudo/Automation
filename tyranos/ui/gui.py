@@ -11,6 +11,8 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import messagebox, scrolledtext, ttk
 
+from loguru import logger
+
 # Try to import customtkinter for modern look
 try:
     import customtkinter as ctk
@@ -48,7 +50,7 @@ class ModernTyranosGUI:
                     self.root = tk.Tk()
                     self.setup_classic_gui()
             except Exception as e:
-                print(f"Failed to initialize GUI: {e}")
+                logger.error(f"Failed to initialize GUI: {e}")
                 raise
 
             # Set up window close handler
@@ -67,7 +69,7 @@ class ModernTyranosGUI:
             self.root.after(100, self.check_results)
 
         except Exception as e:
-            print(f"Critical error during GUI initialization: {e}")
+            logger.error(f"Critical error during GUI initialization: {e}")
             raise
 
     def on_closing(self):
@@ -88,7 +90,7 @@ class ModernTyranosGUI:
             self.root.destroy()
 
         except Exception as e:
-            print(f"Error during cleanup: {e}")
+            logger.error(f"Error during cleanup: {e}")
             self.root.destroy()
 
     def setup_modern_gui(self):
@@ -737,7 +739,7 @@ def main():
         app = ModernTyranosGUI()
         app.run()
     except Exception as e:
-        print(f"Failed to start GUI: {e}")
+        logger.error(f"Failed to start GUI: {e}")
         import traceback
 
         traceback.print_exc()

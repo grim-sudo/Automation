@@ -65,7 +65,7 @@ jobs:
 
       - name: Run mypy
         run: |
-          mypy tyranos/ tyranos.py \
+          mypy tyranos/ \
             --ignore-missing-imports \
             --no-error-summary \
             --warn-return-any

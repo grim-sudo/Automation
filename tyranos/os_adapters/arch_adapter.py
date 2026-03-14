@@ -11,6 +11,7 @@ import subprocess
 from typing import Any
 
 import psutil
+from loguru import logger
 
 from .base_adapter import (
     BaseFilesystemAdapter,
@@ -75,7 +76,7 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                 raise ValueError(f"Unknown filesystem action: {action}")
         except Exception as e:
             # Fallback: log error and return safe default
-            print(f"⚠️  Filesystem action '{action}' failed: {e}")
+            logger.warning(f"Filesystem action '{action}' failed: {e}")
             return False
 
     def get_capabilities(self) -> list[str]:
@@ -90,10 +91,10 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
             os.chmod(path, 0o755)  # rwxr-xr-x
             return True
         except PermissionError:
-            print(f"⚠️  Permission denied creating folder: {path}")
+            logger.warning(f"Permission denied creating folder: {path}")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to create folder: {e}")
+            logger.warning(f"Failed to create folder: {e}")
             return False
 
     def create_file(self, name: str, location: str = None, content: str = "") -> bool:
@@ -111,17 +112,17 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
             os.chmod(path, 0o644)  # rw-r--r--
             return True
         except PermissionError:
-            print(f"⚠️  Permission denied creating file: {path}")
+            logger.warning(f"Permission denied creating file: {path}")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to create file: {e}")
+            logger.warning(f"Failed to create file: {e}")
             return False
 
     def delete(self, path: str, recursive: bool = True) -> bool:
         """Delete file or directory with safety checks"""
         try:
             if not os.path.exists(path):
-                print(f"⚠️  Path does not exist: {path}")
+                logger.warning(f"Path does not exist: {path}")
                 return False
 
             if os.path.isfile(path):
@@ -133,17 +134,17 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                     os.rmdir(path)
             return True
         except PermissionError:
-            print(f"⚠️  Permission denied deleting: {path}")
+            logger.warning(f"Permission denied deleting: {path}")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to delete: {e}")
+            logger.warning(f"Failed to delete: {e}")
             return False
 
     def copy(self, source: str, destination: str) -> bool:
         """Copy file or directory with fallback"""
         try:
             if not os.path.exists(source):
-                print(f"⚠️  Source does not exist: {source}")
+                logger.warning(f"Source does not exist: {source}")
                 return False
 
             if os.path.isfile(source):
@@ -152,20 +153,20 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                 shutil.copytree(source, destination, dirs_exist_ok=True)
             return True
         except Exception as e:
-            print(f"⚠️  Failed to copy: {e}")
+            logger.warning(f"Failed to copy: {e}")
             return False
 
     def move(self, source: str, destination: str) -> bool:
         """Move file or directory with fallback"""
         try:
             if not os.path.exists(source):
-                print(f"⚠️  Source does not exist: {source}")
+                logger.warning(f"Source does not exist: {source}")
                 return False
 
             shutil.move(source, destination)
             return True
         except Exception as e:
-            print(f"⚠️  Failed to move: {e}")
+            logger.warning(f"Failed to move: {e}")
             return False
 
     def list_directory(self, path: str = ".") -> list[dict[str, Any]]:
@@ -189,7 +190,7 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                     items.append({"name": item, "path": item_path, "type": "unknown"})
             return items
         except Exception as e:
-            print(f"⚠️  Failed to list directory: {e}")
+            logger.warning(f"Failed to list directory: {e}")
             return []
 
     def get_file_info(self, path: str) -> dict[str, Any]:
@@ -211,7 +212,7 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                 "group_gid": stat.st_gid,
             }
         except Exception as e:
-            print(f"⚠️  Failed to get file info: {e}")
+            logger.warning(f"Failed to get file info: {e}")
             return {"error": str(e)}
 
 
@@ -230,7 +231,7 @@ class ArchProcessAdapter(BaseProcessAdapter):
             else:
                 raise ValueError(f"Unknown process action: {action}")
         except Exception as e:
-            print(f"⚠️  Process action '{action}' failed: {e}")
+            logger.warning(f"Process action '{action}' failed: {e}")
             return None
 
     def get_capabilities(self) -> list[str]:
@@ -243,7 +244,7 @@ class ArchProcessAdapter(BaseProcessAdapter):
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             return process.pid
         except Exception as e:
-            print(f"⚠️  Failed to start process: {e}")
+            logger.warning(f"Failed to start process: {e}")
             return -1
 
     def kill_process(self, identifier: Any) -> bool:
@@ -258,10 +259,10 @@ class ArchProcessAdapter(BaseProcessAdapter):
                 subprocess.run(["pkill", "-9", identifier], check=True)
                 return True
         except ProcessLookupError:
-            print(f"⚠️  Process not found: {identifier}")
+            logger.warning(f"Process not found: {identifier}")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to kill process: {e}")
+            logger.warning(f"Failed to kill process: {e}")
             return False
 
     def terminate_process(self, pid_or_name: Any) -> bool:
@@ -277,10 +278,10 @@ class ArchProcessAdapter(BaseProcessAdapter):
                 subprocess.run(["pkill", "-f", str(pid_or_name)], check=True)
                 return True
         except ProcessLookupError:
-            print(f"⚠️  Process not found: {pid_or_name}")
+            logger.warning(f"Process not found: {pid_or_name}")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to terminate process: {e}")
+            logger.warning(f"Failed to terminate process: {e}")
             return False
 
     def list_processes(self) -> list[dict[str, Any]]:
@@ -294,7 +295,7 @@ class ArchProcessAdapter(BaseProcessAdapter):
                     continue
             return processes
         except Exception as e:
-            print(f"⚠️  Failed to list processes: {e}")
+            logger.warning(f"Failed to list processes: {e}")
             return []
 
     def get_process_info(self, pid: int) -> dict[str, Any]:
@@ -312,13 +313,13 @@ class ArchProcessAdapter(BaseProcessAdapter):
                 "cwd": proc.cwd() if proc.cwd() else "N/A",
             }
         except psutil.NoSuchProcess:
-            print(f"⚠️  Process {pid} not found")
+            logger.warning(f"Process {pid} not found")
             return {"error": f"Process {pid} not found"}
         except psutil.AccessDenied:
-            print(f"⚠️  Access denied for process {pid}")
+            logger.warning(f"Access denied for process {pid}")
             return {"error": f"Access denied for process {pid}"}
         except Exception as e:
-            print(f"⚠️  Failed to get process info: {e}")
+            logger.warning(f"Failed to get process info: {e}")
             return {"error": str(e)}
 
 
@@ -351,7 +352,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
             else:
                 raise ValueError(f"Unknown system action: {action}")
         except Exception as e:
-            print(f"⚠️  System action '{action}' failed: {e}")
+            logger.warning(f"System action '{action}' failed: {e}")
             return False
 
     def get_capabilities(self) -> list[str]:
@@ -360,7 +361,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
     def install_package(self, package: str) -> bool:
         """Install package using pacman/yay with fallback"""
         try:
-            print(f"📦 Installing package: {package} (using {self.aur_helper})")
+            logger.info(f"Installing package: {package} (using {self.aur_helper})")
 
             if self.aur_helper == "pacman":
                 # Official repos only
@@ -372,39 +373,39 @@ class ArchSystemAdapter(BaseSystemAdapter):
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
-                print(f"✅ Package '{package}' installed successfully")
+                logger.info(f"Package '{package}' installed successfully")
                 return True
             else:
-                print(f"⚠️  Package installation failed: {result.stderr}")
+                logger.warning(f"Package installation failed: {result.stderr}")
                 return False
         except FileNotFoundError:
-            print(f"⚠️  Package manager not found. Install {self.aur_helper} first.")
+            logger.warning(f"Package manager not found. Install {self.aur_helper} first.")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to install package: {e}")
+            logger.warning(f"Failed to install package: {e}")
             return False
 
     def remove_package(self, package: str) -> bool:
         """Remove package with fallback"""
         try:
-            print(f"🗑️  Removing package: {package}")
+            logger.info(f"Removing package: {package}")
             cmd = ["sudo", "pacman", "-R", "--noconfirm", package]
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
-                print(f"✅ Package '{package}' removed successfully")
+                logger.info(f"Package '{package}' removed successfully")
                 return True
             else:
-                print(f"⚠️  Package removal failed: {result.stderr}")
+                logger.warning(f"Package removal failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"⚠️  Failed to remove package: {e}")
+            logger.warning(f"Failed to remove package: {e}")
             return False
 
     def update_system(self) -> bool:
         """Update system packages with fallback"""
         try:
-            print(f"🔄 Updating system using {self.aur_helper}...")
+            logger.info(f"Updating system using {self.aur_helper}...")
 
             if self.aur_helper == "pacman":
                 cmd = ["sudo", "pacman", "-Syu", "--noconfirm"]
@@ -414,13 +415,13 @@ class ArchSystemAdapter(BaseSystemAdapter):
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
-                print("✅ System updated successfully")
+                logger.info("System updated successfully")
                 return True
             else:
-                print(f"⚠️  System update failed: {result.stderr}")
+                logger.warning(f"System update failed: {result.stderr}")
                 return False
         except Exception as e:
-            print(f"⚠️  Failed to update system: {e}")
+            logger.warning(f"Failed to update system: {e}")
             return False
 
     def get_system_info(self) -> dict[str, Any]:
@@ -448,7 +449,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
 
             return info
         except Exception as e:
-            print(f"⚠️  Failed to get system info: {e}")
+            logger.warning(f"Failed to get system info: {e}")
             return {"os": "Arch Linux", "error": str(e)}
 
     def set_volume(self, level: int) -> bool:
@@ -464,7 +465,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
                         check=True,
                         capture_output=True,
                     )
-                    print(f"🔊 Volume set to {volume_percent}%")
+                    logger.info(f"Volume set to {volume_percent}%")
                     return True
                 except Exception:
                     pass
@@ -477,7 +478,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
                         check=True,
                         capture_output=True,
                     )
-                    print(f"🔊 Volume set to {volume_percent}%")
+                    logger.info(f"Volume set to {volume_percent}%")
                     return True
                 except Exception:
                     pass
@@ -491,15 +492,15 @@ class ArchSystemAdapter(BaseSystemAdapter):
                         check=True,
                         capture_output=True,
                     )
-                    print(f"🔊 Volume set to {volume_percent}%")
+                    logger.info(f"Volume set to {volume_percent}%")
                     return True
                 except Exception:
                     pass
 
-            print("⚠️  No volume control method available")
+            logger.warning("No volume control method available")
             return False
         except Exception as e:
-            print(f"⚠️  Failed to set volume: {e}")
+            logger.warning(f"Failed to set volume: {e}")
             return False
 
     def power_action(self, action: str) -> bool:
@@ -508,19 +509,19 @@ class ArchSystemAdapter(BaseSystemAdapter):
             action_lower = action.lower()
 
             if action_lower in ["shutdown", "poweroff"]:
-                print("🔌 Initiating system shutdown...")
+                logger.info("Initiating system shutdown...")
                 subprocess.run(["sudo", "shutdown", "-h", "now"], check=True, capture_output=True)
             elif action_lower in ["restart", "reboot"]:
-                print("🔄 Initiating system restart...")
+                logger.info("Initiating system restart...")
                 subprocess.run(["sudo", "reboot"], check=True, capture_output=True)
             elif action_lower == "suspend":
-                print("💤 Suspending system...")
+                logger.info("Suspending system...")
                 subprocess.run(["systemctl", "suspend"], check=True, capture_output=True)
             elif action_lower == "hibernate":
-                print("💤 Hibernating system...")
+                logger.info("Hibernating system...")
                 subprocess.run(["systemctl", "hibernate"], check=True, capture_output=True)
             elif action_lower == "logout":
-                print("👋 Logging out...")
+                logger.info("Logging out...")
                 # Try different logout methods
                 if os.environ.get("XDG_CURRENT_DESKTOP") == "KDE":
                     subprocess.run(
@@ -535,12 +536,12 @@ class ArchSystemAdapter(BaseSystemAdapter):
                         capture_output=True,
                     )
             else:
-                print(f"⚠️  Unknown power action: {action}")
+                logger.warning(f"Unknown power action: {action}")
                 return False
 
             return True
         except Exception as e:
-            print(f"⚠️  Failed to perform power action: {e}")
+            logger.warning(f"Failed to perform power action: {e}")
             return False
 
     def get_environment_variables(self) -> dict[str, str]:
@@ -548,7 +549,7 @@ class ArchSystemAdapter(BaseSystemAdapter):
         try:
             return dict(os.environ)
         except Exception as e:
-            print(f"⚠️  Failed to get environment variables: {e}")
+            logger.warning(f"Failed to get environment variables: {e}")
             return {}
 
 
@@ -578,7 +579,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
             else:
                 raise ValueError(f"Unknown GUI action: {action}")
         except Exception as e:
-            print(f"⚠️  GUI action '{action}' failed: {e}")
+            logger.warning(f"GUI action '{action}' failed: {e}")
             return False
 
     def get_capabilities(self) -> list[str]:
@@ -610,7 +611,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
                     elif tool == "gnome-screenshot":
                         subprocess.run(["gnome-screenshot", "-f", path], check=True)
 
-                    print(f"✅ Screenshot saved: {path} (using {tool})")
+                    logger.info(f"Screenshot saved: {path} (using {tool})")
                     return True
                 except Exception:
                     continue
@@ -621,11 +622,11 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
             screenshot = pyautogui.screenshot()
             screenshot.save(path)
-            print(f"✅ Screenshot saved: {path} (using pyautogui)")
+            logger.info(f"Screenshot saved: {path} (using pyautogui)")
             return True
         except Exception as e:
-            print(f"⚠️  Failed to take screenshot: {e}")
-            print("💡 Install: sudo pacman -S scrot (X11) or grim (Wayland)")
+            logger.warning(f"Failed to take screenshot: {e}")
+            logger.info("Install: sudo pacman -S scrot (X11) or grim (Wayland)")
             return False
 
     def click(self, x: int, y: int) -> bool:
@@ -636,7 +637,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
             pyautogui.click(x, y)
             return True
         except Exception as e:
-            print(f"⚠️  Failed to click: {e}")
+            logger.warning(f"Failed to click: {e}")
             return False
 
     def type_text(self, text: str) -> bool:
@@ -647,7 +648,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
             pyautogui.write(text, interval=0.05)
             return True
         except Exception as e:
-            print(f"⚠️  Failed to type text: {e}")
+            logger.warning(f"Failed to type text: {e}")
             return False
 
     def press_key(self, key: str) -> bool:
@@ -658,7 +659,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
             pyautogui.press(key)
             return True
         except Exception as e:
-            print(f"⚠️  Failed to press key: {e}")
+            logger.warning(f"Failed to press key: {e}")
             return False
 
     def find_element(self, image_path: str) -> dict[str, int]:
@@ -671,10 +672,10 @@ class ArchGUIAdapter(BaseGUIAdapter):
                 center = pyautogui.center(location)
                 return {"x": center.x, "y": center.y}
             else:
-                print(f"⚠️  Element not found: {image_path}")
+                logger.warning(f"Element not found: {image_path}")
                 return {"x": 0, "y": 0}
         except Exception as e:
-            print(f"⚠️  Failed to find element: {e}")
+            logger.warning(f"Failed to find element: {e}")
             return {"x": 0, "y": 0}
 
 
@@ -691,7 +692,7 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
             else:
                 raise ValueError(f"Unknown network action: {action}")
         except Exception as e:
-            print(f"⚠️  Network action '{action}' failed: {e}")
+            logger.warning(f"Network action '{action}' failed: {e}")
             return False
 
     def get_capabilities(self) -> list[str]:
@@ -703,7 +704,7 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
         if shutil.which("curl"):
             try:
                 subprocess.run(["curl", "-L", "-o", destination, url], check=True)
-                print(f"✅ Downloaded: {destination}")
+                logger.info(f"Downloaded: {destination}")
                 return True
             except Exception:
                 pass
@@ -712,7 +713,7 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
         if shutil.which("wget"):
             try:
                 subprocess.run(["wget", "-O", destination, url], check=True)
-                print(f"✅ Downloaded: {destination}")
+                logger.info(f"Downloaded: {destination}")
                 return True
             except Exception:
                 pass
@@ -728,10 +729,10 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
                         for chunk in response.iter_bytes(chunk_size=8192):
                             f.write(chunk)
 
-            print(f"✅ Downloaded: {destination}")
+            logger.info(f"Downloaded: {destination}")
             return True
         except Exception as e:
-            print(f"⚠️  Failed to download file: {e}")
+            logger.warning(f"Failed to download file: {e}")
             return False
 
     def test_connection(self, host: str = "google.com") -> bool:
@@ -759,7 +760,7 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
                 else None,
             }
         except Exception as e:
-            print(f"⚠️  HTTP request failed: {e}")
+            logger.warning(f"HTTP request failed: {e}")
             return {"success": False, "error": str(e)}
 
     def get_network_info(self) -> dict[str, Any]:
@@ -788,7 +789,7 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
 
             return info
         except Exception as e:
-            print(f"⚠️  Failed to get network info: {e}")
+            logger.warning(f"Failed to get network info: {e}")
             return {"error": str(e)}
 
 
@@ -797,10 +798,10 @@ class ArchLinuxAdapter(BaseOSAdapter):
 
     def __init__(self):
         super().__init__()
-        print("🐧 Arch Linux Adapter initialized")
-        print(f"   Distro: {self.system.distro}")
-        print(f"   AUR Helper: {self.system.aur_helper}")
-        print(f"   Display: {self.gui.display_server}")
+        logger.info("Arch Linux Adapter initialized")
+        logger.info(f"Distro: {self.system.distro}")
+        logger.info(f"AUR Helper: {self.system.aur_helper}")
+        logger.info(f"Display: {self.gui.display_server}")
 
     def _create_filesystem_adapter(self) -> BaseFilesystemAdapter:
         """Create Arch filesystem adapter"""
@@ -836,11 +837,11 @@ class ArchLinuxAdapter(BaseOSAdapter):
             elif category == "network":
                 return self.network.execute(action, params)
             else:
-                print(f"⚠️  Unknown category: {category}")
+                logger.warning(f"Unknown category: {category}")
                 return None
         except Exception as e:
-            print(f"⚠️  Adapter execution failed: {e}")
-            print(f"   Category: {category}, Action: {action}")
+            logger.warning(f"Adapter execution failed: {e}")
+            logger.warning(f"Category: {category}, Action: {action}")
             return None
 
     def get_all_capabilities(self) -> dict[str, list[str]]:
@@ -854,5 +855,5 @@ class ArchLinuxAdapter(BaseOSAdapter):
                 "network": self.network.get_capabilities(),
             }
         except Exception as e:
-            print(f"⚠️  Failed to get capabilities: {e}")
+            logger.warning(f"Failed to get capabilities: {e}")
             return {}

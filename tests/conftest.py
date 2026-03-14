@@ -146,7 +146,7 @@ def mock_openrouter_response() -> dict[str, Any]:
                 "finish_reason": "stop",
             }
         ],
-        "model": "openai/gpt-4o",
+        "model": "test/free-model-large",
         "usage": {
             "prompt_tokens": 50,
             "completion_tokens": 100,

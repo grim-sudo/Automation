@@ -2,17 +2,18 @@
 Web automation plugin using Selenium
 """
 
+import contextlib
 import os
 import re
 import sys
 import time as time_module
 from typing import Any
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import contextlib
+from loguru import logger
 
 from tyranos.core.plugin_manager import AutomationPlugin
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from bs4 import BeautifulSoup
@@ -137,7 +138,7 @@ class WebAutomationPlugin(AutomationPlugin):
     def initialize(self) -> bool:
         """Initialize the web automation plugin"""
         if not HAS_SELENIUM:
-            print("Selenium not available. Install with: pip install selenium")
+            logger.warning("Selenium not available. Install with: pip install selenium")
             return False
         return True
 

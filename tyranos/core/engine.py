@@ -7,6 +7,8 @@ import platform
 from datetime import datetime
 from typing import Any
 
+from loguru import logger
+
 from ..os_adapters.adapter_factory import OSAdapterFactory
 from ..parsers.ai_parser import AIEnhancedParser
 from ..parsers.command_parser import AdvancedCommandParser, CommandComplexity
@@ -64,7 +66,7 @@ class Tyranos:
             if hasattr(self, "logger"):
                 self.logger.error(f"Failed to initialize Tyranos: {e}")
             else:
-                print(f"Critical error during initialization: {e}")
+                logger.error(f"Critical error during initialization: {e}")
             raise
 
     def _validate_config(self):
@@ -641,10 +643,10 @@ class Tyranos:
 
         # If multiple files found, prompt user to select with enhanced context
         try:
-            print(f"\n⚠️  Multiple files named '{file_name}' found:")
+            logger.warning(f"Multiple files named '{file_name}' found:")
         except Exception:
-            print(f"\nWARNING: Multiple files named '{file_name}' found:")
-        print(f"    Current working directory: {current_dir}\n")
+            logger.warning(f"Multiple files named '{file_name}' found:")
+        logger.info(f"Current working directory: {current_dir}")
 
         for idx, path in enumerate(found_files, 1):
             # Show location context
@@ -654,7 +656,7 @@ class Tyranos:
             if abs_path.startswith(current_dir):
                 try:
                     folder_context = (
-                        f"📁 [IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+                        f"[IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
                     )
                 except Exception:
                     folder_context = (
@@ -662,12 +664,12 @@ class Tyranos:
                     )
             elif abs_path.startswith(desktop_path):
                 try:
-                    folder_context = "🖥️  [ON DESKTOP]"
+                    folder_context = "[ON DESKTOP]"
                 except Exception:
                     folder_context = "[ON DESKTOP]"
             else:
                 try:
-                    folder_context = f"📂 {os.path.dirname(abs_path)}"
+                    folder_context = f"{os.path.dirname(abs_path)}"
                 except Exception:
                     folder_context = f"{os.path.dirname(abs_path)}"
 
@@ -680,9 +682,9 @@ class Tyranos:
             except Exception:
                 size_str = "?"
 
-            print(f"   {idx}. {folder_context}")
-            print(f"       Full path: {abs_path}")
-            print(f"       Size: {size_str}\n")
+            logger.info(f"  {idx}. {folder_context}")
+            logger.info(f"      Full path: {abs_path}")
+            logger.info(f"      Size: {size_str}")
 
         try:
             # Try to get user input
@@ -691,13 +693,13 @@ class Tyranos:
 
             if 0 <= choice_idx < len(found_files):
                 selected_file = found_files[choice_idx]
-                print(f"✓ Selected: {selected_file}\n")
+                logger.info(f"Selected: {selected_file}")
                 return selected_file
             else:
-                print("❌ Invalid choice. Using first option.\n")
+                logger.warning("Invalid choice. Using first option.")
                 return found_files[0]
         except (ValueError, KeyboardInterrupt):
-            print(f"✓ Using first option: {found_files[0]}\n")
+            logger.info(f"Using first option: {found_files[0]}")
             return found_files[0]
 
     def _handle_read_file(self, params: dict[str, Any]) -> dict[str, Any]:

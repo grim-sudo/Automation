@@ -9,6 +9,8 @@ import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
+from loguru import logger
+
 
 class AutomationPlugin(ABC):
     """Base class for all automation plugins"""
@@ -80,7 +82,7 @@ class PluginManager:
                 try:
                     self._load_plugin_from_module(module_name)
                 except Exception as e:
-                    print(f"Failed to load plugin {module_name}: {e}")
+                    logger.warning(f"Failed to load plugin {module_name}: {e}")
 
     def _load_plugin_from_module(self, module_name: str):
         """Load a plugin from a Python module"""
@@ -99,7 +101,9 @@ class PluginManager:
                     plugin_instance = obj()
                     if plugin_instance.initialize():
                         self.plugins[plugin_instance.name] = plugin_instance
-                        print(f"Loaded plugin: {plugin_instance.name} v{plugin_instance.version}")
+                        logger.info(
+                            f"Loaded plugin: {plugin_instance.name} v{plugin_instance.version}"
+                        )
 
         except Exception as e:
             raise Exception(f"Error loading plugin module {module_name}: {e}") from None
@@ -112,7 +116,7 @@ class PluginManager:
                 return True
             return False
         except Exception as e:
-            print(f"Failed to register plugin {plugin.name}: {e}")
+            logger.warning(f"Failed to register plugin {plugin.name}: {e}")
             return False
 
     def unregister_plugin(self, plugin_name: str) -> bool:
@@ -123,7 +127,7 @@ class PluginManager:
                 del self.plugins[plugin_name]
                 return True
             except Exception as e:
-                print(f"Error unregistering plugin {plugin_name}: {e}")
+                logger.warning(f"Error unregistering plugin {plugin_name}: {e}")
         return False
 
     def execute(self, plugin_name: str, action: str, params: dict[str, Any]) -> Any:
@@ -201,6 +205,6 @@ class PluginManager:
             try:
                 plugin.cleanup()
             except Exception as e:
-                print(f"Error during plugin cleanup: {e}")
+                logger.warning(f"Error during plugin cleanup: {e}")
 
         self.plugins.clear()

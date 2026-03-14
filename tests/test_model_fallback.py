@@ -38,7 +38,7 @@ def config() -> OpenRouterConfig:
     return OpenRouterConfig(
         url="https://openrouter.ai/api/v1",
         api_key="test-key-123",
-        model="openai/gpt-4o",
+        model="test/model-a",
         timeout=30,
         max_retries=3,
     )
@@ -47,9 +47,9 @@ def config() -> OpenRouterConfig:
 @pytest.fixture
 def fallback_chain() -> list[str]:
     return [
-        "openai/gpt-4o",
-        "anthropic/claude-3.5-sonnet",
-        "google/gemini-2.0-flash",
+        "test/model-a",
+        "test/model-b",
+        "test/model-c",
     ]
 
 
@@ -64,13 +64,13 @@ class TestFallbackChain:
         """When the first model succeeds, content and model name are returned."""
         client = OpenRouterClient(config)
 
-        with patch.object(client, "complete", new=AsyncMock(return_value="Hello from GPT-4o")):
+        with patch.object(client, "complete", new=AsyncMock(return_value="Hello from test model")):
             content, model = await client.complete_with_fallback(
                 [{"role": "user", "content": "Hi"}],
                 fallback_chain=fallback_chain,
             )
 
-        assert content == "Hello from GPT-4o"
+        assert content == "Hello from test model"
         assert model == fallback_chain[0]
 
     @pytest.mark.asyncio
@@ -154,7 +154,7 @@ class TestFallbackChain:
     async def test_single_model_chain_success(self, config: OpenRouterConfig) -> None:
         """A one-element chain that succeeds should return immediately."""
         client = OpenRouterClient(config)
-        single_chain = ["openai/gpt-4o"]
+        single_chain = ["test/model-a"]
 
         with patch.object(client, "complete", new=AsyncMock(return_value="OK")):
             content, model = await client.complete_with_fallback(
@@ -163,7 +163,7 @@ class TestFallbackChain:
             )
 
         assert content == "OK"
-        assert model == "openai/gpt-4o"
+        assert model == "test/model-a"
 
     @pytest.mark.asyncio
     async def test_last_model_in_chain_is_tried(
@@ -192,15 +192,15 @@ class TestFallbackChain:
 
 class TestAIProviderError:
     def test_has_status_code_attribute(self) -> None:
-        err = AIProviderError("Rate limited", 429, "openai/gpt-4o")
+        err = AIProviderError("Rate limited", 429, "test/model-a")
         assert err.status_code == 429
 
     def test_has_model_attribute(self) -> None:
-        err = AIProviderError("Rate limited", 429, "openai/gpt-4o")
-        assert err.model == "openai/gpt-4o"
+        err = AIProviderError("Rate limited", 429, "test/model-a")
+        assert err.model == "test/model-a"
 
     def test_message_in_str(self) -> None:
-        err = AIProviderError("Rate limited", 429, "openai/gpt-4o")
+        err = AIProviderError("Rate limited", 429, "test/model-a")
         assert "Rate limited" in str(err)
 
     def test_is_exception_subclass(self) -> None:
