@@ -5,6 +5,7 @@ Plugins are loaded dynamically by the PluginManager at runtime.
 This __init__.py provides lazy imports so optional feature plugins
 (n8n_bridge, distro_builder) do not fail if their dependencies are absent.
 """
+
 from __future__ import annotations
 
 __all__ = [
@@ -33,8 +34,13 @@ try:
         parse_nl_to_steps,
     )
 
-    __all__ += ["WorkflowManager", "TriggerEngine", "N8nConfig",
-                "build_linear_workflow", "parse_nl_to_steps"]
+    __all__ += [
+        "WorkflowManager",
+        "TriggerEngine",
+        "N8nConfig",
+        "build_linear_workflow",
+        "parse_nl_to_steps",
+    ]
     _N8N_AVAILABLE = True
 except ImportError:
     _N8N_AVAILABLE = False

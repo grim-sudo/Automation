@@ -21,12 +21,12 @@ Field names used in assertions match the existing Pydantic models:
     IntentResult.confidence      (float, clamped to [0, 1])
     IntentResult.enhanced_understanding
 """
+
 from __future__ import annotations
 
 import json
 
 import pytest
-
 from omni_automator.ai.response_parser import (
     ExecutionStep,
     IntentResult,
@@ -34,7 +34,6 @@ from omni_automator.ai.response_parser import (
     TaskPlan,
     repair_and_parse,
 )
-
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -132,9 +131,7 @@ class TestTaskPlanParsing:
         assert result.interpreted_intent == "Create test project"
         assert len(result.execution_steps) == 1
 
-    def test_parses_malformed_single_quote_json(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_parses_malformed_single_quote_json(self, parser: ResponseParser) -> None:
         """Parser should repair Python-style single-quoted dict literals."""
         try:
             result = parser.parse_task_plan(MALFORMED_SINGLE_QUOTE_JSON)
@@ -158,22 +155,16 @@ class TestTaskPlanParsing:
         assert isinstance(result, TaskPlan)
         assert len(result.execution_steps) == 0
 
-    def test_execution_steps_are_execution_step_objects(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_execution_steps_are_execution_step_objects(self, parser: ResponseParser) -> None:
         result = parser.parse_task_plan(VALID_TASK_PLAN_JSON)
         for step in result.execution_steps:
             assert isinstance(step, ExecutionStep)
 
-    def test_step_category_is_normalised_lowercase(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_step_category_is_normalised_lowercase(self, parser: ResponseParser) -> None:
         result = parser.parse_task_plan(VALID_TASK_PLAN_JSON)
         assert result.execution_steps[0].category == "filesystem"
 
-    def test_step_action_is_normalised_lowercase(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_step_action_is_normalised_lowercase(self, parser: ResponseParser) -> None:
         result = parser.parse_task_plan(VALID_TASK_PLAN_JSON)
         assert result.execution_steps[0].action == "create_folder"
 
@@ -187,9 +178,7 @@ class TestIntentParsing:
         assert isinstance(result, IntentResult)
         assert result.confidence == pytest.approx(0.92)
 
-    def test_enhanced_understanding_populated(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_enhanced_understanding_populated(self, parser: ResponseParser) -> None:
         result = parser.parse_intent(VALID_INTENT_JSON)
         assert result.enhanced_understanding == "Create a folder at /tmp/test"
 
@@ -224,51 +213,37 @@ class TestIntentParsing:
 
 
 class TestJsonExtraction:
-    def test_extract_json_strips_markdown_fences(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_extract_json_strips_markdown_fences(self, parser: ResponseParser) -> None:
         fenced = '```json\n{"key": "val"}\n```'
         extracted = parser._extract_json(fenced)
         assert extracted.strip() == '{"key": "val"}'
 
-    def test_extract_json_finds_json_in_prose(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_extract_json_finds_json_in_prose(self, parser: ResponseParser) -> None:
         prose = 'The answer is {"key": "val"} as requested.'
         extracted = parser._extract_json(prose)
         assert '{"key": "val"}' in extracted
 
-    def test_extract_json_returns_text_when_no_json_found(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_extract_json_returns_text_when_no_json_found(self, parser: ResponseParser) -> None:
         result = parser._extract_json("no braces here at all")
         assert isinstance(result, str)
 
-    def test_strip_markdown_fences_removes_json_tag(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_strip_markdown_fences_removes_json_tag(self, parser: ResponseParser) -> None:
         text = "```json\n{}\n```"
         result = parser._extract_json(text)
         assert "```" not in result
 
-    def test_strip_markdown_fences_removes_plain_fence(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_strip_markdown_fences_removes_plain_fence(self, parser: ResponseParser) -> None:
         text = "```\n{}\n```"
         result = parser._extract_json(text)
         assert "```" not in result
 
-    def test_extract_first_json_object_from_plain_json(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_extract_first_json_object_from_plain_json(self, parser: ResponseParser) -> None:
         raw = '{"a": 1, "b": 2}'
         result = parser._find_first_json_object(raw)
         assert result is not None
         assert json.loads(result) == {"a": 1, "b": 2}
 
-    def test_extract_first_json_object_from_prose(
-        self, parser: ResponseParser
-    ) -> None:
+    def test_extract_first_json_object_from_prose(self, parser: ResponseParser) -> None:
         raw = 'Hello world {"x": 42} goodbye'
         result = parser._find_first_json_object(raw)
         assert result

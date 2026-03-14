@@ -99,8 +99,7 @@ async def setup_webhook_listener(
         from aiohttp import web
     except ImportError as exc:
         raise ImportError(
-            "aiohttp is required for setup_webhook_listener. "
-            "Install with: pip install aiohttp"
+            "aiohttp is required for setup_webhook_listener. Install with: pip install aiohttp"
         ) from exc
 
     async def _handler(request: web.Request) -> web.Response:
@@ -160,7 +159,9 @@ async def schedule_workflow(
     updated = False
     for node in workflow.nodes:
         if "scheduleTrigger" in node.type or "cron" in node.type.lower():
-            node.parameters["rule"] = {"interval": [{"field": "cronExpression", "expression": cron_expression}]}
+            node.parameters["rule"] = {
+                "interval": [{"field": "cronExpression", "expression": cron_expression}]
+            }
             node.parameters["cronExpression"] = cron_expression
             updated = True
             logger.info("Updated cron trigger in node '{}' to '{}'", node.name, cron_expression)

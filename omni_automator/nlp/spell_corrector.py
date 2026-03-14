@@ -18,31 +18,54 @@ class SpellCorrector:
 
         # Technical terms to NEVER correct
         self.preserve_terms = {
-            'readme', 'folders', 'folder1', 'folder2', 'subfolders',
-            'numbered', 'naming', 'inside', 'within', 'each',
-            'txt', 'md', 'py', 'js', 'html', 'css', 'json',
+            "readme",
+            "folders",
+            "folder1",
+            "folder2",
+            "subfolders",
+            "numbered",
+            "naming",
+            "inside",
+            "within",
+            "each",
+            "txt",
+            "md",
+            "py",
+            "js",
+            "html",
+            "css",
+            "json",
         }
 
         # Command keywords and their variations
         self.command_keywords = {
-            'create': ['create', 'make', 'generate', 'build', 'setup', 'initialize', 'new', 'mkdri'],
-            'delete': ['delete', 'remove', 'rm', 'erase', 'destroy', 'eliminate', 'delet', 'dlete'],
-            'copy': ['copy', 'duplicate', 'cp', 'clone', 'copi', 'copu'],
-            'move': ['move', 'mv', 'transfer', 'relocate', 'moev', 'muve'],
-            'rename': ['rename', 'rn', 'renam', 'renme'],
-            'folder': ['folder', 'directory', 'dir', 'fodler', 'foldr', 'foldер', 'dir'],
-            'file': ['file', 'document', 'doc', 'flie', 'fil'],
-            'project': ['project', 'proj', 'projeect', 'prject'],
-            'test': ['test', 'testing', 'tst', 'tess', 'tesst'],
-            'run': ['run', 'execute', 'start', 'launch', 'exec', 'rn', 'runn'],
-            'install': ['install', 'setup', 'add', 'instal', 'instll'],
-            'download': ['download', 'fetch', 'get', 'pull', 'dwld', 'downlaod'],
-            'upload': ['upload', 'push', 'send', 'upld', 'uplod'],
-            'web': ['web', 'website', 'www', 'weeb', 'wbe'],
-            'automation': ['automation', 'automate', 'auto', 'automtion', 'automatoin'],
-            'script': ['script', 'code', 'program', 'scirpt', 'skript'],
-            'configure': ['configure', 'config', 'setup', 'cfg', 'configue', 'configre'],
-            'monitor': ['monitor', 'watch', 'track', 'moniter', 'montior'],
+            "create": [
+                "create",
+                "make",
+                "generate",
+                "build",
+                "setup",
+                "initialize",
+                "new",
+                "mkdri",
+            ],
+            "delete": ["delete", "remove", "rm", "erase", "destroy", "eliminate", "delet", "dlete"],
+            "copy": ["copy", "duplicate", "cp", "clone", "copi", "copu"],
+            "move": ["move", "mv", "transfer", "relocate", "moev", "muve"],
+            "rename": ["rename", "rn", "renam", "renme"],
+            "folder": ["folder", "directory", "dir", "fodler", "foldr", "foldер", "dir"],
+            "file": ["file", "document", "doc", "flie", "fil"],
+            "project": ["project", "proj", "projeect", "prject"],
+            "test": ["test", "testing", "tst", "tess", "tesst"],
+            "run": ["run", "execute", "start", "launch", "exec", "rn", "runn"],
+            "install": ["install", "setup", "add", "instal", "instll"],
+            "download": ["download", "fetch", "get", "pull", "dwld", "downlaod"],
+            "upload": ["upload", "push", "send", "upld", "uplod"],
+            "web": ["web", "website", "www", "weeb", "wbe"],
+            "automation": ["automation", "automate", "auto", "automtion", "automatoin"],
+            "script": ["script", "code", "program", "scirpt", "skript"],
+            "configure": ["configure", "config", "setup", "cfg", "configue", "configre"],
+            "monitor": ["monitor", "watch", "track", "moniter", "montior"],
         }
 
         # Flatten the dictionary for reverse lookup
@@ -54,11 +77,11 @@ class SpellCorrector:
     def correct_text(self, text: str, threshold: float = 0.8) -> str:
         """
         Correct typos and grammatical errors in text
-        
+
         Args:
             text: Input text to correct
             threshold: Fuzzy match threshold (0-1)
-            
+
         Returns:
             Corrected text
         """
@@ -70,7 +93,7 @@ class SpellCorrector:
             corrected_word = self._correct_word(word, threshold)
             corrected.append(corrected_word)
 
-        return ' '.join(corrected)
+        return " ".join(corrected)
 
     def _correct_word(self, word: str, threshold: float) -> str:
         """Correct a single word"""
@@ -95,7 +118,9 @@ class SpellCorrector:
             return canonical
 
         # Fuzzy match
-        matches = get_close_matches(word_lower, self.keyword_to_canonical.keys(), n=1, cutoff=threshold)
+        matches = get_close_matches(
+            word_lower, self.keyword_to_canonical.keys(), n=1, cutoff=threshold
+        )
         if matches:
             canonical = self.keyword_to_canonical[matches[0]]
             if word.isupper():
@@ -109,7 +134,7 @@ class SpellCorrector:
     def extract_keywords(self, text: str) -> dict[str, str]:
         """
         Extract and correct keywords from text
-        
+
         Returns:
             Dictionary mapping keyword types to corrected values
         """
@@ -123,7 +148,9 @@ class SpellCorrector:
 
         return keywords
 
-    def find_closest_match(self, word: str, candidates: list[str], threshold: float = 0.7) -> str | None:
+    def find_closest_match(
+        self, word: str, candidates: list[str], threshold: float = 0.7
+    ) -> str | None:
         """Find closest match from a list of candidates"""
         matches = get_close_matches(word, candidates, n=1, cutoff=threshold)
         return matches[0] if matches else None
@@ -154,10 +181,12 @@ class SpellCorrector:
         max_len = max(len(s1), len(s2))
         return 1 - (distance / max_len) if max_len > 0 else 1.0
 
-    def handle_typo_command(self, user_input: str, known_commands: list[str], threshold: float = 0.75) -> tuple[str, float] | None:
+    def handle_typo_command(
+        self, user_input: str, known_commands: list[str], threshold: float = 0.75
+    ) -> tuple[str, float] | None:
         """
         Find the closest command if user input has typos
-        
+
         Returns:
             Tuple of (corrected_command, confidence_score) or None
         """
@@ -172,10 +201,12 @@ class SpellCorrector:
 
         return (best_match, best_score) if best_match else None
 
-    def suggest_command_fixes(self, user_input: str, known_commands: list[str], top_n: int = 3) -> list[tuple[str, float]]:
+    def suggest_command_fixes(
+        self, user_input: str, known_commands: list[str], top_n: int = 3
+    ) -> list[tuple[str, float]]:
         """
         Suggest multiple command fixes
-        
+
         Returns:
             List of (command, score) tuples sorted by score
         """

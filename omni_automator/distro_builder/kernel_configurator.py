@@ -26,11 +26,11 @@ __all__ = [
 def _require_kconfiglib() -> Any:
     try:
         import kconfiglib  # type: ignore[import]
+
         return kconfiglib
     except ImportError as exc:
         raise ImportError(
-            "kconfiglib is required for kernel configuration. "
-            "Install with: pip install kconfiglib"
+            "kconfiglib is required for kernel configuration. Install with: pip install kconfiglib"
         ) from exc
 
 
@@ -141,6 +141,7 @@ def build_kernel(
     config_path = config_path.resolve()
 
     import shutil
+
     shutil.copy2(str(config_path), str(kernel_dir / ".config"))
 
     num_jobs = jobs or os.cpu_count() or 1

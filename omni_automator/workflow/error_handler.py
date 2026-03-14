@@ -17,20 +17,20 @@ class SmartErrorHandler:
         self.logger = get_logger("SmartErrorHandler")
         self.error_history: list[dict[str, Any]] = []
         self.user_preferences: dict[str, Any] = {
-            'auto_create_paths': True,
-            'interactive_mode': True,
-            'suggest_alternatives': True
+            "auto_create_paths": True,
+            "interactive_mode": True,
+            "suggest_alternatives": True,
         }
 
     def handle_path_error(self, path: str, context: str = "") -> str | None:
         """
         Handle path errors intelligently
         Asks user if path should be created or corrected
-        
+
         Args:
             path: The invalid path
             context: Context about what was being done
-            
+
         Returns:
             Corrected path or None if user cancels
         """
@@ -56,9 +56,11 @@ class SmartErrorHandler:
             print("4. Enter a custom path")
             print("5. Cancel")
 
-            choice = self._get_user_input("Choose an option (1-5): ", valid_options=['1', '2', '3', '4', '5'])
+            choice = self._get_user_input(
+                "Choose an option (1-5): ", valid_options=["1", "2", "3", "4", "5"]
+            )
 
-            if choice == '1':
+            if choice == "1":
                 try:
                     os.makedirs(path, exist_ok=True)
                     print(f"✓ Created path: {path}")
@@ -66,13 +68,13 @@ class SmartErrorHandler:
                 except Exception as e:
                     print(f"✗ Failed to create path: {e}")
                     return self.handle_path_error(path, context)
-            elif choice == '2':
+            elif choice == "2":
                 return os.getcwd()
-            elif choice == '3' and suggestions:
+            elif choice == "3" and suggestions:
                 idx = int(choice) - 3
                 if 0 <= idx < len(suggestions):
                     return suggestions[idx]
-            elif choice == '4':
+            elif choice == "4":
                 custom_path = input("Enter path: ").strip()
                 if custom_path:
                     return self.handle_path_error(custom_path, context)
@@ -102,21 +104,23 @@ class SmartErrorHandler:
             print("6. Enter a different path")
             print("7. Cancel")
 
-            choice = self._get_user_input("Choose (1-7): ", valid_options=['1', '2', '3', '4', '5', '6', '7'])
+            choice = self._get_user_input(
+                "Choose (1-7): ", valid_options=["1", "2", "3", "4", "5", "6", "7"]
+            )
 
-            if choice in ['1', '2', '3', '4', '5']:
+            if choice in ["1", "2", "3", "4", "5"]:
                 idx = int(choice) - 1
                 if idx < len(similar_files):
                     return similar_files[idx]
-            elif choice == '6':
+            elif choice == "6":
                 return input("Enter file path: ").strip() or None
         else:
             print("\nOptions:")
             print("1. Enter a different path")
             print("2. Cancel")
 
-            choice = self._get_user_input("Choose (1-2): ", valid_options=['1', '2'])
-            if choice == '1':
+            choice = self._get_user_input("Choose (1-2): ", valid_options=["1", "2"])
+            if choice == "1":
                 return input("Enter file path: ").strip() or None
 
         return None
@@ -134,8 +138,10 @@ class SmartErrorHandler:
 
         print(f"{len(options) + 1}. None of the above")
 
-        choice = self._get_user_input(f"Choose (1-{len(options) + 1}): ",
-                                      valid_options=[str(i) for i in range(1, len(options) + 2)])
+        choice = self._get_user_input(
+            f"Choose (1-{len(options) + 1}): ",
+            valid_options=[str(i) for i in range(1, len(options) + 2)],
+        )
 
         idx = int(choice) - 1
         if 0 <= idx < len(options):
@@ -143,7 +149,9 @@ class SmartErrorHandler:
 
         return None
 
-    def handle_missing_parameter(self, parameter: str, expected_type: str = "", context: str = "") -> str | None:
+    def handle_missing_parameter(
+        self, parameter: str, expected_type: str = "", context: str = ""
+    ) -> str | None:
         """
         Handle missing required parameters
         Prompts user to provide the value
@@ -175,12 +183,12 @@ class SmartErrorHandler:
         print("2. Try alternative location")
         print("3. Cancel")
 
-        choice = self._get_user_input("Choose (1-3): ", valid_options=['1', '2', '3'])
+        choice = self._get_user_input("Choose (1-3): ", valid_options=["1", "2", "3"])
 
-        if choice == '1':
+        if choice == "1":
             print("ℹ️  Restart the application with administrator privileges")
             return False
-        elif choice == '2':
+        elif choice == "2":
             alt_path = input("Enter alternative path: ").strip()
             if alt_path and os.path.exists(os.path.dirname(alt_path)):
                 return True
@@ -190,7 +198,7 @@ class SmartErrorHandler:
     def handle_error(self, error: str, context: str = "") -> None:
         """Universal error handler called by CLI and other components."""
         self.logger.error(f"Error: {error}")
-        self.error_history.append({'error': error, 'context': context, 'type': 'string'})
+        self.error_history.append({"error": error, "context": context, "type": "string"})
         print(f"\n\u274c Error: {error}")
         if context:
             print(f"   Context: {context}")
@@ -202,11 +210,9 @@ class SmartErrorHandler:
         """
         error_msg = str(error)
         self.logger.error(f"Execution error: {error_msg}")
-        self.error_history.append({
-            'error': error_msg,
-            'context': context,
-            'type': type(error).__name__
-        })
+        self.error_history.append(
+            {"error": error_msg, "context": context, "type": type(error).__name__}
+        )
 
         print(f"\n❌ Error: {error_msg}")
         if context:
@@ -218,13 +224,14 @@ class SmartErrorHandler:
         print("3. View error details")
         print("4. Cancel")
 
-        choice = self._get_user_input("Choose (1-4): ", valid_options=['1', '2', '3', '4'])
+        choice = self._get_user_input("Choose (1-4): ", valid_options=["1", "2", "3", "4"])
 
-        if choice == '1':
+        if choice == "1":
             return True  # Signal retry
-        elif choice == '3':
+        elif choice == "3":
             print(f"\nFull error:\n{error}")
             import traceback
+
             traceback.print_exc()
             return self.handle_execution_error(error, context)
 
@@ -235,10 +242,10 @@ class SmartErrorHandler:
         Suggest corrections based on error type
         """
         suggestions = {
-            'typo_command': "Did you mean one of these commands?",
-            'invalid_path': "The path doesn't exist. Would you like to:",
-            'missing_file': "Could not find the file. Would you like to:",
-            'syntax_error': "There's a syntax issue. Did you mean:"
+            "typo_command": "Did you mean one of these commands?",
+            "invalid_path": "The path doesn't exist. Would you like to:",
+            "missing_file": "Could not find the file. Would you like to:",
+            "syntax_error": "There's a syntax issue. Did you mean:",
         }
 
         message = suggestions.get(error_type, "Would you like to try:")
@@ -256,7 +263,7 @@ class SmartErrorHandler:
 
         confirm = input("\nDo you want to proceed? (yes/no): ").strip().lower()
 
-        return confirm in ['yes', 'y', 'true']
+        return confirm in ["yes", "y", "true"]
 
     def _find_similar_files(self, filename: str, search_dir: str = None) -> list[str]:
         """Find files similar to the given filename"""
@@ -267,7 +274,7 @@ class SmartErrorHandler:
         from difflib import SequenceMatcher
 
         try:
-            for root, dirs, files in os.walk(search_dir):
+            for root, _dirs, files in os.walk(search_dir):
                 # Limit depth to avoid long searches
                 if root.count(os.sep) - search_dir.count(os.sep) > 3:
                     continue
@@ -297,6 +304,7 @@ class SmartErrorHandler:
                     full_path = os.path.join(parent, item)
                     if os.path.isdir(full_path):
                         from difflib import SequenceMatcher
+
                         ratio = SequenceMatcher(None, base_dir.lower(), full_path.lower()).ratio()
                         if ratio > 0.6:
                             suggestions.append(full_path)

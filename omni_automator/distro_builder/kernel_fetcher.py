@@ -111,8 +111,7 @@ async def download_kernel(version: str, dest_dir: Path) -> Path:
         if actual_hash != expected_hash:
             tarball_path.unlink(missing_ok=True)
             raise RuntimeError(
-                f"SHA256 mismatch for {tarball_name}: "
-                f"expected {expected_hash}, got {actual_hash}"
+                f"SHA256 mismatch for {tarball_name}: expected {expected_hash}, got {actual_hash}"
             )
         logger.info("Checksum verified OK.")
     except httpx.HTTPError:

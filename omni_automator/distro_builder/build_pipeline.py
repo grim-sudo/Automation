@@ -1,4 +1,5 @@
 """Full distro build pipeline orchestrating all build stages."""
+
 from __future__ import annotations
 
 import asyncio
@@ -74,7 +75,7 @@ async def build_distro(
     iso_path = output_dir / f"{profile.name}.iso"
     start_time = time.time()
 
-    ctx = BuildContext(
+    BuildContext(
         profile=profile,
         work_dir=work_dir,
         output_dir=output_dir,
@@ -139,9 +140,7 @@ async def build_distro(
         console.print(f"[bold cyan]Step 4/7:[/bold cyan] Building kernel (jobs={jobs})")
         logger.info(f"Step 4/7: Building kernel with {jobs} job(s)")
 
-        success, build_log = await asyncio.to_thread(
-            build_kernel, kernel_dir, config_path, jobs
-        )
+        success, build_log = await asyncio.to_thread(build_kernel, kernel_dir, config_path, jobs)
         if not success:
             logger.error(f"Kernel build failed. Last output:\n{build_log[-1000:]}")
             return BuildResult(
@@ -155,23 +154,15 @@ async def build_distro(
         # ------------------------------------------------------------------ #
         # Step 5 – Build rootfs                                                #
         # ------------------------------------------------------------------ #
-        console.print(
-            f"[bold cyan]Step 5/7:[/bold cyan] Building {profile.base} rootfs"
-        )
+        console.print(f"[bold cyan]Step 5/7:[/bold cyan] Building {profile.base} rootfs")
         logger.info(f"Step 5/7: Building {profile.base} rootfs at {rootfs_path}")
 
         if profile.base == "debian":
-            rootfs_ok = await asyncio.to_thread(
-                build_debian_rootfs, profile, rootfs_path
-            )
+            rootfs_ok = await asyncio.to_thread(build_debian_rootfs, profile, rootfs_path)
         elif profile.base == "arch":
-            rootfs_ok = await asyncio.to_thread(
-                build_arch_rootfs, profile, rootfs_path
-            )
+            rootfs_ok = await asyncio.to_thread(build_arch_rootfs, profile, rootfs_path)
         else:
-            rootfs_ok = await asyncio.to_thread(
-                build_buildroot_rootfs, profile, rootfs_path, jobs
-            )
+            rootfs_ok = await asyncio.to_thread(build_buildroot_rootfs, profile, rootfs_path, jobs)
 
         if not rootfs_ok:
             return BuildResult(
@@ -200,9 +191,7 @@ async def build_distro(
         console.print("[bold cyan]Step 7/7:[/bold cyan] Assembling ISO")
         logger.info("Step 7/7: Assembling ISO")
 
-        iso_ok = await asyncio.to_thread(
-            assemble_iso, work_dir, iso_path, profile.name.upper()
-        )
+        iso_ok = await asyncio.to_thread(assemble_iso, work_dir, iso_path, profile.name.upper())
         if not iso_ok:
             return BuildResult(
                 success=False,

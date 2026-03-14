@@ -169,9 +169,7 @@ class ContextManager:
         if self._system_message is not None:
             result.append(self._system_message.to_dict())
 
-        budget = self.max_tokens - (
-            self._system_message.token_count if self._system_message else 0
-        )
+        budget = self.max_tokens - (self._system_message.token_count if self._system_message else 0)
 
         # Walk newest-to-oldest, collect turns that fit within budget
         fitting: list[Message] = []
@@ -232,9 +230,7 @@ class ContextManager:
         Returns:
             Integer token count.
         """
-        system_tokens = (
-            self._system_message.token_count if self._system_message else 0
-        )
+        system_tokens = self._system_message.token_count if self._system_message else 0
         budget = self.max_tokens - system_tokens
         used = 0
         for msg in reversed(self._messages):
@@ -248,9 +244,7 @@ class ContextManager:
 
         Called automatically by :meth:`add_message` after each insertion.
         """
-        system_tokens = (
-            self._system_message.token_count if self._system_message else 0
-        )
+        system_tokens = self._system_message.token_count if self._system_message else 0
         budget = self.max_tokens - system_tokens
         total = sum(m.token_count for m in self._messages)
 

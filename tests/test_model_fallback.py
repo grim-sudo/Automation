@@ -18,18 +18,17 @@ Key behaviours verified:
     5. AIProviderError carries .status_code and .model attributes and includes
        the original message in str().
 """
+
 from __future__ import annotations
 
-import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from omni_automator.ai.openrouter_integration import (
     AIProviderError,
     OpenRouterClient,
     OpenRouterConfig,
 )
-
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -65,9 +64,7 @@ class TestFallbackChain:
         """When the first model succeeds, content and model name are returned."""
         client = OpenRouterClient(config)
 
-        with patch.object(
-            client, "complete", new=AsyncMock(return_value="Hello from GPT-4o")
-        ):
+        with patch.object(client, "complete", new=AsyncMock(return_value="Hello from GPT-4o")):
             content, model = await client.complete_with_fallback(
                 [{"role": "user", "content": "Hi"}],
                 fallback_chain=fallback_chain,
@@ -144,9 +141,7 @@ class TestFallbackChain:
                 )
 
     @pytest.mark.asyncio
-    async def test_empty_fallback_chain_raises(
-        self, config: OpenRouterConfig
-    ) -> None:
+    async def test_empty_fallback_chain_raises(self, config: OpenRouterConfig) -> None:
         """complete_with_fallback([]) must raise without making any network call."""
         client = OpenRouterClient(config)
         with pytest.raises(Exception):
@@ -156,16 +151,12 @@ class TestFallbackChain:
             )
 
     @pytest.mark.asyncio
-    async def test_single_model_chain_success(
-        self, config: OpenRouterConfig
-    ) -> None:
+    async def test_single_model_chain_success(self, config: OpenRouterConfig) -> None:
         """A one-element chain that succeeds should return immediately."""
         client = OpenRouterClient(config)
         single_chain = ["openai/gpt-4o"]
 
-        with patch.object(
-            client, "complete", new=AsyncMock(return_value="OK")
-        ):
+        with patch.object(client, "complete", new=AsyncMock(return_value="OK")):
             content, model = await client.complete_with_fallback(
                 [{"role": "user", "content": "test"}],
                 fallback_chain=single_chain,
@@ -267,9 +258,7 @@ class TestOpenRouterConfig:
 
 
 class TestOpenRouterClientConstruction:
-    def test_can_be_instantiated_with_config(
-        self, config: OpenRouterConfig
-    ) -> None:
+    def test_can_be_instantiated_with_config(self, config: OpenRouterConfig) -> None:
         client = OpenRouterClient(config)
         assert client is not None
 
@@ -277,9 +266,7 @@ class TestOpenRouterClientConstruction:
         client = OpenRouterClient(config)
         assert client._cfg is config
 
-    def test_is_async_context_manager(
-        self, config: OpenRouterConfig
-    ) -> None:
+    def test_is_async_context_manager(self, config: OpenRouterConfig) -> None:
         """OpenRouterClient must expose __aenter__ and __aexit__."""
         client = OpenRouterClient(config)
         assert hasattr(client, "__aenter__")

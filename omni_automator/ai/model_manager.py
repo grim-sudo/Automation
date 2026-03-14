@@ -169,9 +169,7 @@ class ModelManager:
         routes: list[ModelRoute] = []
         for priority, model_id in enumerate(self._settings.fallback_chain):
             provider = self._detect_provider(model_id)
-            routes.append(
-                ModelRoute(model_id=model_id, provider=provider, priority=priority)
-            )
+            routes.append(ModelRoute(model_id=model_id, provider=provider, priority=priority))
         return routes
 
     @staticmethod
@@ -487,9 +485,7 @@ class AIModelManager:
 
         messages: list[dict] = [{"role": "user", "content": prompt}]
         if context:
-            system_parts = [
-                f"{k}: {v}" for k, v in context.items() if v
-            ]
+            system_parts = [f"{k}: {v}" for k, v in context.items() if v]
             if system_parts:
                 messages.insert(0, {"role": "system", "content": "\n".join(system_parts)})
 

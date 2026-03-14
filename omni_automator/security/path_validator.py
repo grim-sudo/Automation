@@ -128,13 +128,9 @@ class PathValidator:
         # 1. Detect encoded traversal
         decoded = urllib.parse.unquote(raw)
         if ".." in decoded:
-            raise PathValidationError(
-                f"Path traversal sequence ('..') detected in path: {raw!r}"
-            )
+            raise PathValidationError(f"Path traversal sequence ('..') detected in path: {raw!r}")
         if "\x00" in decoded:
-            raise PathValidationError(
-                f"Null byte detected in path: {raw!r}"
-            )
+            raise PathValidationError(f"Null byte detected in path: {raw!r}")
 
         # 2. Resolve to canonical absolute path
         resolved = Path(os.path.realpath(os.path.abspath(raw)))
@@ -160,9 +156,7 @@ class PathValidator:
 
         # 5. Existence check
         if must_exist and not resolved.exists():
-            raise PathValidationError(
-                f"Path does not exist: {resolved!r}"
-            )
+            raise PathValidationError(f"Path does not exist: {resolved!r}")
 
         logger.debug("Path validated: {}", resolved)
         return resolved
@@ -264,6 +258,7 @@ class PathValidator:
         if sys.platform == "win32":
             try:
                 import ctypes
+
                 is_root = bool(ctypes.windll.shell32.IsUserAnAdmin())
             except Exception:
                 is_root = False
@@ -323,6 +318,7 @@ def get_path_validator() -> PathValidator:
     if _validator_instance is None:
         try:
             from ..config import get_settings
+
             settings = get_settings()
             _validator_instance = PathValidator(safe_mode=settings.safe_mode)
         except Exception:

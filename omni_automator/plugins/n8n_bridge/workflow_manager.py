@@ -187,9 +187,7 @@ class WorkflowManager:
             resp.raise_for_status()
             return N8nExecutionResult.model_validate(resp.json())
 
-    async def get_executions(
-        self, workflow_id: str, limit: int = 20
-    ) -> list[dict[str, Any]]:
+    async def get_executions(self, workflow_id: str, limit: int = 20) -> list[dict[str, Any]]:
         """Retrieve recent executions for a workflow.
 
         Args:

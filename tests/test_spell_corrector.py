@@ -24,12 +24,11 @@ The public surface under test:
     get_spell_corrector() -> SpellCorrector
         Return the module-level singleton.
 """
+
 from __future__ import annotations
 
 import pytest
-
 from omni_automator.nlp.spell_corrector import SpellCorrector, get_spell_corrector
-
 
 # ─── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -78,9 +77,7 @@ class TestCorrectText:
         assert result is not None
         assert isinstance(result, str)
 
-    def test_long_sentence_returns_nonempty_string(
-        self, corrector: SpellCorrector
-    ) -> None:
+    def test_long_sentence_returns_nonempty_string(self, corrector: SpellCorrector) -> None:
         """A sentence with multiple typos must be returned as a non-empty string."""
         sentence = "crate a pyton projekt with virtal envronment"
         result = corrector.correct_text(sentence)
@@ -131,9 +128,7 @@ class TestExtractKeywords:
         # "create" appears in keyword_to_canonical as "create" → "create"
         assert "create" in result or "folder" in result
 
-    def test_returns_empty_dict_for_unknown_words(
-        self, corrector: SpellCorrector
-    ) -> None:
+    def test_returns_empty_dict_for_unknown_words(self, corrector: SpellCorrector) -> None:
         result = corrector.extract_keywords("xyzzy frobnicator wumpus")
         assert isinstance(result, dict)
 
@@ -149,15 +144,11 @@ class TestFindClosestMatch:
         assert match == "create"
 
     def test_finds_close_match(self, corrector: SpellCorrector) -> None:
-        match = corrector.find_closest_match(
-            "delet", ["create", "delete", "modify"], threshold=0.7
-        )
+        match = corrector.find_closest_match("delet", ["create", "delete", "modify"], threshold=0.7)
         assert match == "delete"
 
     def test_returns_none_when_no_match(self, corrector: SpellCorrector) -> None:
-        match = corrector.find_closest_match(
-            "xyzzy", ["create", "delete", "modify"], threshold=0.9
-        )
+        match = corrector.find_closest_match("xyzzy", ["create", "delete", "modify"], threshold=0.9)
         assert match is None
 
 
@@ -201,9 +192,7 @@ class TestSimilarityScore:
     def test_identical_strings_score_one(self, corrector: SpellCorrector) -> None:
         assert corrector.similarity_score("create", "create") == pytest.approx(1.0)
 
-    def test_completely_different_strings_low_score(
-        self, corrector: SpellCorrector
-    ) -> None:
+    def test_completely_different_strings_low_score(self, corrector: SpellCorrector) -> None:
         score = corrector.similarity_score("aaaaa", "bbbbb")
         assert score < 0.5
 
@@ -232,9 +221,7 @@ class TestHandleTypoCommand:
 
     def test_returns_none_when_no_match(self, corrector: SpellCorrector) -> None:
         known = ["create folder", "delete file"]
-        result = corrector.handle_typo_command(
-            "xyzzy wumpus frobnicator", known, threshold=0.9
-        )
+        result = corrector.handle_typo_command("xyzzy wumpus frobnicator", known, threshold=0.9)
         assert result is None
 
 

@@ -4,6 +4,7 @@ Safe subprocess utilities for OmniAutomator.
 Provides helper functions that convert shell-string commands to list-form
 subprocess calls, eliminating shell injection risks from shell=True.
 """
+
 from __future__ import annotations
 
 import shlex
@@ -56,15 +57,12 @@ def safe_run(
         FileNotFoundError: If the executable is not found on PATH.
         subprocess.TimeoutExpired: If the command times out.
     """
-    if isinstance(command, str):
-        args = shlex.split(command, posix=True)
-    else:
-        args = list(command)
+    args = shlex.split(command, posix=True) if isinstance(command, str) else list(command)
 
     if not args:
         raise ValueError("Command must not be empty")
 
-    executable = args[0]
+    args[0]
 
     logger.debug(f"safe_run: {args!r} (cwd={cwd})")
 
@@ -105,10 +103,7 @@ def safe_popen(
     Returns:
         subprocess.Popen handle.
     """
-    if isinstance(command, str):
-        args = shlex.split(command, posix=True)
-    else:
-        args = list(command)
+    args = shlex.split(command, posix=True) if isinstance(command, str) else list(command)
 
     return subprocess.Popen(
         args,
@@ -120,7 +115,9 @@ def safe_popen(
     )
 
 
-def build_package_cmd(manager: str, sub: str, package: str, extra: list[str] | None = None) -> list[str]:
+def build_package_cmd(
+    manager: str, sub: str, package: str, extra: list[str] | None = None
+) -> list[str]:
     """
     Build a package-manager command as a safe list.
 
@@ -181,8 +178,13 @@ def build_package_cmd(manager: str, sub: str, package: str, extra: list[str] | N
             "update": ["sudo", "dnf", "upgrade", "-y"],
         },
         "winget": {
-            "install": ["winget", "install", "--silent",
-                        "--accept-package-agreements", "--accept-source-agreements"],
+            "install": [
+                "winget",
+                "install",
+                "--silent",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+            ],
             "remove": ["winget", "uninstall", "-e"],
             "search": ["winget", "search"],
             "list": ["winget", "list"],

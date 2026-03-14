@@ -10,6 +10,7 @@ Streaming (SSE) is supported and used by chatbot mode.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 from collections.abc import AsyncIterator
@@ -43,6 +44,7 @@ _CHAT_URL = f"{_BASE_URL}/chat/completions"
 # ---------------------------------------------------------------------------
 # Legacy dataclass kept for backward compat
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AITaskPlan:
@@ -98,6 +100,7 @@ NEVER generate actions not listed in the category reference above.
 # Main class
 # ---------------------------------------------------------------------------
 
+
 class OpenRouterAutomationAI:
     """
     Async OpenRouter AI client.
@@ -112,9 +115,11 @@ class OpenRouterAutomationAI:
     def __init__(self, api_key: str | None = None) -> None:
         self.logger = get_logger("OpenRouterAI")
         _config = get_config()
-        self._api_key = api_key or _config.ai.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+        self._api_key = (
+            api_key or _config.ai.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+        )
         self._resolver: FreeModelResolver | None = None
-        self._model_name: str = ""          # set after ensure_loaded()
+        self._model_name: str = ""  # set after ensure_loaded()
         self._is_available: bool = False
         self.last_error: str | None = None
         self._context_window = ContextWindow(
@@ -128,10 +133,8 @@ class OpenRouterAutomationAI:
             self._init_task = loop.create_task(self._async_init())
         except RuntimeError:
             # No running loop — initialise synchronously
-            try:
+            with contextlib.suppress(RuntimeError):
                 asyncio.run(self._async_init())
-            except RuntimeError:
-                pass
 
     # ── Properties (backward compat) ─────────────────────────────────────────
 
@@ -207,9 +210,7 @@ class OpenRouterAutomationAI:
             logger.error("analyze_automation_request_async failed: {}", exc)
             return self._fallback_plan(user_request)
 
-    async def stream_response(
-        self, prompt: str
-    ) -> AsyncIterator[str]:
+    async def stream_response(self, prompt: str) -> AsyncIterator[str]:
         """
         Yield incremental text tokens from a streaming response.
 
@@ -286,6 +287,7 @@ class OpenRouterAutomationAI:
 
             if loop_running:
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(
                         asyncio.run,
@@ -312,13 +314,17 @@ class OpenRouterAutomationAI:
         try:
             prompt = (
                 f"Suggest 5 useful automation commands for:\n"
-                f"OS: {context.get('os_type','unknown')}\n"
-                f"CWD: {context.get('current_directory','unknown')}\n"
-                f"Recent: {context.get('recent_commands',[])}\n"
+                f"OS: {context.get('os_type', 'unknown')}\n"
+                f"CWD: {context.get('current_directory', 'unknown')}\n"
+                f"Recent: {context.get('recent_commands', [])}\n"
                 "Output as a plain numbered list."
             )
             raw = asyncio.run(self._call(prompt))
-            lines = [l.strip() for l in raw.splitlines() if l.strip() and not l.startswith("#")]
+            lines = [
+                line.strip()
+                for line in raw.splitlines()
+                if line.strip() and not line.startswith("#")
+            ]
             return lines[:8] if lines else ["create folder myproject", "take screenshot"]
         except Exception as exc:
             logger.warning("smart suggestions failed: {}", exc)
@@ -379,6 +385,7 @@ class OpenRouterAutomationAI:
             )
             raw = asyncio.run(self._call(prompt))
             from .response_parser import repair_and_parse
+
             data = repair_and_parse(raw) or {}
             suggestions = data.get("suggestions", [])
             return {"suggestions": suggestions[:5], "confidence": 0.8}
@@ -399,12 +406,14 @@ class OpenRouterAutomationAI:
             return {"optimized_steps": steps, "improvements": [], "parallel_groups": []}
         try:
             import json as _json
+
             prompt = (
                 f"Optimise this workflow:\n{_json.dumps(steps, indent=2)}\n"
                 "Return JSON with keys: optimized_steps, improvements, parallel_groups."
             )
             raw = asyncio.run(self._call(prompt))
             from .response_parser import repair_and_parse
+
             data = repair_and_parse(raw) or {}
             return {
                 "optimized_steps": data.get("optimized_steps", steps),
@@ -562,6 +571,7 @@ class OpenRouterAutomationAI:
     def _parse_ai_response(self, response_text: str) -> dict[str, Any]:
         """Legacy parse helper delegating to repair_and_parse."""
         from .response_parser import repair_and_parse
+
         return repair_and_parse(response_text) or {}
 
     def _get_fallback_response(self) -> dict[str, Any]:
@@ -733,9 +743,7 @@ class OpenRouterClient:
                 return self._extract_completion_content(data)
 
         # Unreachable — AsyncRetrying with reraise=True always raises.
-        raise AIProviderError(
-            "Retry loop exited unexpectedly.", model=model or self._cfg.model
-        )
+        raise AIProviderError("Retry loop exited unexpectedly.", model=model or self._cfg.model)
 
     async def stream(
         self,
@@ -761,9 +769,7 @@ class OpenRouterClient:
         """
         payload = self._build_payload(messages, model=model, stream=True)
         used_model = model or self._cfg.model
-        async with self._client.stream(
-            "POST", "/chat/completions", json=payload
-        ) as response:
+        async with self._client.stream("POST", "/chat/completions", json=payload) as response:
             self._raise_for_status(response, used_model)
             async for line in response.aiter_lines():
                 chunk = self._parse_sse_line(line, used_model)
@@ -798,9 +804,7 @@ class OpenRouterClient:
             When every model in the chain fails.
         """
         if not fallback_chain:
-            raise AIProviderError(
-                "fallback_chain is empty — no models to try.", model=None
-            )
+            raise AIProviderError("fallback_chain is empty — no models to try.", model=None)
 
         last_exc: Exception | None = None
         for model_id in fallback_chain:
@@ -816,8 +820,7 @@ class OpenRouterClient:
                 last_exc = exc
 
         raise AIProviderError(
-            f"All {len(fallback_chain)} model(s) in fallback chain failed. "
-            f"Last error: {last_exc}",
+            f"All {len(fallback_chain)} model(s) in fallback chain failed. Last error: {last_exc}",
             model=fallback_chain[-1],
         )
 
@@ -873,9 +876,7 @@ class OpenRouterClient:
         try:
             return data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError) as exc:
-            raise AIProviderError(
-                f"Unexpected response shape: {data}"
-            ) from exc
+            raise AIProviderError(f"Unexpected response shape: {data}") from exc
 
     @staticmethod
     def _parse_sse_line(line: str, model: str) -> StreamChunk | None:
@@ -894,7 +895,7 @@ class OpenRouterClient:
             return None
         if not line.startswith("data: "):
             return None
-        payload = line[len("data: "):]
+        payload = line[len("data: ") :]
         if payload.strip() == "[DONE]":
             return None
         try:

@@ -81,9 +81,7 @@ class _TomlFileSource(PydanticBaseSettingsSource):
         except Exception:
             return {}
 
-    def get_field_value(
-        self, field: Any, field_name: str
-    ) -> tuple[Any, str, bool]:
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
         val = self._data.get(field_name)
         return val, field_name, False
 
@@ -111,9 +109,7 @@ _COMPAT_MAP: dict[str, tuple[str, str]] = {
 class _CompatEnvSource(PydanticBaseSettingsSource):
     """Reads top-level backward-compat env vars and injects them as nested data."""
 
-    def get_field_value(
-        self, field: Any, field_name: str
-    ) -> tuple[Any, str, bool]:
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
         return None, field_name, False
 
     def __call__(self) -> dict[str, Any]:
@@ -121,6 +117,7 @@ class _CompatEnvSource(PydanticBaseSettingsSource):
         dotenv: dict[str, str | None] = {}
         try:
             from dotenv import dotenv_values
+
             if os.path.exists(".env"):
                 dotenv = dotenv_values(".env")
         except ImportError:
@@ -137,6 +134,7 @@ class _CompatEnvSource(PydanticBaseSettingsSource):
 # ---------------------------------------------------------------------------
 # Nested section models (plain BaseModel — not BaseSettings)
 # ---------------------------------------------------------------------------
+
 
 class AISettings(BaseModel):
     """AI provider and model configuration."""
@@ -329,10 +327,7 @@ class Settings(BaseSettings):
     )
     log_file: str | None = Field(
         default=None,
-        description=(
-            "Write structured JSON logs to this file path. "
-            "None disables file logging."
-        ),
+        description=("Write structured JSON logs to this file path. None disables file logging."),
     )
     safe_mode: bool = Field(
         default=False,
@@ -378,6 +373,7 @@ class Settings(BaseSettings):
 # ---------------------------------------------------------------------------
 # generate_example_config()
 # ---------------------------------------------------------------------------
+
 
 def generate_example_config(path: Path | None = None) -> Path:
     """
@@ -508,6 +504,7 @@ require_root_confirmation = true
 # get_settings() singleton
 # ---------------------------------------------------------------------------
 
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """
@@ -536,6 +533,7 @@ def get_settings() -> Settings:
 # ---------------------------------------------------------------------------
 # Legacy aliases (kept for backward compatibility with older call sites)
 # ---------------------------------------------------------------------------
+
 
 def get_config(**overrides: Any) -> Settings:
     """Backward-compat alias for :func:`get_settings`.

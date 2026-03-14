@@ -4,15 +4,15 @@ Fixtures here are available to every test module automatically.  They are
 kept intentionally small — each test file declares its own local fixtures
 where more specificity is needed.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 
 # ─── Event loop policy ────────────────────────────────────────────────────────
 

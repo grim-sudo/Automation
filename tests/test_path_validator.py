@@ -17,17 +17,16 @@ Public surface exercised here:
     get_path_validator() -> PathValidator
         Module-level singleton.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-
 from omni_automator.security.path_validator import (
     PathValidationError,
     PathValidator,
 )
-
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -55,9 +54,7 @@ class TestSafePaths:
         assert result is not None
         assert isinstance(result, Path)
 
-    def test_allowed_root_itself_is_valid(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_allowed_root_itself_is_valid(self, validator: PathValidator, temp_dir: Path) -> None:
         result = validator.validate(str(temp_dir))
         assert result is not None
         assert isinstance(result, Path)
@@ -69,15 +66,11 @@ class TestSafePaths:
         result = validator.validate(str(deep))
         assert result is not None
 
-    def test_validate_returns_pathlib_path(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_validate_returns_pathlib_path(self, validator: PathValidator, temp_dir: Path) -> None:
         result = validator.validate(str(temp_dir / "file.txt"))
         assert isinstance(result, Path)
 
-    def test_validate_returns_absolute_path(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_validate_returns_absolute_path(self, validator: PathValidator, temp_dir: Path) -> None:
         result = validator.validate(str(temp_dir / "file.txt"))
         assert result.is_absolute()
 
@@ -96,9 +89,7 @@ class TestSafePaths:
 
 
 class TestTraversalPrevention:
-    def test_dotdot_sequence_raises(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_dotdot_sequence_raises(self, validator: PathValidator, temp_dir: Path) -> None:
         """A raw '..' in the path string must be rejected immediately."""
         traversal = str(temp_dir) + "/../../etc/passwd"
         with pytest.raises(PathValidationError):
@@ -111,9 +102,7 @@ class TestTraversalPrevention:
         with pytest.raises(PathValidationError):
             validator.validate("/etc/shadow")
 
-    def test_absolute_path_outside_root_raises(
-        self, validator: PathValidator
-    ) -> None:
+    def test_absolute_path_outside_root_raises(self, validator: PathValidator) -> None:
         """/root/.bashrc is outside the temp_dir allowed root."""
         with pytest.raises(PathValidationError):
             validator.validate("/root/.bashrc")
@@ -124,30 +113,22 @@ class TestTraversalPrevention:
         traversal = str(temp_dir) + "/../../etc/passwd"
         assert validator.is_safe(traversal) is False
 
-    def test_is_safe_returns_false_for_system_path(
-        self, validator: PathValidator
-    ) -> None:
+    def test_is_safe_returns_false_for_system_path(self, validator: PathValidator) -> None:
         assert validator.is_safe("/etc/passwd") is False
 
-    def test_double_dot_component_raises(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_double_dot_component_raises(self, validator: PathValidator, temp_dir: Path) -> None:
         """A pathlib path constructed with '..' components must be rejected."""
         evil = str(temp_dir / ".." / ".." / "etc" / "passwd")
         with pytest.raises(PathValidationError):
             validator.validate(evil)
 
-    def test_null_byte_in_path_raises(
-        self, validator: PathValidator, temp_dir: Path
-    ) -> None:
+    def test_null_byte_in_path_raises(self, validator: PathValidator, temp_dir: Path) -> None:
         """Null bytes in paths are a known injection vector."""
         poisoned = str(temp_dir / "safe_name\x00/etc/passwd")
         with pytest.raises(PathValidationError):
             validator.validate(poisoned)
 
-    def test_path_validation_error_is_permission_error(
-        self, validator: PathValidator
-    ) -> None:
+    def test_path_validation_error_is_permission_error(self, validator: PathValidator) -> None:
         """PathValidationError must be a subclass of PermissionError so it
         propagates correctly through code that only catches PermissionError."""
         with pytest.raises(PermissionError):

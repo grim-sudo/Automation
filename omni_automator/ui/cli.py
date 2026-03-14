@@ -21,6 +21,7 @@ from omni_automator.utils.logger import get_logger
 
 class InteractionMode(Enum):
     """Interaction mode"""
+
     CLI = "cli"
     INTERACTIVE = "interactive"
     GUI = "gui"
@@ -46,6 +47,7 @@ class EnhancedCLI:
         try:
             from omni_automator.nlp.spell_corrector import get_spell_corrector
             from omni_automator.workflow.error_handler import get_smart_error_handler
+
             self.spell_corrector = get_spell_corrector()
             self.error_handler = get_smart_error_handler()
         except ImportError:
@@ -64,11 +66,12 @@ class EnhancedCLI:
 
         # Skip spell correction for commands with technical patterns
         import re
+
         skip_patterns = [
-            r'\d+-\d+',  # Number ranges like "1-100"
-            r'\b\w+\d+\b',  # Words with numbers like "folder1", "test123"
-            r'\breadme\b',  # Common technical terms
-            r'\b(?:numbered?|naming)\b',  # Technical keywords
+            r"\d+-\d+",  # Number ranges like "1-100"
+            r"\b\w+\d+\b",  # Words with numbers like "folder1", "test123"
+            r"\breadme\b",  # Common technical terms
+            r"\b(?:numbered?|naming)\b",  # Technical keywords
         ]
 
         for pattern in skip_patterns:
@@ -80,8 +83,11 @@ class EnhancedCLI:
     def _is_complex_command(self, command: str) -> bool:
         """Check if command is complex"""
         import re
+
         if len(command) > 150:
-            return bool(re.search(r'(\d+.*folders?|nested|hierarchy|structure)', command, re.IGNORECASE))
+            return bool(
+                re.search(r"(\d+.*folders?|nested|hierarchy|structure)", command, re.IGNORECASE)
+            )
         return False
 
     def run(self, commands: list[str] | None = None) -> None:
@@ -122,7 +128,7 @@ class EnhancedCLI:
                 if not user_input:
                     continue
 
-                if user_input.lower() in ['quit', 'exit']:
+                if user_input.lower() in ["quit", "exit"]:
                     self.running = False
                     print("Goodbye!")
                     break
@@ -136,7 +142,7 @@ class EnhancedCLI:
     def _execute_interactive_command(self, command: str) -> None:
         """Execute command in interactive mode"""
         # Special commands
-        if command.startswith('/'):
+        if command.startswith("/"):
             self._handle_special_command(command)
             return
 
@@ -156,7 +162,7 @@ class EnhancedCLI:
             self._format_and_display_result(result)
             self.command_history.append(command)
             if len(self.command_history) > self.max_history:
-                self.command_history = self.command_history[-self.max_history:]
+                self.command_history = self.command_history[-self.max_history :]
         except Exception as e:
             if self.error_handler:
                 self.error_handler.handle_error(str(e), command)
@@ -165,12 +171,12 @@ class EnhancedCLI:
 
     def _handle_special_command(self, command: str) -> None:
         """Handle special commands like /help"""
-        if command == '/help':
+        if command == "/help":
             print("Available commands: /help, /history, /status, /cd, /pwd, /ls")
-        elif command == '/history':
+        elif command == "/history":
             for i, cmd in enumerate(self.command_history, 1):
                 print(f"{i:3d}. {cmd}")
-        elif command == '/status':
+        elif command == "/status":
             print("Status: Running")
         else:
             print(f"Unknown command: {command}")
@@ -182,25 +188,31 @@ class EnhancedCLI:
             return
 
         # Check if execution was successful
-        success = result.get('success', False)
-        completed_steps = result.get('completed_steps', 0)
-        total_steps = result.get('total_steps', 0)
-        results_list = result.get('results', [])
-        execution_time = result.get('total_execution_time', 0)
+        success = result.get("success", False)
+        completed_steps = result.get("completed_steps", 0)
+        total_steps = result.get("total_steps", 0)
+        results_list = result.get("results", [])
+        execution_time = result.get("total_execution_time", 0)
 
         # Header
         status_symbol = "✅" if success else "❌"
-        print(f"\n{status_symbol} {'SUCCESS' if success else 'FAILED'} - {completed_steps}/{total_steps} steps completed")
+        print(
+            f"\n{status_symbol} {'SUCCESS' if success else 'FAILED'} - {completed_steps}/{total_steps} steps completed"
+        )
 
         # Display results for each step
         if results_list:
             print("\n📋 Operation Results:")
             for i, step_result in enumerate(results_list, 1):
                 if isinstance(step_result, dict):
-                    step_status = "✓" if step_result.get('success', False) else "✗"
-                    action = step_result.get('action', 'Unknown')
-                    details = step_result.get('details', '')
-                    created_item = step_result.get('created_item') or step_result.get('created_folder') or step_result.get('created_file')
+                    step_status = "✓" if step_result.get("success", False) else "✗"
+                    action = step_result.get("action", "Unknown")
+                    details = step_result.get("details", "")
+                    created_item = (
+                        step_result.get("created_item")
+                        or step_result.get("created_folder")
+                        or step_result.get("created_file")
+                    )
 
                     if created_item:
                         print(f"   {step_status} {i}. {action}: {created_item}")
@@ -248,6 +260,7 @@ class EnhancedCLI:
         """Run GUI mode"""
         try:
             from omni_automator.ui.gui import ModernOmniAutomatorGUI
+
             gui = ModernOmniAutomatorGUI()
             gui.run()
         except ImportError:
@@ -258,13 +271,11 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="OmniAutomator - Intelligent Automation System"
-    )
-    parser.add_argument('commands', nargs='*', help='Commands to execute')
-    parser.add_argument('--interactive', '-i', action='store_true', help='Interactive mode')
-    parser.add_argument('--batch', '-b', type=str, help='Batch file')
-    parser.add_argument('--gui', '-g', action='store_true', help='GUI mode')
+    parser = argparse.ArgumentParser(description="OmniAutomator - Intelligent Automation System")
+    parser.add_argument("commands", nargs="*", help="Commands to execute")
+    parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode")
+    parser.add_argument("--batch", "-b", type=str, help="Batch file")
+    parser.add_argument("--gui", "-g", action="store_true", help="GUI mode")
 
     args = parser.parse_args()
 
@@ -289,5 +300,5 @@ def main():
     cli.run(args.commands if args.commands else None)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -243,9 +243,7 @@ class AIPoweredTaskPlanner:
         except Exception as exc:
             self.logger.warning("Failed to initialise OpenRouter: %s", exc)
 
-    def plan_and_execute(
-        self, request: str, context: dict | None = None
-    ) -> dict:
+    def plan_and_execute(self, request: str, context: dict | None = None) -> dict:
         """Generate a task plan and execute it (legacy sync API)."""
         from .task_executor import get_ai_task_executor
 
@@ -266,9 +264,7 @@ class AIPoweredTaskPlanner:
             unknown_actions = []
 
         if unknown_actions:
-            self.logger.warning(
-                "Unknown actions in plan: %s — using NL fallback.", unknown_actions
-            )
+            self.logger.warning("Unknown actions in plan: %s — using NL fallback.", unknown_actions)
             try:
                 result = executor.parse_and_execute_nl(request, confirm=False)
                 result["note"] = (
@@ -290,9 +286,7 @@ class AIPoweredTaskPlanner:
         )
         return result
 
-    def _generate_task_plan(
-        self, request: str, context: dict | None = None
-    ) -> dict | None:
+    def _generate_task_plan(self, request: str, context: dict | None = None) -> dict | None:
         if self.openrouter_ai and self.openrouter_ai.is_available:
             try:
                 ai_plan: AITaskPlan = self.openrouter_ai.analyze_automation_request(
@@ -328,7 +322,10 @@ class AIPoweredTaskPlanner:
             "execution_steps": [
                 {
                     "action": action,
-                    "parameters": {"project_name": "automation_task", "location": os.path.expanduser("~")},
+                    "parameters": {
+                        "project_name": "automation_task",
+                        "location": os.path.expanduser("~"),
+                    },
                     "description": description,
                     "required": True,
                 }

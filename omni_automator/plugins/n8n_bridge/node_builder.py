@@ -28,6 +28,7 @@ __all__ = [
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_node(service: str, config: dict[str, Any], index: int) -> N8nNode:
     """Create a positioned N8nNode from a service name and config.
 
@@ -63,15 +64,14 @@ def _connect_linear(nodes: list[N8nNode]) -> dict[str, Any]:
     for i in range(len(nodes) - 1):
         src = nodes[i].name
         dst = nodes[i + 1].name
-        connections[src] = {
-            "main": [[{"node": dst, "type": "main", "index": 0}]]
-        }
+        connections[src] = {"main": [[{"node": dst, "type": "main", "index": 0}]]}
     return connections
 
 
 # ---------------------------------------------------------------------------
 # Public builders
 # ---------------------------------------------------------------------------
+
 
 def build_linear_workflow(name: str, steps: list[dict[str, Any]]) -> N8nWorkflow:
     """Build a linear workflow from an ordered list of steps.
@@ -165,7 +165,7 @@ def parse_nl_to_steps(nl_command: str) -> list[dict[str, Any]]:
     for svc_key in NODE_REGISTRY:
         pattern = svc_key.replace("_", r"[\s_-]?")
         if re.search(r"\b" + pattern + r"\b", text) and svc_key not in seen:
-            is_trig = is_trigger(svc_key) and not steps  # only first for trigger pos
+            is_trigger(svc_key) and not steps  # only first for trigger pos
             steps.append({"service": svc_key, "config": {}})
             seen.add(svc_key)
 
@@ -188,15 +188,15 @@ def _parse_cron_hint(hint: str) -> str:
     """
     hint = hint.strip().lower()
     if "day" in hint:
-        return "0 9 * * *"         # 9 am daily
+        return "0 9 * * *"  # 9 am daily
     if "hour" in hint:
-        return "0 * * * *"         # top of every hour
+        return "0 * * * *"  # top of every hour
     if "week" in hint:
-        return "0 9 * * 1"         # Monday 9 am
+        return "0 9 * * 1"  # Monday 9 am
     m = re.search(r"(\d+)\s*min", hint)
     if m:
         return f"*/{m.group(1)} * * * *"
-    return "0 * * * *"             # fallback: hourly
+    return "0 * * * *"  # fallback: hourly
 
 
 def add_error_handler(workflow: N8nWorkflow, error_webhook_url: str = "") -> N8nWorkflow:

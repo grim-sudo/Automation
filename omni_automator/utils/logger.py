@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import sys
@@ -24,10 +25,7 @@ __all__ = [
 # Module constants
 # ---------------------------------------------------------------------------
 
-_LOG_FORMAT = (
-    "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | "
-    "{name}:{function}:{line} | {message}"
-)
+_LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} | {message}"
 
 _CONSOLE_FORMAT = (
     "<green>{time:HH:mm:ss}</green> | "
@@ -88,14 +86,14 @@ def configure_logging(
         logger.add(
             str(log_path),
             level="DEBUG",
-            format="{message}",     # loguru serialize=True handles the JSON
+            format="{message}",  # loguru serialize=True handles the JSON
             serialize=True,
             rotation="50 MB",
             retention="30 days",
             compression="gz",
-            enqueue=True,           # thread-safe async writes
+            enqueue=True,  # thread-safe async writes
             backtrace=True,
-            diagnose=False,         # avoid leaking locals to the log file
+            diagnose=False,  # avoid leaking locals to the log file
             encoding="utf-8",
         )
 
@@ -105,6 +103,7 @@ def configure_logging(
 # ---------------------------------------------------------------------------
 # Auto-initialise with sensible defaults at import time
 # ---------------------------------------------------------------------------
+
 
 def _default_init() -> None:
     """Configure logging on first import so the module is always usable."""
@@ -121,10 +120,8 @@ def _default_init() -> None:
         )
     except Exception:
         # Never let logging setup crash the application
-        try:
+        with contextlib.suppress(Exception):
             configure_logging(debug=False)
-        except Exception:
-            pass
 
 
 _default_init()
@@ -235,9 +232,7 @@ def log_execution(func: _F) -> _F:
         try:
             result = func(*args, **kwargs)
             elapsed = (time.perf_counter() - t0) * 1000
-            _bound.opt(depth=1).debug(
-                "<< {}  [{:.1f} ms]", func.__qualname__, elapsed
-            )
+            _bound.opt(depth=1).debug("<< {}  [{:.1f} ms]", func.__qualname__, elapsed)
             return result
         except Exception as exc:
             elapsed = (time.perf_counter() - t0) * 1000

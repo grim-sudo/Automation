@@ -39,12 +39,13 @@ def _require_root(func_name: str) -> None:
     """
     if os.geteuid() != 0:
         raise PermissionError(
-            f"{func_name}() requires root privileges. "
-            "Re-run with sudo or as root."
+            f"{func_name}() requires root privileges. Re-run with sudo or as root."
         )
 
 
-def _run_logged(cmd: list[str], cwd: str | None = None, env: dict | None = None) -> tuple[bool, str]:
+def _run_logged(
+    cmd: list[str], cwd: str | None = None, env: dict | None = None
+) -> tuple[bool, str]:
     """Run a command, log stdout/stderr, return (success, combined_log)."""
     logger.debug("Running: {}", " ".join(cmd))
     result = subprocess.run(
@@ -81,6 +82,7 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
 
     try:
         from ..config import get_config
+
         cfg = get_config()
         mirror = cfg.distro_builder.debian_mirror
         suite = cfg.distro_builder.debian_suite
@@ -90,7 +92,9 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
 
     logger.info("Running debootstrap {} {} …", suite, rootfs_path)
 
-    with Progress(SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()
+    ) as p:
         task = p.add_task("debootstrap …", total=None)
 
         ok, log = await asyncio.to_thread(
@@ -113,7 +117,8 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
     tz_file = rootfs_path / "etc" / "timezone"
     tz_file.write_text(profile.timezone + "\n", encoding="utf-8")
     await asyncio.to_thread(
-        _run_logged, chroot + ["ln", "-sf", f"/usr/share/zoneinfo/{profile.timezone}", "/etc/localtime"]
+        _run_logged,
+        chroot + ["ln", "-sf", f"/usr/share/zoneinfo/{profile.timezone}", "/etc/localtime"],
     )
 
     # Locale
@@ -126,7 +131,9 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
     if profile.packages:
         env = dict(os.environ)
         env["DEBIAN_FRONTEND"] = "noninteractive"
-        pkg_cmd = chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + profile.packages
+        pkg_cmd = (
+            chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + profile.packages
+        )
         logger.info("Installing {} packages …", len(profile.packages))
         ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
         if not ok:
@@ -159,11 +166,11 @@ async def build_arch_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     base_pkgs = ["base", "linux", "linux-firmware"] + profile.packages
 
     logger.info("Running pacstrap …")
-    with Progress(SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()
+    ) as p:
         task = p.add_task("pacstrap …", total=None)
-        ok, _ = await asyncio.to_thread(
-            _run_logged, ["pacstrap", str(rootfs_path)] + base_pkgs
-        )
+        ok, _ = await asyncio.to_thread(_run_logged, ["pacstrap", str(rootfs_path)] + base_pkgs)
         p.update(task, completed=1, total=1)
 
     if not ok:
@@ -184,9 +191,7 @@ async def build_arch_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     existing = locale_gen.read_text(encoding="utf-8") if locale_gen.exists() else ""
     locale_gen.write_text(existing + f"\n{profile.locale} UTF-8\n", encoding="utf-8")
     await asyncio.to_thread(_run_logged, arch_chroot + ["locale-gen"])
-    (rootfs_path / "etc" / "locale.conf").write_text(
-        f"LANG={profile.locale}\n", encoding="utf-8"
-    )
+    (rootfs_path / "etc" / "locale.conf").write_text(f"LANG={profile.locale}\n", encoding="utf-8")
 
     # Hostname
     (rootfs_path / "etc" / "hostname").write_text(profile.hostname + "\n", encoding="utf-8")
@@ -225,6 +230,7 @@ async def build_buildroot_rootfs(
     # Download Buildroot snapshot
     logger.info("Downloading Buildroot snapshot …")
     import httpx
+
     async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
         resp = await client.get(_BUILDROOT_URL)
         resp.raise_for_status()
@@ -240,11 +246,11 @@ async def build_buildroot_rootfs(
     tarball.unlink()
 
     # Generate .config from profile BR2_ options + defaults
-    config_lines = ["BR2_WGET=\"wget --passive-ftp -nd -t 3\""]
+    config_lines = ['BR2_WGET="wget --passive-ftp -nd -t 3"']
     for key, val in profile.kernel.kconfig_options.items():
         if key.startswith("BR2_"):
             config_lines.append(f"{key}={val}")
-    config_lines.append(f"BR2_TARGET_GENERIC_HOSTNAME=\"{profile.hostname}\"")
+    config_lines.append(f'BR2_TARGET_GENERIC_HOSTNAME="{profile.hostname}"')
     (build_dir / ".config").write_text("\n".join(config_lines) + "\n", encoding="utf-8")
 
     # Merge defconfig
@@ -256,7 +262,9 @@ async def build_buildroot_rootfs(
 
     # Build
     logger.info("Building Buildroot rootfs with {} jobs …", num_jobs)
-    with Progress(SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()) as p:
+    with Progress(
+        SpinnerColumn(), TextColumn("[bold]{task.description}"), TimeElapsedColumn()
+    ) as p:
         task = p.add_task("Buildroot make …", total=None)
         ok, _ = await asyncio.to_thread(
             _run_logged,
@@ -271,6 +279,7 @@ async def build_buildroot_rootfs(
 
     # Copy output
     import shutil
+
     images_dir = build_dir / "output" / "images"
     for f in images_dir.glob("rootfs.*"):
         dest = rootfs_path / f.name

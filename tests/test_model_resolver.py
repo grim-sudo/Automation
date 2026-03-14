@@ -3,10 +3,10 @@
 Mocks httpx.AsyncClient to avoid real HTTP calls.  Each test resets the
 resolver state via invalidate() so tests are independent.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,6 +15,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Helpers to build fake model payloads
 # ---------------------------------------------------------------------------
+
 
 def _make_model(
     model_id: str,
@@ -39,8 +40,12 @@ FREE_MODELS_PAYLOAD = {
         _make_model("free/small", context_length=4096),
         _make_model("free/large", context_length=32768),
         _make_model("free/huge", context_length=131072),
-        _make_model("paid/gpt4", context_length=128000, prompt_price="0.01", completion_price="0.03"),
-        _make_model("paid/claude", context_length=200000, prompt_price="0.003", completion_price="0.015"),
+        _make_model(
+            "paid/gpt4", context_length=128000, prompt_price="0.01", completion_price="0.03"
+        ),
+        _make_model(
+            "paid/claude", context_length=200000, prompt_price="0.003", completion_price="0.015"
+        ),
     ]
 }
 
@@ -62,6 +67,7 @@ _FAKE_API_KEY = "sk-or-test-key-1234"
 
 try:
     from omni_automator.ai.model_resolver import FreeModelResolver, ModelInfo, get_resolver
+
     _IMPORT_OK = True
 except ImportError:
     _IMPORT_OK = False
@@ -72,6 +78,7 @@ pytestmark = pytest.mark.skipif(not _IMPORT_OK, reason="model_resolver not impor
 # ---------------------------------------------------------------------------
 # Async httpx mock helper
 # ---------------------------------------------------------------------------
+
 
 def _make_async_client_mock(payload: dict):
     """
@@ -95,6 +102,7 @@ def _make_async_client_mock(payload: dict):
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def resolver() -> FreeModelResolver:
     """Return a fresh, un-cached resolver with a fake API key."""
@@ -106,6 +114,7 @@ def resolver() -> FreeModelResolver:
 # ---------------------------------------------------------------------------
 # Tests: basic free model filtering and sorting
 # ---------------------------------------------------------------------------
+
 
 class TestFreeModelFiltering:
     def test_filters_out_paid_models(self, resolver: FreeModelResolver) -> None:
@@ -150,6 +159,7 @@ class TestFreeModelFiltering:
 # Tests: edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestEdgeCases:
     def test_empty_response_raises(self, resolver: FreeModelResolver) -> None:
         """If no free models are found, ensure_loaded must raise RuntimeError."""
@@ -173,9 +183,8 @@ class TestEdgeCases:
         failing_client.__aexit__ = AsyncMock(return_value=False)
         failing_cls = MagicMock(return_value=failing_client)
 
-        with patch("httpx.AsyncClient", failing_cls):
-            with pytest.raises(RuntimeError):
-                asyncio.run(resolver.ensure_loaded())
+        with patch("httpx.AsyncClient", failing_cls), pytest.raises(RuntimeError):
+            asyncio.run(resolver.ensure_loaded())
 
     def test_partial_pricing_keys(self, resolver: FreeModelResolver) -> None:
         """Models with missing pricing keys should be excluded (treated as paid)."""
@@ -206,6 +215,7 @@ class TestEdgeCases:
 # ---------------------------------------------------------------------------
 # Tests: caching behaviour
 # ---------------------------------------------------------------------------
+
 
 class TestCaching:
     def test_second_ensure_loaded_does_not_re_fetch(self, resolver: FreeModelResolver) -> None:
@@ -244,6 +254,7 @@ class TestCaching:
 # Tests: ModelInfo data class
 # ---------------------------------------------------------------------------
 
+
 class TestModelInfo:
     def test_model_info_fields(self, resolver: FreeModelResolver) -> None:
         """ModelInfo objects must expose model_id, context_length, and name."""
@@ -267,6 +278,7 @@ class TestModelInfo:
 # Tests: get_resolver() singleton
 # ---------------------------------------------------------------------------
 
+
 class TestGetResolverSingleton:
     def test_get_resolver_returns_same_instance(self) -> None:
         """Repeated calls to get_resolver() must return the same object."""
@@ -276,6 +288,7 @@ class TestGetResolverSingleton:
         with patch("omni_automator.ai.model_resolver.get_config", return_value=mock_cfg):
             # Reset the module-level singleton so we can test creation
             import omni_automator.ai.model_resolver as _mr
+
             original = _mr._resolver
             _mr._resolver = None
             try:
@@ -291,6 +304,7 @@ class TestGetResolverSingleton:
         mock_cfg.openrouter_api_key = _FAKE_API_KEY
         with patch("omni_automator.ai.model_resolver.get_config", return_value=mock_cfg):
             import omni_automator.ai.model_resolver as _mr
+
             original = _mr._resolver
             _mr._resolver = None
             try:

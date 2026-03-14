@@ -87,7 +87,7 @@ class BaseGUIAdapter(BaseModuleAdapter):
     """Base GUI automation adapter"""
 
     @abstractmethod
-    def click(self, x: int, y: int, button: str = 'left') -> bool:
+    def click(self, x: int, y: int, button: str = "left") -> bool:
         """Click at coordinates"""
         pass
 

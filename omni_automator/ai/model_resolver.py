@@ -180,7 +180,10 @@ class FreeModelResolver:
         free: list[ModelInfo] = []
         for m in raw_models:
             pricing = m.get("pricing", {})
-            if str(pricing.get("prompt", "1")) == "0" and str(pricing.get("completion", "1")) == "0":
+            if (
+                str(pricing.get("prompt", "1")) == "0"
+                and str(pricing.get("completion", "1")) == "0"
+            ):
                 free.append(
                     ModelInfo(
                         model_id=m["id"],
@@ -237,6 +240,7 @@ def get_resolver() -> FreeModelResolver:
 # ---------------------------------------------------------------------------
 # Convenience sync helpers (for non-async callers)
 # ---------------------------------------------------------------------------
+
 
 def default_model() -> ModelInfo:
     """

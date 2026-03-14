@@ -36,18 +36,18 @@ class OmniAutomator:
             # Initialize AI parser with fallback
             api_key = None
             if config:
-                api_key = config.get('openrouter_api_key') or os.getenv('OPENROUTER_API_KEY')
+                api_key = config.get("openrouter_api_key") or os.getenv("OPENROUTER_API_KEY")
             else:
-                api_key = os.getenv('OPENROUTER_API_KEY')
+                api_key = os.getenv("OPENROUTER_API_KEY")
 
             self.ai_parser = AIEnhancedParser(api_key)
             self.plugin_manager = PluginManager()
             # Optional category -> plugin name aliases for backward compatibility
             self.plugin_aliases = {
-                'devops': 'devops_generator',
-                'project': 'project_generator',
-                'web': 'web_automation',
-                'folder_ops': 'folder_operations'
+                "devops": "devops_generator",
+                "project": "project_generator",
+                "web": "web_automation",
+                "folder_ops": "folder_operations",
             }
             self.permission_manager = PermissionManager()
             self.workflow_engine = WorkflowEngine(self)
@@ -58,10 +58,12 @@ class OmniAutomator:
             # Sandbox mode removed: always run in normal mode
             self.sandbox_mode = False
 
-            self.logger.info(f"OmniAutomator initialized on {platform.system()} {platform.release()}")
+            self.logger.info(
+                f"OmniAutomator initialized on {platform.system()} {platform.release()}"
+            )
 
         except Exception as e:
-            if hasattr(self, 'logger'):
+            if hasattr(self, "logger"):
                 self.logger.error(f"Failed to initialize OmniAutomator: {e}")
             else:
                 print(f"Critical error during initialization: {e}")
@@ -73,25 +75,39 @@ class OmniAutomator:
             raise ValueError("Configuration must be a dictionary")
 
         # Validate sandbox mode
-        if 'sandbox_mode' in self.config:
-            if not isinstance(self.config['sandbox_mode'], bool):
+        if "sandbox_mode" in self.config:
+            if not isinstance(self.config["sandbox_mode"], bool):
                 raise ValueError("sandbox_mode must be a boolean")
 
         # Validate continue_on_error
-        if 'continue_on_error' in self.config:
-            if not isinstance(self.config['continue_on_error'], bool):
+        if "continue_on_error" in self.config:
+            if not isinstance(self.config["continue_on_error"], bool):
                 raise ValueError("continue_on_error must be a boolean")
 
     def _is_dangerous_command(self, command: str) -> bool:
         """Check if command contains potentially dangerous operations"""
         dangerous_keywords = [
-            'format', 'fdisk', 'rm -rf', 'del /f /s /q', 'rmdir /s',
-            'shutdown', 'reboot', 'halt', 'poweroff',
-            'registry delete', 'reg delete', 'regedit',
-            'net user', 'net localgroup administrators',
-            'sc delete', 'taskkill /f',
-            'chmod 777', 'chown root',
-            'dd if=', 'mkfs', 'parted'
+            "format",
+            "fdisk",
+            "rm -rf",
+            "del /f /s /q",
+            "rmdir /s",
+            "shutdown",
+            "reboot",
+            "halt",
+            "poweroff",
+            "registry delete",
+            "reg delete",
+            "regedit",
+            "net user",
+            "net localgroup administrators",
+            "sc delete",
+            "taskkill /f",
+            "chmod 777",
+            "chown root",
+            "dd if=",
+            "mkfs",
+            "parted",
         ]
 
         command_lower = command.lower()
@@ -105,11 +121,11 @@ class OmniAutomator:
         if len(command) > 200:
             # Check for nested/loop structures
             nested_patterns = [
-                r'in\s+(?:that|those|each|every)',
-                r'and\s+in\s+',
-                r'inside\s+(?:each|every)',
-                r'\d+\s+folders?.*\d+\s+folders?',
-                r'table \d+ to table \d+',
+                r"in\s+(?:that|those|each|every)",
+                r"and\s+in\s+",
+                r"inside\s+(?:each|every)",
+                r"\d+\s+folders?.*\d+\s+folders?",
+                r"table \d+ to table \d+",
             ]
 
             for pattern in nested_patterns:
@@ -117,7 +133,7 @@ class OmniAutomator:
                     return True
 
             # Multiple action conjunctions also indicate complexity
-            actions = command.lower().count(' and ')
+            actions = command.lower().count(" and ")
             if actions >= 3:
                 return True
 
@@ -128,19 +144,29 @@ class OmniAutomator:
         if not isinstance(params, dict):
             return params
 
-        filename_keys = ['filename', 'file', 'path', 'dest', 'destination', 'save_to', 'output', 'save_path', 'target']
+        filename_keys = [
+            "filename",
+            "file",
+            "path",
+            "dest",
+            "destination",
+            "save_to",
+            "output",
+            "save_path",
+            "target",
+        ]
         for k in filename_keys:
             if k in params and params.get(k):
                 # prefer an explicit 'path' key for downstream plugins
-                params['path'] = params.get(k)
+                params["path"] = params.get(k)
                 break
 
         # Also accept nested context
-        if 'workflow_context' in params and isinstance(params['workflow_context'], dict):
-            wc = params['workflow_context']
+        if "workflow_context" in params and isinstance(params["workflow_context"], dict):
+            wc = params["workflow_context"]
             for k in filename_keys:
-                if k in wc and wc.get(k) and not params.get('path'):
-                    params['path'] = wc.get(k)
+                if k in wc and wc.get(k) and not params.get("path"):
+                    params["path"] = wc.get(k)
                     break
 
         return params
@@ -157,9 +183,8 @@ class OmniAutomator:
                 raise ValueError("Command cannot be empty or whitespace only")
 
             # Security check for potentially dangerous commands
-            if self._is_dangerous_command(command):
-                if not self.sandbox_mode:
-                    self.logger.warning(f"Potentially dangerous command detected: {command}")
+            if self._is_dangerous_command(command) and not self.sandbox_mode:
+                self.logger.warning(f"Potentially dangerous command detected: {command}")
 
             self.logger.info(f"Executing command: {command}")
 
@@ -169,9 +194,11 @@ class OmniAutomator:
                 self.logger.info("Command is too complex for AI, using advanced parser directly")
                 complex_command = self.advanced_parser.parse_complex_command(command)
             # Use AI-enhanced parsing if available, otherwise fall back to advanced parsing
-            elif self.ai_parser.get_ai_status()['available']:
+            elif self.ai_parser.get_ai_status()["available"]:
                 self.logger.info("Using AI-enhanced command parsing")
-                complex_command = self.ai_parser.parse_with_ai(command, self._get_execution_context())
+                complex_command = self.ai_parser.parse_with_ai(
+                    command, self._get_execution_context()
+                )
             else:
                 self.logger.info("Using advanced command parsing (AI not available)")
                 complex_command = self.advanced_parser.parse_complex_command(command)
@@ -191,22 +218,24 @@ class OmniAutomator:
                 self._log_execution(command, parsed_command, result)
 
                 return {
-                    'success': True,
-                    'result': result,
-                    'command': command,
-                    'complexity': 'simple',
-                    'timestamp': datetime.now().isoformat()
+                    "success": True,
+                    "result": result,
+                    "command": command,
+                    "complexity": "simple",
+                    "timestamp": datetime.now().isoformat(),
                 }
             else:
                 # Execute complex workflow
-                self.logger.info(f"Executing complex workflow with {len(complex_command.steps)} steps")
+                self.logger.info(
+                    f"Executing complex workflow with {len(complex_command.steps)} steps"
+                )
 
                 # Check permissions for all steps
                 for step in complex_command.steps:
                     step_command = {
-                        'action': step.action,
-                        'category': step.category,
-                        'params': step.params
+                        "action": step.action,
+                        "category": step.category,
+                        "params": step.params,
                     }
                     if not self.permission_manager.check_permission(step_command):
                         raise PermissionError(f"Permission denied for step: {step.action}")
@@ -218,14 +247,14 @@ class OmniAutomator:
                 self._log_execution(command, complex_command, workflow_result)
 
                 return {
-                    'success': workflow_result['success'],
-                    'result': workflow_result,
-                    'command': command,
-                    'complexity': complex_command.complexity.value,
-                    'steps_completed': workflow_result.get('completed_steps', 0),
-                    'total_steps': workflow_result.get('total_steps', 0),
-                    'execution_time': workflow_result.get('total_execution_time', 0),
-                    'timestamp': datetime.now().isoformat()
+                    "success": workflow_result["success"],
+                    "result": workflow_result,
+                    "command": command,
+                    "complexity": complex_command.complexity.value,
+                    "steps_completed": workflow_result.get("completed_steps", 0),
+                    "total_steps": workflow_result.get("total_steps", 0),
+                    "execution_time": workflow_result.get("total_execution_time", 0),
+                    "timestamp": datetime.now().isoformat(),
                 }
 
         except Exception as e:
@@ -237,42 +266,42 @@ class OmniAutomator:
 
             # Get AI suggestions for error resolution if available
             error_suggestions = []
-            if self.ai_parser.get_ai_status()['available']:
+            if self.ai_parser.get_ai_status()["available"]:
                 try:
                     error_info = {
-                        'command': command,
-                        'error': error_msg,
-                        'error_type': type(e).__name__,
-                        'context': self._get_execution_context()
+                        "command": command,
+                        "error": error_msg,
+                        "error_type": type(e).__name__,
+                        "context": self._get_execution_context(),
                     }
                     ai_resolution = self.ai_parser.handle_execution_error(error_info)
-                    error_suggestions = ai_resolution.get('suggestions', [])
+                    error_suggestions = ai_resolution.get("suggestions", [])
                 except Exception as ai_error:
                     self.logger.warning(f"AI error resolution failed: {ai_error}")
 
             return {
-                'success': False,
-                'error': error_msg,
-                'fallback_message': fallback_msg,
-                'command': command,
-                'ai_suggestions': error_suggestions,
-                'timestamp': datetime.now().isoformat()
+                "success": False,
+                "error": error_msg,
+                "fallback_message": fallback_msg,
+                "command": command,
+                "ai_suggestions": error_suggestions,
+                "timestamp": datetime.now().isoformat(),
             }
 
     def _execute_parsed_command(self, parsed_command: dict[str, Any], **kwargs) -> Any:
         """Execute a parsed command using appropriate adapter/plugin"""
-        action = parsed_command.get('action')
-        category = parsed_command.get('category')
-        params = parsed_command.get('params', {})
+        action = parsed_command.get("action")
+        category = parsed_command.get("category")
+        params = parsed_command.get("params", {})
         # Prefer plugins that advertise the capability for this action
         try:
-            if hasattr(self.plugin_manager, 'get_plugin_by_capability'):
+            if hasattr(self.plugin_manager, "get_plugin_by_capability"):
                 candidates = self.plugin_manager.get_plugin_by_capability(action)
                 if candidates:
                     # Prefer a loaded plugin from the candidates
                     preferred = None
                     for pname in candidates:
-                        if pname in getattr(self.plugin_manager, 'plugins', {}):
+                        if pname in getattr(self.plugin_manager, "plugins", {}):
                             preferred = pname
                             break
                     preferred = preferred or candidates[0]
@@ -284,15 +313,17 @@ class OmniAutomator:
             pass
 
         # Route to appropriate handler
-        if category == 'filesystem':
+        if category == "filesystem":
             return self.os_adapter.filesystem.execute(action, params)
-        elif category == 'process':
+        elif category == "process":
             return self.os_adapter.process.execute(action, params)
-        elif category == 'gui':
+        elif category == "gui":
             # Prefer web_automation plugin when it supports the requested GUI/browser alias
             try:
-                if hasattr(self, 'plugin_manager') and 'web_automation' in getattr(self.plugin_manager, 'plugins', {}):
-                    plugin = self.plugin_manager.plugins['web_automation']
+                if hasattr(self, "plugin_manager") and "web_automation" in getattr(
+                    self.plugin_manager, "plugins", {}
+                ):
+                    plugin = self.plugin_manager.plugins["web_automation"]
                     try:
                         caps = plugin.get_capabilities()
                     except Exception:
@@ -301,27 +332,29 @@ class OmniAutomator:
                     if action in caps:
                         params_with_ctx = dict(params or {})
                         params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
-                        return self.plugin_manager.execute('web_automation', action, params_with_ctx)
+                        return self.plugin_manager.execute(
+                            "web_automation", action, params_with_ctx
+                        )
             except Exception:
                 # Fall back to OS GUI adapter on any plugin error
                 pass
 
             return self.os_adapter.gui.execute(action, params)
-        elif category == 'system':
+        elif category == "system":
             return self.os_adapter.system.execute(action, params)
-        elif category == 'network':
+        elif category == "network":
             return self.os_adapter.network.execute(action, params)
-        elif category == 'code_modification':
+        elif category == "code_modification":
             # Handle code modification actions
-            if action == 'modify_file':
+            if action == "modify_file":
                 return self._handle_modify_file(params)
-            elif action == 'read_file':
+            elif action == "read_file":
                 return self._handle_read_file(params)
-            elif action == 'write_file':
+            elif action == "write_file":
                 return self._handle_write_file(params)
         else:
             # Prefer plugin registered under the category name if present
-            if hasattr(self.plugin_manager, 'plugins') and category in self.plugin_manager.plugins:
+            if hasattr(self.plugin_manager, "plugins") and category in self.plugin_manager.plugins:
                 try:
                     params_with_ctx = dict(params or {})
                     return self.plugin_manager.execute(category, action, params_with_ctx)
@@ -335,12 +368,14 @@ class OmniAutomator:
                     # Prefer a loaded plugin from the candidates
                     preferred = None
                     for pname in candidates:
-                        if pname in getattr(self.plugin_manager, 'plugins', {}):
+                        if pname in getattr(self.plugin_manager, "plugins", {}):
                             preferred = pname
                             break
                     # Fallback to first candidate name if none loaded (will raise later)
                     preferred = preferred or candidates[0]
-                    self.logger.info(f"Dispatching action '{action}' to plugin '{preferred}' by capability")
+                    self.logger.info(
+                        f"Dispatching action '{action}' to plugin '{preferred}' by capability"
+                    )
                     params_with_ctx = dict(params or {})
                     params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
                     return self.plugin_manager.execute(preferred, action, params_with_ctx)
@@ -352,19 +387,19 @@ class OmniAutomator:
             params_with_ctx = self._normalize_screenshot_params(params_with_ctx)
             # If category is an alias for a real plugin name, use it
             plugin_name = category
-            if hasattr(self, 'plugin_aliases') and category in self.plugin_aliases:
+            if hasattr(self, "plugin_aliases") and category in self.plugin_aliases:
                 plugin_name = self.plugin_aliases[category]
             return self.plugin_manager.execute(plugin_name, action, params_with_ctx)
 
     def _log_execution(self, original_command: str, parsed_command: dict[str, Any], result: Any):
         """Log command execution for audit trail"""
         execution_record = {
-            'timestamp': datetime.now().isoformat(),
-            'original_command': original_command,
-            'parsed_command': parsed_command,
-            'result_summary': str(result)[:200] if result else None,
-            'user': os.getenv('USERNAME', 'unknown'),
-            'platform': platform.system()
+            "timestamp": datetime.now().isoformat(),
+            "original_command": original_command,
+            "parsed_command": parsed_command,
+            "result_summary": str(result)[:200] if result else None,
+            "user": os.getenv("USERNAME", "unknown"),
+            "platform": platform.system(),
         }
 
         self.execution_history.append(execution_record)
@@ -381,7 +416,7 @@ class OmniAutomator:
             results.append(result)
 
             # Stop on first failure unless configured otherwise
-            if not result['success'] and not self.config.get('continue_on_error', False):
+            if not result["success"] and not self.config.get("continue_on_error", False):
                 break
 
         return results
@@ -389,12 +424,12 @@ class OmniAutomator:
     def get_capabilities(self) -> dict[str, list[str]]:
         """Get list of all available capabilities"""
         capabilities = {
-            'filesystem': self.os_adapter.filesystem.get_capabilities(),
-            'process': self.os_adapter.process.get_capabilities(),
-            'gui': self.os_adapter.gui.get_capabilities(),
-            'system': self.os_adapter.system.get_capabilities(),
-            'network': self.os_adapter.network.get_capabilities(),
-            'plugins': self.plugin_manager.get_available_plugins()
+            "filesystem": self.os_adapter.filesystem.get_capabilities(),
+            "process": self.os_adapter.process.get_capabilities(),
+            "gui": self.os_adapter.gui.get_capabilities(),
+            "system": self.os_adapter.system.get_capabilities(),
+            "network": self.os_adapter.network.get_capabilities(),
+            "plugins": self.plugin_manager.get_available_plugins(),
         }
 
         return capabilities
@@ -412,52 +447,50 @@ class OmniAutomator:
         complex_command = self.advanced_parser.parse_complex_command(command)
 
         return {
-            'original_command': command,
-            'complexity': complex_command.complexity.value,
-            'estimated_steps': len(complex_command.steps),
-            'estimated_duration': complex_command.estimated_duration,
-            'context': complex_command.context,
-            'steps_preview': [
-                {
-                    'action': step.action,
-                    'category': step.category,
-                    'priority': step.priority
-                }
+            "original_command": command,
+            "complexity": complex_command.complexity.value,
+            "estimated_steps": len(complex_command.steps),
+            "estimated_duration": complex_command.estimated_duration,
+            "context": complex_command.context,
+            "steps_preview": [
+                {"action": step.action, "category": step.category, "priority": step.priority}
                 for step in complex_command.steps
-            ]
+            ],
         }
 
     def _get_execution_context(self) -> dict[str, Any]:
         """Get current execution context for AI analysis"""
         return {
-            'platform': platform.system(),
-            'recent_commands': [record['original_command'] for record in self.execution_history[-5:]],
-            'available_capabilities': list(self.get_capabilities().keys()),
-            'current_directory': os.getcwd(),
-            'user': os.getenv('USERNAME', 'unknown')
+            "platform": platform.system(),
+            "recent_commands": [
+                record["original_command"] for record in self.execution_history[-5:]
+            ],
+            "available_capabilities": list(self.get_capabilities().keys()),
+            "current_directory": os.getcwd(),
+            "user": os.getenv("USERNAME", "unknown"),
         }
 
     def get_ai_suggestions(self) -> list[str]:
         """Get AI-powered smart suggestions"""
-        if self.ai_parser.get_ai_status()['available']:
+        if self.ai_parser.get_ai_status()["available"]:
             return self.ai_parser.get_smart_suggestions(self._get_execution_context())
         else:
             return [
                 "Set OPENROUTER_API_KEY environment variable for AI-powered suggestions",
                 "Try 'examples' for command ideas",
-                "Use 'help' to see available commands"
+                "Use 'help' to see available commands",
             ]
 
     def analyze_command_with_ai(self, command: str) -> dict[str, Any]:
         """Analyze command using AI without executing"""
-        if self.ai_parser.get_ai_status()['available']:
+        if self.ai_parser.get_ai_status()["available"]:
             return self.ai_parser.analyze_command_intent(command)
         else:
             return {
-                'intent': 'AI analysis not available',
-                'confidence': 0.0,
-                'suggestions': ['Enable AI by setting OPENROUTER_API_KEY environment variable'],
-                'complexity': 'unknown'
+                "intent": "AI analysis not available",
+                "confidence": 0.0,
+                "suggestions": ["Enable AI by setting OPENROUTER_API_KEY environment variable"],
+                "complexity": "unknown",
             }
 
     def get_ai_status(self) -> dict[str, Any]:
@@ -476,9 +509,10 @@ class OmniAutomator:
     def switch_ai_model(self, model_name: str) -> bool:
         """Switch the active AI model by name."""
         try:
-            ai_manager = getattr(self, 'ai_manager', None)
+            ai_manager = getattr(self, "ai_manager", None)
             if ai_manager is None:
                 from ..ai.model_manager import get_ai_manager
+
                 ai_manager = get_ai_manager()
                 self.ai_manager = ai_manager
             if ai_manager.switch_model(model_name):
@@ -492,11 +526,15 @@ class OmniAutomator:
 
     def enable_sandbox_mode(self):
         """Sandbox mode support removed - no-op"""
-        self.logger.warning("Sandbox mode support has been removed; enable_sandbox_mode() is a no-op")
+        self.logger.warning(
+            "Sandbox mode support has been removed; enable_sandbox_mode() is a no-op"
+        )
 
     def disable_sandbox_mode(self):
         """Sandbox mode support removed - no-op"""
-        self.logger.warning("Sandbox mode support has been removed; disable_sandbox_mode() is a no-op")
+        self.logger.warning(
+            "Sandbox mode support has been removed; disable_sandbox_mode() is a no-op"
+        )
 
     def shutdown(self):
         """Clean shutdown of the automation engine"""
@@ -510,7 +548,7 @@ class OmniAutomator:
         import re
 
         # Check for common error patterns
-        if 'unknown' in error.lower() and 'action' in error.lower():
+        if "unknown" in error.lower() and "action" in error.lower():
             return (
                 "⚠️ Command complexity too high: The command contains multiple nested levels that "
                 "exceed current parsing capabilities.\n"
@@ -519,7 +557,7 @@ class OmniAutomator:
             )
 
         # Check for multi-level nesting in command
-        nested_count = len(re.findall(r'in\s+(?:each|every)', command, re.IGNORECASE))
+        nested_count = len(re.findall(r"in\s+(?:each|every)", command, re.IGNORECASE))
         if nested_count >= 3:
             return (
                 f"⚠️ Command has {nested_count} nesting levels: The parser supports up to 2-3 levels of nesting.\n"
@@ -531,8 +569,8 @@ class OmniAutomator:
             )
 
         # Check for unsupported patterns
-        if 'registry' in command.lower() or 'index' in command.lower():
-            if error_type == 'NotImplementedError':
+        if "registry" in command.lower() or "index" in command.lower():
+            if error_type == "NotImplementedError":
                 return "⚠️ Registry/Index generation: This feature requires additional setup.\nTry using a simpler command."
 
         # Generic helpful message
@@ -557,16 +595,16 @@ class OmniAutomator:
             return os.path.abspath(file_name)
 
         # Check Desktop
-        desktop_path = os.path.expanduser('~/Desktop')
+        desktop_path = os.path.expanduser("~/Desktop")
         if os.path.exists(os.path.join(desktop_path, file_name)):
             return os.path.join(desktop_path, file_name)
 
         # Search for files in user project directories (limited depth, prioritize current dir)
         user_search_paths = [
             os.getcwd(),  # Current directory first
-            os.path.expanduser('~/Desktop'),
-            os.path.expanduser('~/Documents'),
-            os.path.expanduser('~/Projects'),
+            os.path.expanduser("~/Desktop"),
+            os.path.expanduser("~/Documents"),
+            os.path.expanduser("~/Projects"),
         ]
 
         found_files = []
@@ -577,13 +615,16 @@ class OmniAutomator:
         for search_path in user_search_paths:
             if not os.path.exists(search_path):
                 continue
-            for root, dirs, files in os.walk(search_path):
+            for root, _dirs, files in os.walk(search_path):
                 # Limit depth to 5 levels for user directories
-                depth = root.replace(search_path, '').count(os.sep)
+                depth = root.replace(search_path, "").count(os.sep)
                 if depth > 5:
                     continue
                 # Skip system directories
-                if any(skip in root.lower() for skip in ['appdata', 'roaming', 'site-packages', 'dist-packages']):
+                if any(
+                    skip in root.lower()
+                    for skip in ["appdata", "roaming", "site-packages", "dist-packages"]
+                ):
                     continue
 
                 if file_name in files:
@@ -603,7 +644,7 @@ class OmniAutomator:
         # If multiple files found, prompt user to select with enhanced context
         try:
             print(f"\n⚠️  Multiple files named '{file_name}' found:")
-        except:
+        except Exception:
             print(f"\nWARNING: Multiple files named '{file_name}' found:")
         print(f"    Current working directory: {current_dir}\n")
 
@@ -614,27 +655,31 @@ class OmniAutomator:
             # Determine folder context
             if abs_path.startswith(current_dir):
                 try:
-                    folder_context = f"📁 [IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
-                except:
-                    folder_context = f"[IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+                    folder_context = (
+                        f"📁 [IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+                    )
+                except Exception:
+                    folder_context = (
+                        f"[IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
+                    )
             elif abs_path.startswith(desktop_path):
                 try:
                     folder_context = "🖥️  [ON DESKTOP]"
-                except:
+                except Exception:
                     folder_context = "[ON DESKTOP]"
             else:
                 try:
                     folder_context = f"📂 {os.path.dirname(abs_path)}"
-                except:
+                except Exception:
                     folder_context = f"{os.path.dirname(abs_path)}"
 
             # Get file stats
             try:
                 file_stat = os.stat(abs_path)
                 size_kb = file_stat.st_size / 1024
-                size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.1f}MB"
+                size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb / 1024:.1f}MB"
 
-            except:
+            except Exception:
                 size_str = "?"
 
             print(f"   {idx}. {folder_context}")
@@ -660,7 +705,7 @@ class OmniAutomator:
     def _handle_read_file(self, params: dict[str, Any]) -> dict[str, Any]:
         """Read file contents"""
         try:
-            file_path = params.get('file_path') or params.get('path')
+            file_path = params.get("file_path") or params.get("path")
             if not file_path:
                 raise ValueError("file_path parameter required")
 
@@ -668,7 +713,7 @@ class OmniAutomator:
             if not os.path.isabs(file_path):
                 resolved_path = self._resolve_file_with_disambiguation(file_path)
                 if not resolved_path:
-                    return {'success': False, 'error': f"File not found: {file_path}"}
+                    return {"success": False, "error": f"File not found: {file_path}"}
                 file_path = resolved_path
             elif not os.path.exists(file_path):
                 # Check if there are duplicate files
@@ -677,30 +722,26 @@ class OmniAutomator:
                 if resolved_path:
                     file_path = resolved_path
                 else:
-                    return {'success': False, 'error': f"File not found: {file_path}"}
+                    return {"success": False, "error": f"File not found: {file_path}"}
 
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             return {
-                'success': True,
-                'file_path': file_path,
-                'content': content,
-                'size': len(content),
-                'lines': len(content.split('\n'))
+                "success": True,
+                "file_path": file_path,
+                "content": content,
+                "size": len(content),
+                "lines": len(content.split("\n")),
             }
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'file_path': params.get('file_path')
-            }
+            return {"success": False, "error": str(e), "file_path": params.get("file_path")}
 
     def _handle_write_file(self, params: dict[str, Any]) -> dict[str, Any]:
         """Write content to file"""
         try:
-            file_path = params.get('file_path') or params.get('path')
-            content = params.get('content', '')
+            file_path = params.get("file_path") or params.get("path")
+            content = params.get("content", "")
 
             if not file_path:
                 raise ValueError("file_path parameter required")
@@ -721,31 +762,27 @@ class OmniAutomator:
                     file_path = resolved_path
 
             # Create directories if needed
-            os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+            os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
 
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
             return {
-                'success': True,
-                'file_path': file_path,
-                'size': len(content),
-                'lines': len(content.split('\n'))
+                "success": True,
+                "file_path": file_path,
+                "size": len(content),
+                "lines": len(content.split("\n")),
             }
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'file_path': params.get('file_path')
-            }
+            return {"success": False, "error": str(e), "file_path": params.get("file_path")}
 
     def _handle_modify_file(self, params: dict[str, Any]) -> dict[str, Any]:
         """Modify file by replacing old implementation with new one"""
         try:
-            file_path = params.get('file_path') or params.get('path')
-            old_code = params.get('old_code')
-            new_code = params.get('new_code')
-            intent = params.get('intent', '')
+            file_path = params.get("file_path") or params.get("path")
+            old_code = params.get("old_code")
+            new_code = params.get("new_code")
+            intent = params.get("intent", "")
 
             if not file_path:
                 raise ValueError("file_path parameter required")
@@ -755,9 +792,9 @@ class OmniAutomator:
                 resolved_path = self._resolve_file_with_disambiguation(file_path)
                 if not resolved_path:
                     return {
-                        'success': False,
-                        'error': f"File not found: {file_path}",
-                        'file_path': file_path
+                        "success": False,
+                        "error": f"File not found: {file_path}",
+                        "file_path": file_path,
                     }
                 file_path = resolved_path
             elif not os.path.exists(file_path):
@@ -768,13 +805,13 @@ class OmniAutomator:
                     file_path = resolved_path
                 else:
                     return {
-                        'success': False,
-                        'error': f"File not found: {file_path}",
-                        'file_path': file_path
+                        "success": False,
+                        "error": f"File not found: {file_path}",
+                        "file_path": file_path,
                     }
 
             # Read the file
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             # If specific old/new code provided, do direct replacement
@@ -787,32 +824,23 @@ class OmniAutomator:
                 modified_content = self._generate_code_replacement(content, intent)
 
             # Write back
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(modified_content)
 
-            return {
-                'success': True,
-                'file_path': file_path,
-                'action': 'modified',
-                'intent': intent
-            }
+            return {"success": True, "file_path": file_path, "action": "modified", "intent": intent}
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'file_path': params.get('file_path')
-            }
+            return {"success": False, "error": str(e), "file_path": params.get("file_path")}
 
     def _generate_code_replacement(self, current_content: str, intent: str) -> str:
         """Generate code replacement based on intent"""
         intent_lower = intent.lower()
 
         # Prime number detection
-        if 'prime' in intent_lower and 'fibonacci' in current_content.lower():
+        if "prime" in intent_lower and "fibonacci" in current_content.lower():
             return self._generate_prime_number_code()
 
         # Fibonacci from other code
-        if 'fibonacci' in intent_lower:
+        if "fibonacci" in intent_lower:
             return self._generate_fibonacci_code()
 
         # Default: return unchanged
@@ -852,7 +880,7 @@ def find_primes_count(count):
 
 if __name__ == "__main__":
     choice = input("Find primes by (1) limit or (2) count? Enter 1 or 2: ")
-    
+
     if choice == "1":
         limit = int(input("Enter the upper limit: "))
         primes = find_primes(limit)
@@ -883,4 +911,3 @@ if __name__ == "__main__":
     n = int(input("Enter the number of terms: "))
     print("Fibonacci Series:", fibonacci(n))
 '''
-

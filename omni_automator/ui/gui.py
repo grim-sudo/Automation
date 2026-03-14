@@ -14,6 +14,7 @@ from tkinter import messagebox, scrolledtext, ttk
 # Try to import customtkinter for modern look
 try:
     import customtkinter as ctk
+
     HAS_CUSTOMTKINTER = True
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
@@ -105,21 +106,24 @@ class ModernOmniAutomatorGUI:
         self.sidebar.grid_rowconfigure(10, weight=1)
 
         # Sidebar title
-        self.logo_label = ctk.CTkLabel(self.sidebar, text="OmniAutomator",
-                                      font=ctk.CTkFont(size=20, weight="bold"))
+        self.logo_label = ctk.CTkLabel(
+            self.sidebar, text="OmniAutomator", font=ctk.CTkFont(size=20, weight="bold")
+        )
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
         # AI Status
         self.ai_status_frame = ctk.CTkFrame(self.sidebar)
         self.ai_status_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
 
-        self.ai_status_label = ctk.CTkLabel(self.ai_status_frame, text="AI Status: Checking...",
-                                           font=ctk.CTkFont(size=12))
+        self.ai_status_label = ctk.CTkLabel(
+            self.ai_status_frame, text="AI Status: Checking...", font=ctk.CTkFont(size=12)
+        )
         self.ai_status_label.pack(pady=5)
 
         # Quick Actions
-        self.quick_actions_label = ctk.CTkLabel(self.sidebar, text="Quick Actions",
-                                               font=ctk.CTkFont(size=16, weight="bold"))
+        self.quick_actions_label = ctk.CTkLabel(
+            self.sidebar, text="Quick Actions", font=ctk.CTkFont(size=16, weight="bold")
+        )
         self.quick_actions_label.grid(row=2, column=0, padx=20, pady=(20, 10))
 
         # Quick action buttons
@@ -132,13 +136,13 @@ class ModernOmniAutomatorGUI:
         ]
 
         for i, (text, command) in enumerate(actions):
-            btn = ctk.CTkButton(self.sidebar, text=text, command=command,
-                               width=200, height=35)
-            btn.grid(row=3+i, column=0, padx=20, pady=5)
+            btn = ctk.CTkButton(self.sidebar, text=text, command=command, width=200, height=35)
+            btn.grid(row=3 + i, column=0, padx=20, pady=5)
 
         # Settings
-        self.settings_btn = ctk.CTkButton(self.sidebar, text="Settings",
-                                         command=self.show_settings, width=200, height=35)
+        self.settings_btn = ctk.CTkButton(
+            self.sidebar, text="Settings", command=self.show_settings, width=200, height=35
+        )
         self.settings_btn.grid(row=9, column=0, padx=20, pady=5)
 
         # Main content area
@@ -152,12 +156,17 @@ class ModernOmniAutomatorGUI:
         self.input_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
         self.input_frame.grid_columnconfigure(0, weight=1)
 
-        self.command_label = ctk.CTkLabel(self.input_frame, text="Enter Command:",
-                                         font=ctk.CTkFont(size=14, weight="bold"))
+        self.command_label = ctk.CTkLabel(
+            self.input_frame, text="Enter Command:", font=ctk.CTkFont(size=14, weight="bold")
+        )
         self.command_label.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 5))
 
-        self.command_entry = ctk.CTkEntry(self.input_frame, placeholder_text="Type your automation command here...",
-                                         height=40, font=ctk.CTkFont(size=12))
+        self.command_entry = ctk.CTkEntry(
+            self.input_frame,
+            placeholder_text="Type your automation command here...",
+            height=40,
+            font=ctk.CTkFont(size=12),
+        )
         self.command_entry.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
         self.command_entry.bind("<Return>", self.execute_command)
 
@@ -165,16 +174,19 @@ class ModernOmniAutomatorGUI:
         self.button_frame = ctk.CTkFrame(self.input_frame)
         self.button_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
 
-        self.execute_btn = ctk.CTkButton(self.button_frame, text="🚀 Execute",
-                                        command=self.execute_command, height=35)
+        self.execute_btn = ctk.CTkButton(
+            self.button_frame, text="🚀 Execute", command=self.execute_command, height=35
+        )
         self.execute_btn.pack(side="left", padx=5)
 
-        self.ai_suggest_btn = ctk.CTkButton(self.button_frame, text="🧠 AI Suggestions",
-                                           command=self.get_ai_suggestions, height=35)
+        self.ai_suggest_btn = ctk.CTkButton(
+            self.button_frame, text="🧠 AI Suggestions", command=self.get_ai_suggestions, height=35
+        )
         self.ai_suggest_btn.pack(side="left", padx=5)
 
-        self.clear_btn = ctk.CTkButton(self.button_frame, text="🗑️ Clear",
-                                      command=self.clear_output, height=35)
+        self.clear_btn = ctk.CTkButton(
+            self.button_frame, text="🗑️ Clear", command=self.clear_output, height=35
+        )
         self.clear_btn.pack(side="left", padx=5)
 
         # Output area
@@ -183,33 +195,35 @@ class ModernOmniAutomatorGUI:
         self.output_frame.grid_columnconfigure(0, weight=1)
         self.output_frame.grid_rowconfigure(1, weight=1)
 
-        self.output_label = ctk.CTkLabel(self.output_frame, text="Output:",
-                                        font=ctk.CTkFont(size=14, weight="bold"))
+        self.output_label = ctk.CTkLabel(
+            self.output_frame, text="Output:", font=ctk.CTkFont(size=14, weight="bold")
+        )
         self.output_label.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 5))
 
-        self.output_text = ctk.CTkTextbox(self.output_frame, font=ctk.CTkFont(family="Consolas", size=11))
+        self.output_text = ctk.CTkTextbox(
+            self.output_frame, font=ctk.CTkFont(family="Consolas", size=11)
+        )
         self.output_text.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
         # Status bar
         self.status_frame = ctk.CTkFrame(self.main_frame, height=30)
         self.status_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
 
-        self.status_label = ctk.CTkLabel(self.status_frame, text="Ready",
-                                        font=ctk.CTkFont(size=11))
+        self.status_label = ctk.CTkLabel(self.status_frame, text="Ready", font=ctk.CTkFont(size=11))
         self.status_label.pack(side="left", padx=10, pady=5)
 
     def setup_classic_gui(self):
         """Setup classic GUI with tkinter"""
         self.root.title("OmniAutomator - Universal OS Automation")
         self.root.geometry("1200x800")
-        self.root.configure(bg='#2b2b2b')
+        self.root.configure(bg="#2b2b2b")
 
         # Configure style
         style = ttk.Style()
-        style.theme_use('clam')
-        style.configure('TFrame', background='#2b2b2b')
-        style.configure('TLabel', background='#2b2b2b', foreground='white')
-        style.configure('TButton', background='#404040', foreground='white')
+        style.theme_use("clam")
+        style.configure("TFrame", background="#2b2b2b")
+        style.configure("TLabel", background="#2b2b2b", foreground="white")
+        style.configure("TButton", background="#404040", foreground="white")
 
         # Create main paned window
         self.paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
@@ -220,13 +234,11 @@ class ModernOmniAutomatorGUI:
         self.paned.add(self.left_frame, weight=0)
 
         # Title
-        title_label = ttk.Label(self.left_frame, text="OmniAutomator",
-                               font=('Arial', 16, 'bold'))
+        title_label = ttk.Label(self.left_frame, text="OmniAutomator", font=("Arial", 16, "bold"))
         title_label.pack(pady=10)
 
         # Quick actions
-        actions_label = ttk.Label(self.left_frame, text="Quick Actions",
-                                 font=('Arial', 12, 'bold'))
+        actions_label = ttk.Label(self.left_frame, text="Quick Actions", font=("Arial", 12, "bold"))
         actions_label.pack(pady=(20, 10))
 
         actions = [
@@ -250,9 +262,9 @@ class ModernOmniAutomatorGUI:
         input_frame = ttk.Frame(self.right_frame)
         input_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        ttk.Label(input_frame, text="Enter Command:", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
+        ttk.Label(input_frame, text="Enter Command:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
 
-        self.command_entry = ttk.Entry(input_frame, font=('Arial', 11))
+        self.command_entry = ttk.Entry(input_frame, font=("Arial", 11))
         self.command_entry.pack(fill=tk.X, pady=5)
         self.command_entry.bind("<Return>", self.execute_command)
 
@@ -260,18 +272,23 @@ class ModernOmniAutomatorGUI:
         btn_frame = ttk.Frame(input_frame)
         btn_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Button(btn_frame, text="🚀 Execute", command=self.execute_command).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="🧠 AI Suggestions", command=self.get_ai_suggestions).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="🚀 Execute", command=self.execute_command).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(btn_frame, text="🧠 AI Suggestions", command=self.get_ai_suggestions).pack(
+            side=tk.LEFT, padx=5
+        )
         ttk.Button(btn_frame, text="🗑️ Clear", command=self.clear_output).pack(side=tk.LEFT, padx=5)
 
         # Output area
         output_frame = ttk.Frame(self.right_frame)
         output_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        ttk.Label(output_frame, text="Output:", font=('Arial', 12, 'bold')).pack(anchor=tk.W)
+        ttk.Label(output_frame, text="Output:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
 
-        self.output_text = scrolledtext.ScrolledText(output_frame, font=('Consolas', 10),
-                                                    bg='#1e1e1e', fg='white', insertbackground='white')
+        self.output_text = scrolledtext.ScrolledText(
+            output_frame, font=("Consolas", 10), bg="#1e1e1e", fg="white", insertbackground="white"
+        )
         self.output_text.pack(fill=tk.BOTH, expand=True, pady=5)
 
         # Status bar
@@ -283,21 +300,23 @@ class ModernOmniAutomatorGUI:
         """Initialize the OmniAutomator"""
         try:
             # Get API key from environment or config
-            api_key = os.getenv('OPENROUTER_API_KEY')
-            config = {'openrouter_api_key': api_key} if api_key else {}
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            config = {"openrouter_api_key": api_key} if api_key else {}
 
             self.automator = OmniAutomator(config)
             self.log_output("✅ OmniAutomator initialized successfully")
 
             # Check AI status
             ai_status = self.automator.get_ai_status()
-            if ai_status.get('available'):
-                self.log_output(f"AI Available: {ai_status.get('provider')} - {ai_status.get('model')}")
-                if hasattr(self, 'ai_status_label'):
+            if ai_status.get("available"):
+                self.log_output(
+                    f"AI Available: {ai_status.get('provider')} - {ai_status.get('model')}"
+                )
+                if hasattr(self, "ai_status_label"):
                     self.ai_status_label.configure(text="AI Status: ✅ Available")
             else:
                 self.log_output("⚠️ AI not available - set OPENROUTER_API_KEY for AI features")
-                if hasattr(self, 'ai_status_label'):
+                if hasattr(self, "ai_status_label"):
                     self.ai_status_label.configure(text="AI Status: ❌ Not Available")
 
         except Exception as e:
@@ -381,46 +400,48 @@ class ModernOmniAutomatorGUI:
 
     def handle_result(self, result):
         """Handle execution result"""
-        if result.get('success'):
+        if result.get("success"):
             self.log_output("✅ Command executed successfully")
 
-            if result.get('result'):
+            if result.get("result"):
                 self.log_output(f"📋 Result: {result['result']}")
 
-            if result.get('complexity'):
+            if result.get("complexity"):
                 self.log_output(f"🔧 Complexity: {result['complexity'].upper()}")
 
-            if result.get('steps_completed'):
-                self.log_output(f"📊 Steps: {result['steps_completed']}/{result.get('total_steps', 0)}")
+            if result.get("steps_completed"):
+                self.log_output(
+                    f"📊 Steps: {result['steps_completed']}/{result.get('total_steps', 0)}"
+                )
 
             # Show workflow results if available
-            if result.get('results'):
+            if result.get("results"):
                 self.log_output("📋 Workflow Results:")
-                for i, step_result in enumerate(result['results'], 1):
-                    status = "✅" if step_result.get('success') else "❌"
-                    action = step_result.get('step_action', 'Unknown')
+                for i, step_result in enumerate(result["results"], 1):
+                    status = "✅" if step_result.get("success") else "❌"
+                    action = step_result.get("step_action", "Unknown")
                     self.log_output(f"   {i}. {status} {action}")
         else:
-            error_msg = result.get('error', 'Unknown error')
+            error_msg = result.get("error", "Unknown error")
             self.log_output(f"❌ Command failed: {error_msg}")
 
             # Show more detailed error information
-            if 'Plugin' in error_msg and 'not found' in error_msg:
+            if "Plugin" in error_msg and "not found" in error_msg:
                 self.log_output("💡 This might be a filesystem operation. Trying fallback...")
 
             # Show workflow results even on failure
-            if result.get('results'):
+            if result.get("results"):
                 self.log_output("📋 Step Results:")
-                for i, step_result in enumerate(result['results'], 1):
-                    status = "✅" if step_result.get('success') else "❌"
-                    action = step_result.get('step_action', 'Unknown')
-                    error = step_result.get('error', '')
+                for i, step_result in enumerate(result["results"], 1):
+                    status = "✅" if step_result.get("success") else "❌"
+                    action = step_result.get("step_action", "Unknown")
+                    error = step_result.get("error", "")
                     self.log_output(f"   {i}. {status} {action}")
-                    if error and not step_result.get('success'):
+                    if error and not step_result.get("success"):
                         self.log_output(f"      Error: {error}")
 
             # Show AI suggestions if available
-            ai_suggestions = result.get('ai_suggestions', [])
+            ai_suggestions = result.get("ai_suggestions", [])
             if ai_suggestions:
                 self.log_output("AI Suggestions:")
                 for i, suggestion in enumerate(ai_suggestions, 1):
@@ -476,43 +497,51 @@ class ModernOmniAutomatorGUI:
     # Quick Action Methods
     def show_file_operations(self):
         """Show file operations dialog"""
-        self.show_quick_commands([
-            "create folder 'MyFolder'",
-            "copy file 'source.txt' to 'destination.txt'",
-            "delete file 'unwanted.txt'",
-            "list directory contents",
-            "take screenshot save as 'screenshot.png'"
-        ])
+        self.show_quick_commands(
+            [
+                "create folder 'MyFolder'",
+                "copy file 'source.txt' to 'destination.txt'",
+                "delete file 'unwanted.txt'",
+                "list directory contents",
+                "take screenshot save as 'screenshot.png'",
+            ]
+        )
 
     def show_system_info(self):
         """Show system info commands"""
-        self.show_quick_commands([
-            "get system info",
-            "get system performance",
-            "get installed software",
-            "get running processes",
-            "get disk usage"
-        ])
+        self.show_quick_commands(
+            [
+                "get system info",
+                "get system performance",
+                "get installed software",
+                "get running processes",
+                "get disk usage",
+            ]
+        )
 
     def show_system_settings(self):
         """Show system settings commands"""
-        self.show_quick_commands([
-            "manage service 'Spooler' start",
-            "create system restore point",
-            "manage firewall enable",
-            "set environment variable 'TEST' to 'value'",
-            "manage startup program add 'MyApp' 'C:\\path\\to\\app.exe'"
-        ])
+        self.show_quick_commands(
+            [
+                "manage service 'Spooler' start",
+                "create system restore point",
+                "manage firewall enable",
+                "set environment variable 'TEST' to 'value'",
+                "manage startup program add 'MyApp' 'C:\\path\\to\\app.exe'",
+            ]
+        )
 
     def show_network_tools(self):
         """Show network tools commands"""
-        self.show_quick_commands([
-            "ping google.com",
-            "get network interfaces",
-            "set DNS to '8.8.8.8'",
-            "enable DHCP on Ethernet",
-            "download file 'https://example.com/file.zip'"
-        ])
+        self.show_quick_commands(
+            [
+                "ping google.com",
+                "get network interfaces",
+                "set DNS to '8.8.8.8'",
+                "enable DHCP on Ethernet",
+                "download file 'https://example.com/file.zip'",
+            ]
+        )
 
     def show_performance(self):
         """Show performance monitoring"""
@@ -521,17 +550,19 @@ class ModernOmniAutomatorGUI:
 
     def show_ai_features(self):
         """Show AI features dialog"""
-        self.show_quick_commands([
-            "ai-status",
-            "ai-suggestions",
-            "create a machine learning project with tensorflow",
-            "setup development environment with git and nodejs",
-            "analyze command: 'create web scraping system'"
-        ])
+        self.show_quick_commands(
+            [
+                "ai-status",
+                "ai-suggestions",
+                "create a machine learning project with tensorflow",
+                "setup development environment with git and nodejs",
+                "analyze command: 'create web scraping system'",
+            ]
+        )
 
     def show_quick_commands(self, commands):
         """Show quick commands dialog"""
-        dialog = QuickCommandDialog(self.root, commands, self.execute_quick_command)
+        QuickCommandDialog(self.root, commands, self.execute_quick_command)
 
     def execute_quick_command(self, command):
         """Execute a quick command"""
@@ -549,8 +580,9 @@ class ModernOmniAutomatorGUI:
 
     def __del__(self):
         """Cleanup"""
-        if hasattr(self, 'automator') and self.automator:
+        if hasattr(self, "automator") and self.automator:
             self.automator.shutdown()
+
 
 class QuickCommandDialog:
     """Dialog for quick command selection"""
@@ -564,7 +596,7 @@ class QuickCommandDialog:
             self.dialog.geometry("500x400")
 
             # Command list
-            self.listbox = tk.Listbox(self.dialog, font=('Arial', 11))
+            self.listbox = tk.Listbox(self.dialog, font=("Arial", 11))
             self.listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
             for command in commands:
@@ -574,15 +606,19 @@ class QuickCommandDialog:
             btn_frame = ctk.CTkFrame(self.dialog)
             btn_frame.pack(fill=tk.X, padx=20, pady=10)
 
-            ctk.CTkButton(btn_frame, text="Execute", command=self.execute_selected).pack(side=tk.LEFT, padx=5)
-            ctk.CTkButton(btn_frame, text="Cancel", command=self.dialog.destroy).pack(side=tk.LEFT, padx=5)
+            ctk.CTkButton(btn_frame, text="Execute", command=self.execute_selected).pack(
+                side=tk.LEFT, padx=5
+            )
+            ctk.CTkButton(btn_frame, text="Cancel", command=self.dialog.destroy).pack(
+                side=tk.LEFT, padx=5
+            )
         else:
             self.dialog = tk.Toplevel(parent)
             self.dialog.title("Quick Commands")
             self.dialog.geometry("500x400")
 
             # Command list
-            self.listbox = tk.Listbox(self.dialog, font=('Arial', 11))
+            self.listbox = tk.Listbox(self.dialog, font=("Arial", 11))
             self.listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
             for command in commands:
@@ -592,8 +628,12 @@ class QuickCommandDialog:
             btn_frame = ttk.Frame(self.dialog)
             btn_frame.pack(fill=tk.X, padx=20, pady=10)
 
-            ttk.Button(btn_frame, text="Execute", command=self.execute_selected).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text="Cancel", command=self.dialog.destroy).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text="Execute", command=self.execute_selected).pack(
+                side=tk.LEFT, padx=5
+            )
+            ttk.Button(btn_frame, text="Cancel", command=self.dialog.destroy).pack(
+                side=tk.LEFT, padx=5
+            )
 
         self.listbox.bind("<Double-Button-1>", lambda e: self.execute_selected())
 
@@ -604,6 +644,7 @@ class QuickCommandDialog:
             command = self.listbox.get(selection[0])
             self.callback(command)
             self.dialog.destroy()
+
 
 class SettingsDialog:
     """Settings dialog"""
@@ -620,14 +661,20 @@ class SettingsDialog:
             api_frame = ctk.CTkFrame(self.dialog)
             api_frame.pack(fill=tk.X, padx=20, pady=20)
 
-            ctk.CTkLabel(api_frame, text="OpenRouter API Key:", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor=tk.W, padx=10, pady=5)
+            ctk.CTkLabel(
+                api_frame, text="OpenRouter API Key:", font=ctk.CTkFont(size=14, weight="bold")
+            ).pack(anchor=tk.W, padx=10, pady=5)
 
-            self.api_entry = ctk.CTkEntry(api_frame, placeholder_text="Enter your OpenRouter API key...", width=400)
+            self.api_entry = ctk.CTkEntry(
+                api_frame, placeholder_text="Enter your OpenRouter API key...", width=400
+            )
             self.api_entry.pack(fill=tk.X, padx=10, pady=5)
 
-            current_key = os.getenv('OPENROUTER_API_KEY', '')
+            current_key = os.getenv("OPENROUTER_API_KEY", "")
             if current_key:
-                self.api_entry.insert(0, current_key[:20] + "..." if len(current_key) > 20 else current_key)
+                self.api_entry.insert(
+                    0, current_key[:20] + "..." if len(current_key) > 20 else current_key
+                )
 
             ctk.CTkButton(api_frame, text="Save API Key", command=self.save_api_key).pack(pady=10)
 
@@ -635,13 +682,21 @@ class SettingsDialog:
             settings_frame = ctk.CTkFrame(self.dialog)
             settings_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-            ctk.CTkLabel(settings_frame, text="Application Settings", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor=tk.W, padx=10, pady=5)
+            ctk.CTkLabel(
+                settings_frame,
+                text="Application Settings",
+                font=ctk.CTkFont(size=14, weight="bold"),
+            ).pack(anchor=tk.W, padx=10, pady=5)
 
             self.sandbox_var = ctk.BooleanVar()
-            ctk.CTkCheckBox(settings_frame, text="Enable Sandbox Mode", variable=self.sandbox_var).pack(anchor=tk.W, padx=10, pady=5)
+            ctk.CTkCheckBox(
+                settings_frame, text="Enable Sandbox Mode", variable=self.sandbox_var
+            ).pack(anchor=tk.W, padx=10, pady=5)
 
             self.auto_suggestions_var = ctk.BooleanVar(value=True)
-            ctk.CTkCheckBox(settings_frame, text="Auto AI Suggestions", variable=self.auto_suggestions_var).pack(anchor=tk.W, padx=10, pady=5)
+            ctk.CTkCheckBox(
+                settings_frame, text="Auto AI Suggestions", variable=self.auto_suggestions_var
+            ).pack(anchor=tk.W, padx=10, pady=5)
         else:
             self.dialog = tk.Toplevel(parent)
             self.dialog.title("Settings")
@@ -656,9 +711,11 @@ class SettingsDialog:
             self.api_entry = ttk.Entry(api_frame, width=50)
             self.api_entry.pack(fill=tk.X, padx=10, pady=5)
 
-            current_key = os.getenv('OPENROUTER_API_KEY', '')
+            current_key = os.getenv("OPENROUTER_API_KEY", "")
             if current_key:
-                self.api_entry.insert(0, current_key[:20] + "..." if len(current_key) > 20 else current_key)
+                self.api_entry.insert(
+                    0, current_key[:20] + "..." if len(current_key) > 20 else current_key
+                )
 
             ttk.Button(api_frame, text="Save API Key", command=self.save_api_key).pack(pady=10)
 
@@ -666,10 +723,13 @@ class SettingsDialog:
         """Save API key"""
         api_key = self.api_entry.get().strip()
         if api_key:
-            os.environ['OPENROUTER_API_KEY'] = api_key
-            messagebox.showinfo("Success", "API key saved! Restart the application to apply changes.")
+            os.environ["OPENROUTER_API_KEY"] = api_key
+            messagebox.showinfo(
+                "Success", "API key saved! Restart the application to apply changes."
+            )
         else:
             messagebox.showwarning("Warning", "Please enter a valid API key.")
+
 
 def main():
     """Main function"""
@@ -679,7 +739,9 @@ def main():
     except Exception as e:
         print(f"Failed to start GUI: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

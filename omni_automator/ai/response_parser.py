@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import json
 import re
 from typing import Any
@@ -282,10 +283,8 @@ class ResponseParser:
             if isinstance(raw_steps, list):
                 salvaged: list[ExecutionStep] = []
                 for s in raw_steps:
-                    try:
+                    with contextlib.suppress(Exception):
                         salvaged.append(ExecutionStep.model_validate(s))
-                    except Exception:
-                        pass
                 plan.steps = salvaged
                 plan.execution_steps = salvaged
             return plan
@@ -302,9 +301,7 @@ class ResponseParser:
         """
         json_str = self._extract_json(raw)
         if not json_str:
-            return IntentResult(
-                original_command=original_command, original=original_command
-            )
+            return IntentResult(original_command=original_command, original=original_command)
 
         try:
             data = json.loads(json_str)
@@ -313,14 +310,10 @@ class ResponseParser:
             try:
                 data = json.loads(repaired)
             except (json.JSONDecodeError, ValueError):
-                return IntentResult(
-                    original_command=original_command, original=original_command
-                )
+                return IntentResult(original_command=original_command, original=original_command)
 
         if not isinstance(data, dict):
-            return IntentResult(
-                original_command=original_command, original=original_command
-            )
+            return IntentResult(original_command=original_command, original=original_command)
 
         data.setdefault("original_command", original_command)
         data.setdefault("original", original_command)
@@ -330,9 +323,7 @@ class ResponseParser:
             result.enhanced = True
             return result
         except Exception:
-            return IntentResult(
-                original_command=original_command, original=original_command
-            )
+            return IntentResult(original_command=original_command, original=original_command)
 
     # ── JSON extraction ───────────────────────────────────────────────────────
 
@@ -410,7 +401,7 @@ class ResponseParser:
             elif ch == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[start: i + 1]
+                    return text[start : i + 1]
         # Truncated object — return from start to end so the repair step
         # can attempt to close it.
         return text[start:] if depth > 0 else ""
@@ -441,20 +432,18 @@ class ResponseParser:
         text = raw.strip()
 
         # 1. Python literals → JSON literals
-        text = re.sub(r'\bNone\b', 'null', text)
-        text = re.sub(r'\bTrue\b', 'true', text)
-        text = re.sub(r'\bFalse\b', 'false', text)
+        text = re.sub(r"\bNone\b", "null", text)
+        text = re.sub(r"\bTrue\b", "true", text)
+        text = re.sub(r"\bFalse\b", "false", text)
 
         # 2. Single-quoted strings → double-quoted
         text = re.sub(r"(?<![\\])'((?:[^'\\]|\\.)*)'", r'"\1"', text)
 
         # 3. Add missing commas between adjacent value-like tokens
-        text = re.sub(
-            r'([}\]"])\s*(\n\s*)([{\["a-zA-Z0-9_\-])', r'\1,\2\3', text
-        )
+        text = re.sub(r'([}\]"])\s*(\n\s*)([{\["a-zA-Z0-9_\-])', r"\1,\2\3", text)
 
         # 4. Remove trailing commas before closing delimiters
-        text = re.sub(r',\s*([}\]])', r'\1', text)
+        text = re.sub(r",\s*([}\]])", r"\1", text)
 
         # 5. Try ast.literal_eval as a bridge
         try:
@@ -464,11 +453,11 @@ class ResponseParser:
             pass
 
         # 6. Close unclosed structures
-        open_braces = text.count('{') - text.count('}')
-        open_brackets = text.count('[') - text.count(']')
-        text = text.rstrip().rstrip(',')
-        text += ']' * max(0, open_brackets)
-        text += '}' * max(0, open_braces)
+        open_braces = text.count("{") - text.count("}")
+        open_brackets = text.count("[") - text.count("]")
+        text = text.rstrip().rstrip(",")
+        text += "]" * max(0, open_brackets)
+        text += "}" * max(0, open_braces)
 
         return text
 

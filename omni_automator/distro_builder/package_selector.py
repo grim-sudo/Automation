@@ -1,9 +1,12 @@
 """Natural language package resolution for distro builder profiles."""
+
 from __future__ import annotations
 
 from typing import Literal
 
 from loguru import logger
+
+from omni_automator.distro_builder.models import DistroProfile
 
 PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
     "debian": {

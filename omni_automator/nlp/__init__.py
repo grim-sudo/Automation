@@ -14,14 +14,14 @@ from .semantic_engine import (
 from .spell_corrector import SpellCorrector, get_spell_corrector
 
 __all__ = [
-    'SemanticNLPEngine',
-    'IntentType',
-    'EntityType',
-    'SemanticAnalysis',
-    'get_semantic_nlp',
-    'FlexibleNLPProcessor',
-    'NLPVariation',
-    'get_nlp_processor',
-    'SpellCorrector',
-    'get_spell_corrector',
+    "SemanticNLPEngine",
+    "IntentType",
+    "EntityType",
+    "SemanticAnalysis",
+    "get_semantic_nlp",
+    "FlexibleNLPProcessor",
+    "NLPVariation",
+    "get_nlp_processor",
+    "SpellCorrector",
+    "get_spell_corrector",
 ]

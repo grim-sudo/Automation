@@ -35,23 +35,27 @@ class AIEnhancedParser:
             self.logger.info("OpenRouter AI not available, using fallback parser")
             return self.fallback_parser.parse_complex_command(command)
 
-    def _parse_with_openrouter(self, command: str, context: dict[str, Any] = None) -> ComplexCommand:
+    def _parse_with_openrouter(
+        self, command: str, context: dict[str, Any] = None
+    ) -> ComplexCommand:
         """Parse command using OpenRouter AI"""
 
         try:
             # For very long commands, check if AI can handle it
             # If command is very long and complex, use fallback parser directly
             if len(command) > 200 and self._is_complex_structure(command):
-                self.logger.info("Complex command detected, using fallback parser for better accuracy")
+                self.logger.info(
+                    "Complex command detected, using fallback parser for better accuracy"
+                )
                 return self.fallback_parser.parse_complex_command(command)
 
             # Enhance command understanding with AI
             enhancement = self.openrouter_ai.enhance_command_understanding(
                 command,
-                self.command_history[-5:]  # Recent history for context
+                self.command_history[-5:],  # Recent history for context
             )
 
-            enhanced_command = enhancement.get('enhanced_command', command)
+            enhanced_command = enhancement.get("enhanced_command", command)
             self.logger.info(f"AI enhanced command: {enhanced_command}")
 
             # Get AI task plan
@@ -65,7 +69,7 @@ class AIEnhancedParser:
             # Validate AI steps have required fields
             valid_steps = []
             for step in ai_plan.execution_steps:
-                if isinstance(step, dict) and step.get('action') and step.get('category'):
+                if isinstance(step, dict) and step.get("action") and step.get("category"):
                     valid_steps.append(step)
                 else:
                     self.logger.warning(f"Invalid AI step: {step}")
@@ -83,23 +87,29 @@ class AIEnhancedParser:
             # Optimize workflow if it's complex
             if len(complex_command.steps) > 2:
                 try:
-                    optimization = self.openrouter_ai.optimize_workflow([
-                        {
-                            'action': step.action,
-                            'category': step.category,
-                            'params': step.params,
-                            'priority': step.priority
-                        }
-                        for step in complex_command.steps
-                    ])
+                    optimization = self.openrouter_ai.optimize_workflow(
+                        [
+                            {
+                                "action": step.action,
+                                "category": step.category,
+                                "params": step.params,
+                                "priority": step.priority,
+                            }
+                            for step in complex_command.steps
+                        ]
+                    )
 
-                    if optimization and optimization.get('optimized_steps'):
+                    if optimization and optimization.get("optimized_steps"):
                         complex_command = self._apply_optimizations(complex_command, optimization)
 
                     # Add optimization info to context
                     if optimization:
-                        complex_command.context['ai_optimizations'] = optimization.get('improvements', [])
-                        complex_command.context['parallel_groups'] = optimization.get('parallel_groups', [])
+                        complex_command.context["ai_optimizations"] = optimization.get(
+                            "improvements", []
+                        )
+                        complex_command.context["parallel_groups"] = optimization.get(
+                            "parallel_groups", []
+                        )
                 except Exception as opt_error:
                     self.logger.warning(f"Workflow optimization skipped due to: {opt_error}")
                     # Continue without optimization - don't fail the entire parse
@@ -114,7 +124,9 @@ class AIEnhancedParser:
         """Convert AI task plan to ComplexCommand format"""
 
         # Determine complexity from step count
-        step_count = len([s for s in ai_plan.execution_steps if isinstance(s, dict) and s.get('action')])
+        step_count = len(
+            [s for s in ai_plan.execution_steps if isinstance(s, dict) and s.get("action")]
+        )
         if step_count <= 1:
             complexity = CommandComplexity.SIMPLE
         elif step_count <= 3:
@@ -127,8 +139,8 @@ class AIEnhancedParser:
         invalid_actions_detected = False
 
         for i, ai_step in enumerate(ai_plan.execution_steps):
-            action = ai_step.get('action', 'unknown')
-            category = ai_step.get('category', 'unknown')
+            action = ai_step.get("action", "unknown")
+            category = ai_step.get("category", "unknown")
 
             # Check if action and category look suspicious (likely AI hallucination)
             # Common indicators: made-up action names, wrong category mappings
@@ -140,10 +152,10 @@ class AIEnhancedParser:
             step = ParsedStep(
                 action=action,
                 category=category,
-                params=ai_step.get('params', {}),
-                dependencies=ai_step.get('dependencies', []),
-                conditions=ai_step.get('conditions'),
-                priority=ai_step.get('priority', i + 1)
+                params=ai_step.get("params", {}),
+                dependencies=ai_step.get("dependencies", []),
+                conditions=ai_step.get("conditions"),
+                priority=ai_step.get("priority", i + 1),
             )
             steps.append(step)
 
@@ -153,16 +165,14 @@ class AIEnhancedParser:
             return self.fallback_parser.parse_complex_command(ai_plan.original_request)
 
         # Calculate estimated duration
-        estimated_duration = sum(
-            step.get('estimated_time', 5) for step in ai_plan.execution_steps
-        )
+        estimated_duration = sum(step.get("estimated_time", 5) for step in ai_plan.execution_steps)
 
         return ComplexCommand(
             original_command=ai_plan.original_request,
             complexity=complexity,
             steps=steps,
             context={},  # Empty context since context_analysis doesn't exist
-            estimated_duration=estimated_duration
+            estimated_duration=estimated_duration,
         )
 
     def _is_invalid_action(self, action: str, category: str) -> bool:
@@ -170,11 +180,24 @@ class AIEnhancedParser:
 
         # Known valid categories
         valid_categories = {
-            'filesystem', 'process', 'gui', 'network', 'system',
-            'project_generator', 'package_manager', 'devops',
-            'web_automation', 'universal_automation', 'installer',
-            'git', 'editor', 'backup', 'development', 'code_generator',
-            'code_modification', 'data_generator'
+            "filesystem",
+            "process",
+            "gui",
+            "network",
+            "system",
+            "project_generator",
+            "package_manager",
+            "devops",
+            "web_automation",
+            "universal_automation",
+            "installer",
+            "git",
+            "editor",
+            "backup",
+            "development",
+            "code_generator",
+            "code_modification",
+            "data_generator",
         }
 
         # Check if category is valid
@@ -183,9 +206,16 @@ class AIEnhancedParser:
 
         # Known invalid actions (AI hallucinations)
         hallucinated_actions = {
-            'search_wikipedia', 'extract_article_content', 'search_google',
-            'browse_web', 'navigate_to', 'click_link', 'find_element',
-            'scrape_data', 'get_html', 'parse_html'
+            "search_wikipedia",
+            "extract_article_content",
+            "search_google",
+            "browse_web",
+            "navigate_to",
+            "click_link",
+            "find_element",
+            "scrape_data",
+            "get_html",
+            "parse_html",
         }
 
         if action in hallucinated_actions:
@@ -193,15 +223,20 @@ class AIEnhancedParser:
 
         # Check for common patterns of invalid actions
         # GUI category should not have web-related actions
-        if category == 'gui' and any(keyword in action for keyword in ['search', 'extract', 'scrape', 'wikipedia', 'web', 'article']):
-            return True
+        return bool(
+            category == "gui"
+            and any(
+                keyword in action
+                for keyword in ["search", "extract", "scrape", "wikipedia", "web", "article"]
+            )
+        )
 
-        return False
-
-    def _apply_optimizations(self, complex_command: ComplexCommand, optimization: dict[str, Any]) -> ComplexCommand:
+    def _apply_optimizations(
+        self, complex_command: ComplexCommand, optimization: dict[str, Any]
+    ) -> ComplexCommand:
         """Apply AI optimizations to the complex command"""
 
-        optimized_steps = optimization.get('optimized_steps', [])
+        optimized_steps = optimization.get("optimized_steps", [])
         if not optimized_steps:
             return complex_command
 
@@ -209,23 +244,23 @@ class AIEnhancedParser:
         new_steps = []
         for i, opt_step in enumerate(optimized_steps):
             step = ParsedStep(
-                action=opt_step.get('action', 'unknown'),
-                category=opt_step.get('category', 'unknown'),
-                params=opt_step.get('params', {}),
-                dependencies=opt_step.get('dependencies', []),
-                priority=opt_step.get('priority', i + 1)
+                action=opt_step.get("action", "unknown"),
+                category=opt_step.get("category", "unknown"),
+                params=opt_step.get("params", {}),
+                dependencies=opt_step.get("dependencies", []),
+                priority=opt_step.get("priority", i + 1),
             )
             new_steps.append(step)
 
         # Update estimated duration if provided
-        if 'estimated_duration' in optimization:
-            complex_command.estimated_duration = optimization['estimated_duration']
+        if "estimated_duration" in optimization:
+            complex_command.estimated_duration = optimization["estimated_duration"]
 
         complex_command.steps = new_steps
 
         # Add optimization info to context
-        complex_command.context['ai_optimizations'] = optimization.get('improvements', [])
-        complex_command.context['parallel_groups'] = optimization.get('parallel_groups', [])
+        complex_command.context["ai_optimizations"] = optimization.get("improvements", [])
+        complex_command.context["parallel_groups"] = optimization.get("parallel_groups", [])
 
         return complex_command
 
@@ -236,13 +271,13 @@ class AIEnhancedParser:
             return [
                 "Set OPENROUTER_API_KEY environment variable for AI suggestions",
                 "Try 'examples' for command ideas",
-                "Use 'help' to see available commands"
+                "Use 'help' to see available commands",
             ]
 
         # Build context from command history and current state
         suggestion_context = context or {}
-        suggestion_context['recent_commands'] = self.command_history[-10:]
-        suggestion_context['user_patterns'] = self.user_patterns
+        suggestion_context["recent_commands"] = self.command_history[-10:]
+        suggestion_context["user_patterns"] = self.user_patterns
 
         return self.openrouter_ai.generate_smart_suggestions(suggestion_context)
 
@@ -251,38 +286,31 @@ class AIEnhancedParser:
 
         if not self.openrouter_ai.is_openrouter_available():
             return {
-                'intent': 'Basic parsing only',
-                'confidence': 0.1,
-                'suggestions': ['Enable OpenRouter AI for better analysis']
+                "intent": "Basic parsing only",
+                "confidence": 0.1,
+                "suggestions": ["Enable OpenRouter AI for better analysis"],
             }
 
         try:
             ai_plan = self.openrouter_ai.analyze_automation_request(command)
 
             return {
-                'intent': ai_plan.interpreted_intent,
-                'confidence': ai_plan.confidence_score,
-                'risks': ai_plan.risk_assessment,
-                'optimizations': ai_plan.optimization_suggestions,
-                'steps_count': len(ai_plan.execution_steps)
+                "intent": ai_plan.interpreted_intent,
+                "confidence": ai_plan.confidence_score,
+                "risks": ai_plan.risk_assessment,
+                "optimizations": ai_plan.optimization_suggestions,
+                "steps_count": len(ai_plan.execution_steps),
             }
 
         except Exception as e:
             self.logger.error(f"Intent analysis failed: {e}")
-            return {
-                'intent': 'Analysis failed',
-                'confidence': 0.0,
-                'error': str(e)
-            }
+            return {"intent": "Analysis failed", "confidence": 0.0, "error": str(e)}
 
     def handle_execution_error(self, error_info: dict[str, Any]) -> dict[str, Any]:
         """Get AI suggestions for handling execution errors"""
 
         if not self.openrouter_ai.is_openrouter_available():
-            return {
-                'suggestions': ['Check logs and try again'],
-                'confidence': 0.1
-            }
+            return {"suggestions": ["Check logs and try again"], "confidence": 0.1}
 
         return self.openrouter_ai.suggest_error_resolution(error_info)
 
@@ -290,17 +318,21 @@ class AIEnhancedParser:
         """Learn from command execution results"""
 
         # Update user patterns based on successful executions
-        if result.get('success'):
+        if result.get("success"):
             # Extract patterns from successful commands
-            if 'create' in command.lower():
-                self.user_patterns['prefers_creation'] = self.user_patterns.get('prefers_creation', 0) + 1
+            if "create" in command.lower():
+                self.user_patterns["prefers_creation"] = (
+                    self.user_patterns.get("prefers_creation", 0) + 1
+                )
 
-            if 'project' in command.lower():
-                self.user_patterns['works_with_projects'] = self.user_patterns.get('works_with_projects', 0) + 1
+            if "project" in command.lower():
+                self.user_patterns["works_with_projects"] = (
+                    self.user_patterns.get("works_with_projects", 0) + 1
+                )
 
             # Track complexity preferences
-            complexity = result.get('complexity', 'simple')
-            pattern_key = f'uses_{complexity}_commands'
+            complexity = result.get("complexity", "simple")
+            pattern_key = f"uses_{complexity}_commands"
             self.user_patterns[pattern_key] = self.user_patterns.get(pattern_key, 0) + 1
 
     def _is_complex_structure(self, command: str) -> bool:
@@ -309,11 +341,11 @@ class AIEnhancedParser:
 
         # Check for loop/nesting indicators
         nested_patterns = [
-            r'in\s+(?:that|those|each|every)',
-            r'and\s+in\s+',
-            r'inside\s+(?:each|every|that)',
-            r'\d+\s+folders?.*\d+\s+folders?',
-            r'table \d+ to table \d+',
+            r"in\s+(?:that|those|each|every)",
+            r"and\s+in\s+",
+            r"inside\s+(?:each|every|that)",
+            r"\d+\s+folders?.*\d+\s+folders?",
+            r"table \d+ to table \d+",
         ]
 
         for pattern in nested_patterns:
@@ -321,11 +353,8 @@ class AIEnhancedParser:
                 return True
 
         # Check for multiple action conjunctions
-        actions = command.lower().count(' and ')
-        if actions >= 3:
-            return True
-
-        return False
+        actions = command.lower().count(" and ")
+        return actions >= 3
 
     def get_ai_status(self) -> dict[str, Any]:
         """Get AI integration status"""

@@ -1,4 +1,5 @@
 """Built-in distro build profiles."""
+
 from pathlib import Path
 
 PROFILES_DIR = Path(__file__).parent
@@ -32,8 +33,7 @@ def get_profile_path(name: str) -> Path:
     if not path.exists():
         available = list_profiles()
         raise FileNotFoundError(
-            f"Profile '{name}' not found in {PROFILES_DIR}. "
-            f"Available profiles: {available}"
+            f"Profile '{name}' not found in {PROFILES_DIR}. Available profiles: {available}"
         )
     return path
 

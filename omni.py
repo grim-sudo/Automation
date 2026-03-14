@@ -27,6 +27,8 @@ from pathlib import Path
 # how this script is invoked (e.g. python omni.py vs as a console_script).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import contextlib
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -129,6 +131,7 @@ def main_callback(
     # Configure logging as early as possible
     try:
         from omni_automator.utils.logger import configure_logging
+
         configure_logging(debug=debug, log_file=log_file)
     except Exception:
         pass
@@ -136,6 +139,7 @@ def main_callback(
     # Ensure the config directory and example file exist
     try:
         from omni_automator.config import generate_example_config
+
         example = Path.home() / ".omniautomator" / "config.example.toml"
         if not example.exists():
             generate_example_config(example)
@@ -151,10 +155,12 @@ def main_callback(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_engine(safe_mode: bool = False, debug: bool = False):
     """Construct and return an OmniAutomator engine instance."""
     try:
         from omni_automator.config import get_settings
+
         settings = get_settings()
         config = {
             "openrouter_api_key": settings.ai.openrouter_api_key,
@@ -170,6 +176,7 @@ def _build_engine(safe_mode: bool = False, debug: bool = False):
         }
 
     from omni_automator import OmniAutomator
+
     return OmniAutomator(config=config)
 
 
@@ -189,6 +196,7 @@ def _launch_chatbot(debug: bool = False) -> None:
     bot = None
     try:
         from omni_automator.ui.chatbot import ChatbotMode
+
         bot = ChatbotMode()
     except ImportError:
         pass
@@ -196,10 +204,11 @@ def _launch_chatbot(debug: bool = False) -> None:
     if bot is None:
         try:
             from omni_automator.ui.chatbot import get_chatbot
+
             bot = get_chatbot()
         except ImportError as exc:
             console.print(f"[bold red]Error:[/bold red] Could not import chatbot: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     console.print(
         Panel(
@@ -218,13 +227,15 @@ def _launch_chatbot(debug: bool = False) -> None:
         console.print(f"[bold red]Chatbot error:[/bold red] {exc}")
         if debug or _global_debug:
             import traceback
+
             traceback.print_exc()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------------------
 # run command
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def run(
@@ -233,9 +244,7 @@ def run(
         False, "--safe-mode", help="Require confirmation for destructive operations."
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging."),
-    model: str | None = typer.Option(
-        None, "--model", "-m", help="Force a specific AI model id."
-    ),
+    model: str | None = typer.Option(None, "--model", "-m", help="Force a specific AI model id."),
 ) -> None:
     """Execute a natural language automation command.
 
@@ -250,6 +259,7 @@ def run(
 
     try:
         from omni_automator.utils.logger import configure_logging
+
         configure_logging(debug=_eff_debug, log_file=_global_log_file)
     except Exception:
         pass
@@ -266,7 +276,7 @@ def run(
         engine = _build_engine(safe_mode=_eff_safe, debug=_eff_debug)
     except Exception as exc:
         console.print(f"[bold red]Error:[/bold red] Failed to initialise engine: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if model:
         try:
@@ -280,18 +290,17 @@ def run(
             result = engine.execute(command)
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user.[/yellow]")
-        raise typer.Exit(0)
+        raise typer.Exit(0) from None
     except Exception as exc:
         console.print(f"[bold red]Execution error:[/bold red] {exc}")
         if _eff_debug:
             import traceback
+
             traceback.print_exc()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     finally:
-        try:
+        with contextlib.suppress(Exception):
             engine.shutdown()
-        except Exception:
-            pass
 
     elapsed = time.perf_counter() - start
 
@@ -325,6 +334,7 @@ def run(
 # chatbot command
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def chatbot(
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging."),
@@ -336,6 +346,7 @@ def chatbot(
     """
     try:
         from omni_automator.utils.logger import configure_logging
+
         configure_logging(debug=debug or _global_debug, log_file=_global_log_file)
     except Exception:
         pass
@@ -346,6 +357,7 @@ def chatbot(
 # gui command
 # ---------------------------------------------------------------------------
 
+
 @app.command()
 def gui() -> None:
     """Launch the graphical user interface.
@@ -354,6 +366,7 @@ def gui() -> None:
     """
     try:
         from omni_automator.utils.logger import configure_logging
+
         configure_logging(debug=_global_debug, log_file=_global_log_file)
     except Exception:
         pass
@@ -367,6 +380,7 @@ def gui() -> None:
 
     try:
         from omni_automator.ui.gui import ModernOmniAutomatorGUI
+
         app_gui = ModernOmniAutomatorGUI()
         app_gui.run()
     except ImportError as exc:
@@ -374,18 +388,20 @@ def gui() -> None:
             f"[bold red]Error:[/bold red] Could not import GUI module: {exc}\n"
             "Install the GUI dependencies: [bold]pip install customtkinter[/bold]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as exc:
         console.print(f"[bold red]GUI error:[/bold red] {exc}")
         if _global_debug:
             import traceback
+
             traceback.print_exc()
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------------------
 # batch command
 # ---------------------------------------------------------------------------
+
 
 @app.command()
 def batch(
@@ -419,15 +435,14 @@ def batch(
 
     try:
         from omni_automator.utils.logger import configure_logging
+
         configure_logging(debug=_eff_debug, log_file=_global_log_file)
     except Exception:
         pass
 
     raw_lines = file.read().splitlines()
     commands = [
-        line.strip()
-        for line in raw_lines
-        if line.strip() and not line.strip().startswith("#")
+        line.strip() for line in raw_lines if line.strip() and not line.strip().startswith("#")
     ]
 
     if not commands:
@@ -446,7 +461,7 @@ def batch(
         engine = _build_engine(safe_mode=_eff_safe, debug=_eff_debug)
     except Exception as exc:
         console.print(f"[bold red]Error:[/bold red] Failed to initialise engine: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     succeeded = 0
     failed = 0
@@ -482,10 +497,8 @@ def batch(
                     console.print("[yellow]Stopping on error (--stop-on-error).[/yellow]")
                     break
     finally:
-        try:
+        with contextlib.suppress(Exception):
             engine.shutdown()
-        except Exception:
-            pass
 
     # Results table
     table = Table(title="Batch Results", header_style="bold cyan")
@@ -504,10 +517,12 @@ def batch(
 # n8n sub-commands
 # ---------------------------------------------------------------------------
 
+
 def _get_n8n_config():
     """Return (base_url, api_key) from settings or environment."""
     try:
         from omni_automator.config import get_settings
+
         settings = get_settings()
         return settings.n8n.url, settings.n8n.api_key
     except Exception:
@@ -540,10 +555,10 @@ def _n8n_get(endpoint: str) -> dict:
             f"[bold red]Error:[/bold red] Could not connect to n8n at [cyan]{url}[/cyan].\n"
             "Is n8n running? Check n8n.url in your config.toml."
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as exc:
         console.print(f"[bold red]n8n API error:[/bold red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def _n8n_post(endpoint: str, body: dict) -> dict:
@@ -553,19 +568,17 @@ def _n8n_post(endpoint: str, body: dict) -> dict:
     url, api_key = _get_n8n_config()
     full_url = f"{url}{endpoint}"
     try:
-        resp = httpx.post(
-            full_url, headers=_n8n_headers(api_key), json=body, timeout=30
-        )
+        resp = httpx.post(full_url, headers=_n8n_headers(api_key), json=body, timeout=30)
         resp.raise_for_status()
         return resp.json()
     except httpx.ConnectError:
         console.print(
             f"[bold red]Error:[/bold red] Could not connect to n8n at [cyan]{url}[/cyan]."
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as exc:
         console.print(f"[bold red]n8n API error:[/bold red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @n8n_app.command("list")
@@ -581,8 +594,7 @@ def n8n_list() -> None:
         manager = WorkflowManager(n8n_cfg)
         workflows_raw = asyncio.run(manager.list_workflows())
         workflows = [
-            {"id": w.id, "name": w.name, "active": w.active, "nodes": []}
-            for w in workflows_raw
+            {"id": w.id, "name": w.name, "active": w.active, "nodes": []} for w in workflows_raw
         ]
     except (ImportError, AttributeError):
         data = _n8n_get("/api/v1/workflows")
@@ -625,7 +637,7 @@ def n8n_run(
             body = json.loads(payload)
         except json.JSONDecodeError as exc:
             console.print(f"[bold red]Invalid JSON payload:[/bold red] {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     # Try bridge plugin first
     try:
@@ -666,9 +678,7 @@ def n8n_run(
 
 @n8n_app.command("create")
 def n8n_create(
-    description: str = typer.Argument(
-        ..., help="Natural language workflow description."
-    ),
+    description: str = typer.Argument(..., help="Natural language workflow description."),
 ) -> None:
     """Create an n8n workflow from natural language.
 
@@ -705,8 +715,7 @@ def n8n_create(
         wf_name = getattr(created, "name", description[:40])
         console.print(
             Panel(
-                f"Workflow [bold]{wf_name}[/bold] created.\n"
-                f"ID: [bold cyan]{wf_id}[/bold cyan]",
+                f"Workflow [bold]{wf_name}[/bold] created.\nID: [bold cyan]{wf_id}[/bold cyan]",
                 title="[green]Created[/green]",
                 border_style="green",
             )
@@ -719,18 +728,14 @@ def n8n_create(
     engine = None
     try:
         engine = _build_engine(debug=_global_debug)
-        ai_result = engine.execute(
-            f"generate n8n workflow JSON for: {description}"
-        )
+        ai_result = engine.execute(f"generate n8n workflow JSON for: {description}")
     except Exception as exc:
         console.print(f"[bold red]AI generation error:[/bold red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     finally:
         if engine:
-            try:
+            with contextlib.suppress(Exception):
                 engine.shutdown()
-            except Exception:
-                pass
 
     raw_content = ""
     if isinstance(ai_result.get("result"), dict):
@@ -744,20 +749,20 @@ def n8n_create(
 
     try:
         from omni_automator.ai.response_parser import repair_and_parse
+
         workflow_data = repair_and_parse(raw_content)
         if workflow_data is None:
             raise ValueError("Could not parse AI output as JSON")
     except Exception as exc:
         console.print(f"[bold red]JSON parse error:[/bold red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     created_raw = _n8n_post("/api/v1/workflows", workflow_data)
     wf_id = created_raw.get("id", "?")
     wf_name = created_raw.get("name", description[:40])
     console.print(
         Panel(
-            f"Workflow [bold]{wf_name}[/bold] created.\n"
-            f"ID: [bold cyan]{wf_id}[/bold cyan]",
+            f"Workflow [bold]{wf_name}[/bold] created.\nID: [bold cyan]{wf_id}[/bold cyan]",
             title="[green]Created[/green]",
             border_style="green",
         )
@@ -820,21 +825,18 @@ def n8n_status(
 # distro sub-commands
 # ---------------------------------------------------------------------------
 
+
 @distro_app.command("build")
 def distro_build(
     description: str | None = typer.Argument(
         None,
         help="Natural language description of the distro to build.",
     ),
-    profile: str | None = typer.Option(
-        None, "--profile", help="Path to a .toml build profile."
-    ),
+    profile: str | None = typer.Option(None, "--profile", help="Path to a .toml build profile."),
     output: str = typer.Option(
         "./distro_output", "--output", "-o", help="Output directory for ISO artifacts."
     ),
-    jobs: int = typer.Option(
-        0, "--jobs", "-j", help="Parallel build jobs (0 = auto-detect)."
-    ),
+    jobs: int = typer.Option(0, "--jobs", "-j", help="Parallel build jobs (0 = auto-detect)."),
 ) -> None:
     """Build a custom Linux distribution ISO.
 
@@ -851,28 +853,28 @@ def distro_build(
         omni distro build --profile ~/profiles/developer.toml -o /mnt/iso
     """
     if not description and not profile:
-        console.print(
-            "[bold red]Error:[/bold red] Provide a description or --profile."
-        )
+        console.print("[bold red]Error:[/bold red] Provide a description or --profile.")
         raise typer.Exit(1)
 
     # Check root privilege
     try:
         from omni_automator.security.path_validator import PathValidator
+
         PathValidator.check_root_required("distro build")
     except PermissionError as exc:
         console.print(f"[bold red]Permission error:[/bold red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception:
         pass  # Non-fatal; skip root check on unsupported platforms
 
     # Load settings
     try:
         from omni_automator.config import get_settings
+
         settings = get_settings()
         work_dir = settings.distro_builder.work_dir
-        build_jobs = jobs if jobs > 0 else (
-            settings.distro_builder.default_jobs or os.cpu_count() or 4
+        build_jobs = (
+            jobs if jobs > 0 else (settings.distro_builder.default_jobs or os.cpu_count() or 4)
         )
         debian_mirror = settings.distro_builder.debian_mirror
         debian_suite = settings.distro_builder.debian_suite
@@ -888,14 +890,19 @@ def distro_build(
     if require_confirm or _global_safe_mode:
         try:
             from omni_automator.security.path_validator import get_path_validator
+
             validator = get_path_validator()
             validator.safe_mode = True
             confirmed = validator.require_confirmation("distro build", output)
         except Exception:
-            answer = console.input(
-                "[yellow]Building a distro requires root and ~10 GB disk space. "
-                "Continue? (yes/N): [/yellow]"
-            ).strip().lower()
+            answer = (
+                console.input(
+                    "[yellow]Building a distro requires root and ~10 GB disk space. "
+                    "Continue? (yes/N): [/yellow]"
+                )
+                .strip()
+                .lower()
+            )
             confirmed = answer == "yes"
 
         if not confirmed:
@@ -927,10 +934,12 @@ def distro_build(
             build_config.update(profile_data)
             console.print(f"[dim]Loaded profile: {profile_path}[/dim]")
         except ImportError:
-            console.print("[yellow]Warning: TOML library not available; profile not loaded.[/yellow]")
+            console.print(
+                "[yellow]Warning: TOML library not available; profile not loaded.[/yellow]"
+            )
         except Exception as exc:
             console.print(f"[bold red]Profile parse error:[/bold red] {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     if description:
         build_config["description"] = description
@@ -964,9 +973,7 @@ def distro_build(
             dp = DistroProfile.model_validate(build_config)
             result = asyncio.run(build_distro(dp, output_path, jobs=build_jobs))
         else:
-            result = asyncio.run(
-                build_from_nl(build_config.get("description", ""), output_path)
-            )
+            result = asyncio.run(build_from_nl(build_config.get("description", ""), output_path))
 
         if result.success:
             iso_path = getattr(result, "iso_path", str(output_path))
@@ -980,9 +987,7 @@ def distro_build(
             )
         else:
             log_path = getattr(result, "log_path", "?")
-            console.print(
-                f"[bold red]Build failed.[/bold red] See log: {log_path}"
-            )
+            console.print(f"[bold red]Build failed.[/bold red] See log: {log_path}")
             raise typer.Exit(1)
 
     except ImportError:
@@ -990,9 +995,7 @@ def distro_build(
         _emit_debootstrap_instructions(build_config, output_path, work_path)
 
 
-def _emit_debootstrap_instructions(
-    cfg: dict, output_path: Path, work_path: Path
-) -> None:
+def _emit_debootstrap_instructions(cfg: dict, output_path: Path, work_path: Path) -> None:
     """Print manual debootstrap steps when no distro-build plugin is available."""
     suite = cfg.get("debian_suite", "bookworm")
     mirror = cfg.get("debian_mirror", "http://deb.debian.org/debian")
@@ -1102,6 +1105,7 @@ def distro_estimate(
     engine = None
     try:
         from omni_automator.config import get_settings
+
         settings = get_settings()
         jobs_count = settings.distro_builder.default_jobs or os.cpu_count() or 4
     except Exception:
@@ -1120,10 +1124,8 @@ def distro_estimate(
         ai_text = ""
     finally:
         if engine:
-            try:
+            with contextlib.suppress(Exception):
                 engine.shutdown()
-            except Exception:
-                pass
 
     if ai_text and ai_text.strip():
         console.print(Panel(ai_text.strip(), title="AI Estimate", border_style="cyan"))

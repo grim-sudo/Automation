@@ -12,6 +12,7 @@ from typing import Any
 @dataclass
 class NLPVariation:
     """Natural language variation of a command"""
+
     original: str
     normalized: str
     synonyms: list[str]
@@ -25,24 +26,24 @@ class FlexibleNLPProcessor:
     def __init__(self):
         # Synonym mappings for flexible understanding
         self.synonyms = {
-            'create': ['make', 'build', 'generate', 'setup', 'construct', 'spawn', 'initialize'],
-            'delete': ['remove', 'erase', 'destroy', 'discard', 'purge', 'eliminate', 'drop'],
-            'copy': ['duplicate', 'clone', 'replicate', 'reproduce', 'backup', 'mirror'],
-            'move': ['transfer', 'relocate', 'shift', 'transport', 'migrate', 'transit'],
-            'deploy': ['release', 'publish', 'launch', 'put online', 'go live', 'ship'],
-            'setup': ['initialize', 'configure', 'establish', 'prepare', 'arrange'],
-            'pipeline': ['workflow', 'process', 'sequence', 'chain', 'flow'],
-            'docker': ['container', 'containerize', 'dockerize'],
-            'kubernetes': ['k8s', 'orchestrate', 'orchestration'],
-            'machine learning': ['ml', 'ai', 'neural network', 'deep learning', 'predictive'],
-            'database': ['db', 'data store', 'repository', 'schema'],
-            'api': ['endpoint', 'service', 'interface', 'rest service'],
-            'monitor': ['observe', 'track', 'watch', 'supervise', 'check'],
-            'security': ['protection', 'safety', 'defense', 'hardening'],
-            'backup': ['copy', 'replicate', 'save', 'archive'],
-            'restore': ['recover', 'retrieve', 'bring back'],
-            'optimize': ['improve', 'enhance', 'fine-tune', 'tune', 'speedup'],
-            'migrate': ['move', 'transfer', 'port', 'convert'],
+            "create": ["make", "build", "generate", "setup", "construct", "spawn", "initialize"],
+            "delete": ["remove", "erase", "destroy", "discard", "purge", "eliminate", "drop"],
+            "copy": ["duplicate", "clone", "replicate", "reproduce", "backup", "mirror"],
+            "move": ["transfer", "relocate", "shift", "transport", "migrate", "transit"],
+            "deploy": ["release", "publish", "launch", "put online", "go live", "ship"],
+            "setup": ["initialize", "configure", "establish", "prepare", "arrange"],
+            "pipeline": ["workflow", "process", "sequence", "chain", "flow"],
+            "docker": ["container", "containerize", "dockerize"],
+            "kubernetes": ["k8s", "orchestrate", "orchestration"],
+            "machine learning": ["ml", "ai", "neural network", "deep learning", "predictive"],
+            "database": ["db", "data store", "repository", "schema"],
+            "api": ["endpoint", "service", "interface", "rest service"],
+            "monitor": ["observe", "track", "watch", "supervise", "check"],
+            "security": ["protection", "safety", "defense", "hardening"],
+            "backup": ["copy", "replicate", "save", "archive"],
+            "restore": ["recover", "retrieve", "bring back"],
+            "optimize": ["improve", "enhance", "fine-tune", "tune", "speedup"],
+            "migrate": ["move", "transfer", "port", "convert"],
         }
 
         # Word order flexibility patterns
@@ -54,37 +55,58 @@ class FlexibleNLPProcessor:
 
         # Intensity modifiers
         self.intensity_words = {
-            'completely': 3, 'fully': 3, 'entire': 3,
-            'all': 2, 'comprehensive': 2,
-            'basic': 1, 'simple': 1, 'minimal': 1,
+            "completely": 3,
+            "fully": 3,
+            "entire": 3,
+            "all": 2,
+            "comprehensive": 2,
+            "basic": 1,
+            "simple": 1,
+            "minimal": 1,
         }
 
         # Context keywords
         self.context_keywords = {
-            'with': 'includes_features',
-            'using': 'includes_technology',
-            'for': 'purpose',
-            'on': 'location',
-            'in': 'location',
-            'at': 'location',
-            'from': 'source',
-            'to': 'destination',
-            'including': 'includes_features',
-            'and': 'conjunction',
+            "with": "includes_features",
+            "using": "includes_technology",
+            "for": "purpose",
+            "on": "location",
+            "in": "location",
+            "at": "location",
+            "from": "source",
+            "to": "destination",
+            "including": "includes_features",
+            "and": "conjunction",
         }
 
     def normalize(self, text: str) -> str:
         """Normalize text for processing"""
         # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text.strip())
+        text = re.sub(r"\s+", " ", text.strip())
 
         # Remove filler words
-        filler_words = ['please', 'kindly', 'can you', 'could you', 'would you', 'will you',
-                       'i need', 'i want', 'i wish', 'i would like', 'hey', 'hello', 'hi',
-                       'ok', 'okay', 'alright', 'just']
+        filler_words = [
+            "please",
+            "kindly",
+            "can you",
+            "could you",
+            "would you",
+            "will you",
+            "i need",
+            "i want",
+            "i wish",
+            "i would like",
+            "hey",
+            "hello",
+            "hi",
+            "ok",
+            "okay",
+            "alright",
+            "just",
+        ]
 
         for filler in filler_words:
-            text = re.sub(rf'^\s*{filler}\s+', '', text, flags=re.IGNORECASE)
+            text = re.sub(rf"^\s*{filler}\s+", "", text, flags=re.IGNORECASE)
 
         # Convert to lowercase for processing
         return text.lower()
@@ -118,12 +140,12 @@ class FlexibleNLPProcessor:
             # Variation 2: to noun2 verb noun1
 
             # Find action words (verbs) and reorder
-            action_words = ['create', 'make', 'setup', 'deploy', 'copy', 'move', 'delete']
+            action_words = ["create", "make", "setup", "deploy", "copy", "move", "delete"]
 
             for action in action_words:
                 if action in text:
                     # Move action word to different positions
-                    without_action = ' '.join(w for w in words if w != action)
+                    without_action = " ".join(w for w in words if w != action)
                     if without_action:
                         # Action at start (original)
                         # Action in middle
@@ -139,62 +161,91 @@ class FlexibleNLPProcessor:
         text_lower = text.lower()
 
         # Extract numbers (counts, versions, etc.)
-        numbers = re.findall(r'\d+', text)
+        numbers = re.findall(r"\d+", text)
         if numbers:
-            params['count'] = int(numbers[0])
-            params['numbers'] = [int(n) for n in numbers]
+            params["count"] = int(numbers[0])
+            params["numbers"] = [int(n) for n in numbers]
 
         # Extract filenames/paths
         file_patterns = [
-            r'(?:file|folder|directory)?\s+([a-zA-Z0-9_\-\.]+(?:\.[a-zA-Z0-9]+)?)',
-            r'(?:named|called)?\s+([a-zA-Z0-9_\-]+)',
+            r"(?:file|folder|directory)?\s+([a-zA-Z0-9_\-\.]+(?:\.[a-zA-Z0-9]+)?)",
+            r"(?:named|called)?\s+([a-zA-Z0-9_\-]+)",
         ]
         for pattern in file_patterns:
             matches = re.findall(pattern, text_lower)
             if matches:
-                params['name'] = matches[0]
+                params["name"] = matches[0]
                 break
 
         # Extract locations
-        locations = ['desktop', 'documents', 'downloads', 'pictures', 'music',
-                    'videos', 'home', 'root', 'current', 'temp', 'tmp']
+        locations = [
+            "desktop",
+            "documents",
+            "downloads",
+            "pictures",
+            "music",
+            "videos",
+            "home",
+            "root",
+            "current",
+            "temp",
+            "tmp",
+        ]
         for loc in locations:
             if loc in text_lower:
-                params['location'] = loc
+                params["location"] = loc
                 break
 
         # Extract framework/language keywords
-        frameworks = ['react', 'vue', 'angular', 'django', 'flask', 'nodejs',
-                     'java', 'python', 'rust', 'go', 'csharp', 'cpp',
-                     'tensorflow', 'pytorch', 'keras', 'scikit', 'pandas']
+        frameworks = [
+            "react",
+            "vue",
+            "angular",
+            "django",
+            "flask",
+            "nodejs",
+            "java",
+            "python",
+            "rust",
+            "go",
+            "csharp",
+            "cpp",
+            "tensorflow",
+            "pytorch",
+            "keras",
+            "scikit",
+            "pandas",
+        ]
 
         matched_frameworks = [f for f in frameworks if f in text_lower]
         if matched_frameworks:
-            params['frameworks'] = matched_frameworks
-            params['primary_framework'] = matched_frameworks[0]
+            params["frameworks"] = matched_frameworks
+            params["primary_framework"] = matched_frameworks[0]
 
         # Extract features
-        features_pattern = r'(?:with|including|and|featuring)\s+([a-zA-Z0-9\s,\-]+?)(?:\s+(?:and|or|with|including)|$)'
+        features_pattern = r"(?:with|including|and|featuring)\s+([a-zA-Z0-9\s,\-]+?)(?:\s+(?:and|or|with|including)|$)"
         matches = re.findall(features_pattern, text_lower)
         if matches:
-            params['features'] = [f.strip() for f in matches[0].split(',')]
+            params["features"] = [f.strip() for f in matches[0].split(",")]
 
         # Extract source and destination
-        if 'from' in text_lower and 'to' in text_lower:
-            from_match = re.search(r'from\s+([a-zA-Z0-9_\-\.]+)', text_lower)
-            to_match = re.search(r'to\s+([a-zA-Z0-9_\-\.]+)', text_lower)
+        if "from" in text_lower and "to" in text_lower:
+            from_match = re.search(r"from\s+([a-zA-Z0-9_\-\.]+)", text_lower)
+            to_match = re.search(r"to\s+([a-zA-Z0-9_\-\.]+)", text_lower)
 
             if from_match:
-                params['source'] = from_match.group(1)
+                params["source"] = from_match.group(1)
             if to_match:
-                params['destination'] = to_match.group(1)
+                params["destination"] = to_match.group(1)
 
         return params
 
     def measure_flexibility(self, original: str, normalized: str) -> float:
         """Measure how flexible the parsing was"""
         # Score based on how much normalization was needed
-        similarity = len(set(original.split()) & set(normalized.split())) / len(set(original.split()) | set(normalized.split()))
+        similarity = len(set(original.split()) & set(normalized.split())) / len(
+            set(original.split()) | set(normalized.split())
+        )
         return similarity
 
     def process_flexible(self, text: str) -> NLPVariation:
@@ -215,7 +266,7 @@ class FlexibleNLPProcessor:
             normalized=normalized,
             synonyms=synonyms,
             alternatives=alternatives,
-            flexibility_score=flexibility_score
+            flexibility_score=flexibility_score,
         )
 
     def find_best_match(self, text: str, patterns: list[str]) -> tuple[str, float]:

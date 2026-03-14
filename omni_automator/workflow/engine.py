@@ -2,6 +2,7 @@
 Workflow execution engine for complex multi-step automation
 """
 
+import contextlib
 import os
 import time
 from collections.abc import Callable
@@ -25,6 +26,7 @@ class StepStatus(Enum):
 @dataclass
 class StepExecution:
     """Execution state for a workflow step"""
+
     step: ParsedStep
     status: StepStatus = StepStatus.PENDING
     start_time: float | None = None
@@ -64,9 +66,13 @@ class WorkflowEngine:
         try:
             for idx, s in enumerate(complex_command.steps, 1):
                 try:
-                    self.logger.debug(f"Workflow step {idx}: action={s.action}, category={s.category}, params={s.params}")
+                    self.logger.debug(
+                        f"Workflow step {idx}: action={s.action}, category={s.category}, params={s.params}"
+                    )
                 except Exception:
-                    self.logger.debug(f"Workflow step {idx}: action={s.action}, category={s.category}")
+                    self.logger.debug(
+                        f"Workflow step {idx}: action={s.action}, category={s.category}"
+                    )
         except Exception:
             pass
 
@@ -83,25 +89,25 @@ class WorkflowEngine:
         except Exception as e:
             self.logger.error(f"Workflow execution failed: {e}")
             return {
-                'success': False,
-                'error': str(e),
-                'completed_steps': self._get_completed_steps(),
-                'failed_step': self._get_failed_step()
+                "success": False,
+                "error": str(e),
+                "completed_steps": self._get_completed_steps(),
+                "failed_step": self._get_failed_step(),
             }
 
     def _execute_simple_workflow(self) -> dict[str, Any]:
         """Execute simple single-step workflow"""
         if not self.step_executions:
-            return {'success': True, 'message': 'No steps to execute'}
+            return {"success": True, "message": "No steps to execute"}
 
         step_exec = self.step_executions[0]
         result = self._execute_step(step_exec)
 
         return {
-            'success': result['success'],
-            'result': result.get('result'),
-            'error': result.get('error'),
-            'execution_time': result.get('execution_time', 0)
+            "success": result["success"],
+            "result": result.get("result"),
+            "error": result.get("error"),
+            "execution_time": result.get("execution_time", 0),
         }
 
     def _execute_compound_workflow(self) -> dict[str, Any]:
@@ -113,30 +119,32 @@ class WorkflowEngine:
             # Check dependencies
             if not self._check_dependencies(step_exec):
                 step_exec.status = StepStatus.SKIPPED
-                self.logger.warning(f"Skipping step due to failed dependencies: {step_exec.step.action}")
+                self.logger.warning(
+                    f"Skipping step due to failed dependencies: {step_exec.step.action}"
+                )
                 continue
 
             # Execute step
             result = self._execute_step(step_exec)
             results.append(result)
-            total_time += result.get('execution_time', 0)
+            total_time += result.get("execution_time", 0)
 
             # Stop on failure unless configured to continue
-            if not result['success'] and not self.automator.config.get('continue_on_error', False):
+            if not result["success"] and not self.automator.config.get("continue_on_error", False):
                 break
 
             # Update workflow context with results
             self._update_context(step_exec, result)
 
-        success_count = sum(1 for r in results if r['success'])
+        success_count = sum(1 for r in results if r["success"])
 
         return {
-            'success': success_count == len(results),
-            'completed_steps': success_count,
-            'total_steps': len(results),
-            'results': results,
-            'total_execution_time': total_time,
-            'workflow_context': self.workflow_context
+            "success": success_count == len(results),
+            "completed_steps": success_count,
+            "total_steps": len(results),
+            "results": results,
+            "total_execution_time": total_time,
+            "workflow_context": self.workflow_context,
         }
 
     def _execute_complex_workflow(self) -> dict[str, Any]:
@@ -152,7 +160,9 @@ class WorkflowEngine:
 
         for group_index, group in enumerate(execution_groups):
             group_start = time.time()
-            self.logger.info(f"Executing group {group_index + 1}/{len(execution_groups)} with {len(group)} steps")
+            self.logger.info(
+                f"Executing group {group_index + 1}/{len(execution_groups)} with {len(group)} steps"
+            )
 
             # Execute group (potentially in parallel)
             group_results = self._execute_step_group(group)
@@ -162,27 +172,29 @@ class WorkflowEngine:
             total_time += group_time
 
             # Check if we should continue
-            failed_in_group = sum(1 for r in group_results if not r['success'])
-            if failed_in_group > 0 and not self.automator.config.get('continue_on_error', False):
-                self.logger.error(f"Stopping workflow due to {failed_in_group} failed steps in group {group_index + 1}")
+            failed_in_group = sum(1 for r in group_results if not r["success"])
+            if failed_in_group > 0 and not self.automator.config.get("continue_on_error", False):
+                self.logger.error(
+                    f"Stopping workflow due to {failed_in_group} failed steps in group {group_index + 1}"
+                )
                 break
 
             # Notify progress
             self._notify_progress(group_index + 1, len(execution_groups), group_results)
 
         total_time = time.time() - start_time
-        success_count = sum(1 for r in results if r['success'])
+        success_count = sum(1 for r in results if r["success"])
 
         return {
-            'success': success_count == len(self.step_executions),
-            'completed_steps': success_count,
-            'total_steps': len(self.step_executions),
-            'failed_steps': len(self.step_executions) - success_count,
-            'results': results,
-            'total_execution_time': total_time,
-            'estimated_time': self.current_workflow.estimated_duration,
-            'workflow_context': self.workflow_context,
-            'execution_summary': self._generate_execution_summary()
+            "success": success_count == len(self.step_executions),
+            "completed_steps": success_count,
+            "total_steps": len(self.step_executions),
+            "failed_steps": len(self.step_executions) - success_count,
+            "results": results,
+            "total_execution_time": total_time,
+            "estimated_time": self.current_workflow.estimated_duration,
+            "workflow_context": self.workflow_context,
+            "execution_summary": self._generate_execution_summary(),
         }
 
     def _execute_conditional_workflow(self) -> dict[str, Any]:
@@ -194,7 +206,9 @@ class WorkflowEngine:
             if step_exec.step.conditions:
                 if not self._evaluate_conditions(step_exec.step.conditions):
                     step_exec.status = StepStatus.SKIPPED
-                    self.logger.info(f"Skipping step due to unmet conditions: {step_exec.step.action}")
+                    self.logger.info(
+                        f"Skipping step due to unmet conditions: {step_exec.step.action}"
+                    )
                     continue
 
             # Check dependencies
@@ -209,13 +223,13 @@ class WorkflowEngine:
             # Update context
             self._update_context(step_exec, result)
 
-        success_count = sum(1 for r in results if r['success'])
+        success_count = sum(1 for r in results if r["success"])
 
         return {
-            'success': success_count > 0,  # At least one step succeeded
-            'completed_steps': success_count,
-            'total_steps': len(results),
-            'results': results
+            "success": success_count > 0,  # At least one step succeeded
+            "completed_steps": success_count,
+            "total_steps": len(results),
+            "results": results,
         }
 
     def _execute_step(self, step_exec: StepExecution) -> dict[str, Any]:
@@ -230,34 +244,38 @@ class WorkflowEngine:
             try:
                 self.logger.info(f"Executing step: {step.action} (attempt {attempt + 1})")
                 # Prefer plugin-capability dispatch for any action before falling back
-                pm = getattr(self.automator, 'plugin_manager', None)
+                pm = getattr(self.automator, "plugin_manager", None)
                 if pm:
                     try:
                         candidates = pm.get_plugin_by_capability(step.action)
                         if candidates:
                             preferred = None
                             for pname in candidates:
-                                if pname in getattr(pm, 'plugins', {}):
+                                if pname in getattr(pm, "plugins", {}):
                                     preferred = pname
                                     break
                             preferred = preferred or candidates[0]
                             params_with_ctx = dict(step.params or {})
-                            params_with_ctx['workflow_context'] = getattr(self, 'workflow_context', {})
+                            params_with_ctx["workflow_context"] = getattr(
+                                self, "workflow_context", {}
+                            )
                             try:
                                 result = pm.execute(preferred, step.action, params_with_ctx)
                                 # Validate plugin result: if plugin returned a dict with success False, treat as failure
-                                if isinstance(result, dict) and result.get('success') is False:
-                                    raise Exception(f"Plugin {preferred} failed for {step.action}: {result.get('error') or result}")
+                                if isinstance(result, dict) and result.get("success") is False:
+                                    raise Exception(
+                                        f"Plugin {preferred} failed for {step.action}: {result.get('error') or result}"
+                                    )
 
                                 step_exec.end_time = time.time()
                                 step_exec.result = result
                                 step_exec.status = StepStatus.COMPLETED
                                 execution_time = step_exec.end_time - step_exec.start_time
                                 return {
-                                    'success': True,
-                                    'result': result,
-                                    'execution_time': execution_time,
-                                    'step_action': step.action
+                                    "success": True,
+                                    "result": result,
+                                    "execution_time": execution_time,
+                                    "step_action": step.action,
                                 }
                             except Exception:
                                 # If plugin failed to handle, fall through to adapter handlers
@@ -266,27 +284,31 @@ class WorkflowEngine:
                         pass
 
                 # Execute based on category
-                if step.category == 'gui':
+                if step.category == "gui":
                     # Prefer plugin-first dispatch to handle GUI-like actions that map
                     # to browser automation (e.g., launch_headless_browser -> web_automation:open_browser).
-                    pm = getattr(self.automator, 'plugin_manager', None)
+                    pm = getattr(self.automator, "plugin_manager", None)
                     plugin_params = dict(step.params or {})
-                    plugin_params['_sandbox'] = (step.params or {}).get('_sandbox', False)
-                    plugin_params['workflow_context'] = getattr(self, 'workflow_context', {})
+                    plugin_params["_sandbox"] = (step.params or {}).get("_sandbox", False)
+                    plugin_params["workflow_context"] = getattr(self, "workflow_context", {})
 
                     if pm:
-                        try:
-                            self.logger.info(f"GUI dispatch: plugins available = {list(getattr(pm,'plugins',{}).keys())}")
-                        except Exception:
-                            pass
+                        with contextlib.suppress(Exception):
+                            self.logger.info(
+                                f"GUI dispatch: plugins available = {list(getattr(pm, 'plugins', {}).keys())}"
+                            )
 
-                    if pm and 'web_automation' in getattr(pm, 'plugins', {}):
+                    if pm and "web_automation" in getattr(pm, "plugins", {}):
                         try:
-                            self.logger.info(f"Dispatching GUI action '{step.action}' to web_automation plugin")
-                            result = pm.execute('web_automation', step.action, plugin_params)
+                            self.logger.info(
+                                f"Dispatching GUI action '{step.action}' to web_automation plugin"
+                            )
+                            result = pm.execute("web_automation", step.action, plugin_params)
                             # If plugin returned a failure dict, treat it as an exception so retries/abort happen
-                            if isinstance(result, dict) and result.get('success') is False:
-                                raise Exception(f"web_automation plugin failed for {step.action}: {result.get('error') or result}")
+                            if isinstance(result, dict) and result.get("success") is False:
+                                raise Exception(
+                                    f"web_automation plugin failed for {step.action}: {result.get('error') or result}"
+                                )
 
                             step_exec.end_time = time.time()
                             step_exec.result = result
@@ -294,319 +316,483 @@ class WorkflowEngine:
 
                             execution_time = step_exec.end_time - step_exec.start_time
                             return {
-                                'success': True,
-                                'result': result,
-                                'execution_time': execution_time,
-                                'step_action': step.action
+                                "success": True,
+                                "result": result,
+                                "execution_time": execution_time,
+                                "step_action": step.action,
                             }
                         except Exception as e:
                             # If plugin cannot handle this alias, fallthrough to OS GUI adapter
-                            try:
-                                self.logger.debug(f"web_automation plugin did not handle GUI action {step.action}: {e}")
-                            except Exception:
-                                pass
+                            with contextlib.suppress(Exception):
+                                self.logger.debug(
+                                    f"web_automation plugin did not handle GUI action {step.action}: {e}"
+                                )
 
-                if step.category == 'filesystem':
+                if step.category == "filesystem":
                     # Handle filesystem operations directly
-                    if step.action == 'create_folder':
+                    if step.action == "create_folder":
                         result = self._execute_create_folder(step)
-                    elif step.action == 'create_file':
+                    elif step.action == "create_file":
                         result = self._execute_create_file(step)
-                    elif step.action == 'list_folders':
+                    elif step.action == "list_folders":
                         # List folders in a directory
-                        path = step.params.get('path') or step.params.get('location') or '.'
-                        pattern = step.params.get('pattern', '')
+                        path = step.params.get("path") or step.params.get("location") or "."
+                        pattern = step.params.get("pattern", "")
                         try:
                             if os.path.exists(path) and os.path.isdir(path):
-                                folders = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+                                folders = [
+                                    d
+                                    for d in os.listdir(path)
+                                    if os.path.isdir(os.path.join(path, d))
+                                ]
                                 if pattern:
                                     folders = [d for d in folders if pattern.lower() in d.lower()]
                                 result = {
-                                    'success': True,
-                                    'folders': folders,
-                                    'count': len(folders),
-                                    'message': f'Found {len(folders)} folder(s)'
+                                    "success": True,
+                                    "folders": folders,
+                                    "count": len(folders),
+                                    "message": f"Found {len(folders)} folder(s)",
                                 }
                                 # Store in context for next steps
-                                if hasattr(self, '_step_context'):
-                                    self._step_context['listed_folders'] = folders
+                                if hasattr(self, "_step_context"):
+                                    self._step_context["listed_folders"] = folders
                             else:
-                                result = {'success': False, 'message': f'Path not found or not a directory: {path}', 'folders': []}
+                                result = {
+                                    "success": False,
+                                    "message": f"Path not found or not a directory: {path}",
+                                    "folders": [],
+                                }
                         except Exception as e:
-                            result = {'success': False, 'message': f'Failed to list folders: {e}', 'folders': []}
-                    elif step.action == 'list_files':
+                            result = {
+                                "success": False,
+                                "message": f"Failed to list folders: {e}",
+                                "folders": [],
+                            }
+                    elif step.action == "list_files":
                         # List files in a directory
-                        path = step.params.get('path') or step.params.get('location') or '.'
-                        pattern = step.params.get('pattern', '')
+                        path = step.params.get("path") or step.params.get("location") or "."
+                        pattern = step.params.get("pattern", "")
                         try:
                             if os.path.exists(path) and os.path.isdir(path):
-                                files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+                                files = [
+                                    f
+                                    for f in os.listdir(path)
+                                    if os.path.isfile(os.path.join(path, f))
+                                ]
                                 if pattern:
                                     files = [f for f in files if pattern.lower() in f.lower()]
                                 result = {
-                                    'success': True,
-                                    'files': files,
-                                    'count': len(files),
-                                    'message': f'Found {len(files)} file(s)'
+                                    "success": True,
+                                    "files": files,
+                                    "count": len(files),
+                                    "message": f"Found {len(files)} file(s)",
                                 }
                                 # Store in context for next steps
-                                if hasattr(self, '_step_context'):
-                                    self._step_context['listed_files'] = files
+                                if hasattr(self, "_step_context"):
+                                    self._step_context["listed_files"] = files
                             else:
-                                result = {'success': False, 'message': f'Path not found or not a directory: {path}', 'files': []}
+                                result = {
+                                    "success": False,
+                                    "message": f"Path not found or not a directory: {path}",
+                                    "files": [],
+                                }
                         except Exception as e:
-                            result = {'success': False, 'message': f'Failed to list files: {e}', 'files': []}
-                    elif step.action == 'create_bulk_folders':
+                            result = {
+                                "success": False,
+                                "message": f"Failed to list files: {e}",
+                                "files": [],
+                            }
+                    elif step.action == "create_bulk_folders":
                         result = self._execute_create_bulk_folders(step)
-                    elif step.action == 'create_nested_folders':
+                    elif step.action == "create_nested_folders":
                         result = self._execute_create_nested_folders(step)
-                    elif step.action == 'create_nested_files':
+                    elif step.action == "create_nested_files":
                         result = self._execute_create_nested_files(step)
-                    elif step.action == 'resolve_path':
+                    elif step.action == "resolve_path":
                         # Resolve special path names (e.g., Desktop, Downloads) to actual paths
                         try:
                             resolved = self._resolve_paths(step.params or {})
-                            result = {'success': True, 'resolved': resolved, 'message': 'Resolved paths', 'resolved_params': resolved}
+                            result = {
+                                "success": True,
+                                "resolved": resolved,
+                                "message": "Resolved paths",
+                                "resolved_params": resolved,
+                            }
                         except Exception as e:
-                            result = {'success': False, 'message': f'Failed to resolve path: {e}'}
-                    elif step.action == 'move_folder':
+                            result = {"success": False, "message": f"Failed to resolve path: {e}"}
+                    elif step.action == "move_folder":
                         # Prefer plugin handling for move_folder
-                        pm = getattr(self.automator, 'plugin_manager', None)
-                        if pm and 'folder_operations' in getattr(pm, 'plugins', {}):
+                        pm = getattr(self.automator, "plugin_manager", None)
+                        if pm and "folder_operations" in getattr(pm, "plugins", {}):
                             try:
                                 plugin_params = dict(step.params or {})
-                                plugin_params['workflow_context'] = getattr(self, 'workflow_context', {})
-                                pres = pm.execute('folder_operations', 'move_folder', plugin_params)
-                                if isinstance(pres, dict) and pres.get('success') is False:
-                                    result = {'success': False, 'message': pres.get('error')}
+                                plugin_params["workflow_context"] = getattr(
+                                    self, "workflow_context", {}
+                                )
+                                pres = pm.execute("folder_operations", "move_folder", plugin_params)
+                                if isinstance(pres, dict) and pres.get("success") is False:
+                                    result = {"success": False, "message": pres.get("error")}
                                 else:
-                                    result = {'success': True, 'message': pres}
+                                    result = {"success": True, "message": pres}
                             except Exception as e:
-                                result = {'success': False, 'message': f'Plugin move_folder failed: {e}'}
+                                result = {
+                                    "success": False,
+                                    "message": f"Plugin move_folder failed: {e}",
+                                }
                         else:
                             # Fallback: try moving via shutil if params provide paths
                             try:
-                                src = step.params.get('path') or step.params.get('source') or step.params.get('folder')
-                                dest = step.params.get('destination') or step.params.get('dest') or step.params.get('to')
+                                src = (
+                                    step.params.get("path")
+                                    or step.params.get("source")
+                                    or step.params.get("folder")
+                                )
+                                dest = (
+                                    step.params.get("destination")
+                                    or step.params.get("dest")
+                                    or step.params.get("to")
+                                )
                                 import shutil
+
                                 if src and dest:
                                     if not os.path.isabs(dest):
                                         dest = os.path.abspath(dest)
                                     os.makedirs(dest, exist_ok=True)
                                     target = os.path.join(dest, os.path.basename(src))
                                     shutil.move(src, target)
-                                    result = {'success': True, 'message': f'Moved {src} -> {target}'}
+                                    result = {
+                                        "success": True,
+                                        "message": f"Moved {src} -> {target}",
+                                    }
                                 else:
-                                    result = {'success': False, 'message': 'Insufficient parameters for move_folder'}
+                                    result = {
+                                        "success": False,
+                                        "message": "Insufficient parameters for move_folder",
+                                    }
                             except Exception as e:
-                                result = {'success': False, 'message': f'move_folder fallback failed: {e}'}
-                    elif step.action == 'verify_file_creation':
+                                result = {
+                                    "success": False,
+                                    "message": f"move_folder fallback failed: {e}",
+                                }
+                    elif step.action == "verify_file_creation":
                         # Handle verification - just check if file exists
-                        path = step.params.get('path') or step.params.get('file')
+                        path = step.params.get("path") or step.params.get("file")
                         if path and os.path.exists(path):
-                            result = {'success': True, 'message': f'File verified: {path}'}
+                            result = {"success": True, "message": f"File verified: {path}"}
                         else:
-                            result = {'success': False, 'message': f'File not found: {path}'}
-                    elif step.action == 'verify_folder_exists':
+                            result = {"success": False, "message": f"File not found: {path}"}
+                    elif step.action == "verify_folder_exists":
                         # Handle folder verification
-                        path = step.params.get('path') or step.params.get('folder')
+                        path = step.params.get("path") or step.params.get("folder")
                         if path and os.path.exists(path):
-                            result = {'success': True, 'message': f'Folder verified: {path}'}
+                            result = {"success": True, "message": f"Folder verified: {path}"}
                         else:
-                            result = {'success': False, 'message': f'Folder not found: {path}'}
-                    elif step.action == 'verify_files_created':
+                            result = {"success": False, "message": f"Folder not found: {path}"}
+                    elif step.action == "verify_files_created":
                         # Handle batch verification
-                        paths = step.params.get('paths', [])
+                        paths = step.params.get("paths", [])
                         verified = [p for p in paths if os.path.exists(p)]
                         result = {
-                            'success': len(verified) == len(paths),
-                            'verified_count': len(verified),
-                            'total_count': len(paths),
-                            'message': f'Verified {len(verified)}/{len(paths)} files'
+                            "success": len(verified) == len(paths),
+                            "verified_count": len(verified),
+                            "total_count": len(paths),
+                            "message": f"Verified {len(verified)}/{len(paths)} files",
                         }
-                    elif step.action == 'delete_folder':
+                    elif step.action == "delete_folder":
                         # Handle folder deletion: require explicit confirm; use recycle bin by default
-                        path = step.params.get('path') or step.params.get('folder')
+                        path = step.params.get("path") or step.params.get("folder")
                         # If parser didn't include explicit confirm, assume user intent to delete but not permanently.
-                        confirm = step.params.get('confirm') if 'confirm' in (step.params or {}) else True
-                        permanent = step.params.get('permanent', False)
+                        confirm = (
+                            step.params.get("confirm") if "confirm" in (step.params or {}) else True
+                        )
+                        permanent = step.params.get("permanent", False)
 
                         if not path:
-                            result = {'success': False, 'message': 'No path specified for deletion'}
+                            result = {"success": False, "message": "No path specified for deletion"}
                         else:
                             if not os.path.exists(path):
-                                result = {'success': False, 'message': f'Folder not found: {path}'}
+                                result = {"success": False, "message": f"Folder not found: {path}"}
                             elif not confirm and not permanent:
-                                result = {'success': False, 'message': 'Deletion requires confirm=True (or set permanent=True to force)'}
+                                result = {
+                                    "success": False,
+                                    "message": "Deletion requires confirm=True (or set permanent=True to force)",
+                                }
                             else:
                                 try:
                                     if permanent:
                                         import shutil
+
                                         shutil.rmtree(path)
-                                        result = {'success': True, 'message': f'Permanently deleted folder: {path}', 'permanent': True}
+                                        result = {
+                                            "success": True,
+                                            "message": f"Permanently deleted folder: {path}",
+                                            "permanent": True,
+                                        }
                                     else:
                                         try:
                                             from send2trash import send2trash
+
                                             send2trash(path)
-                                            result = {'success': True, 'message': f'Moved folder to recycle bin: {path}', 'moved_to_trash': True}
+                                            result = {
+                                                "success": True,
+                                                "message": f"Moved folder to recycle bin: {path}",
+                                                "moved_to_trash": True,
+                                            }
                                         except Exception:
                                             # Fallback: attempt PowerShell move to recycle via Shell.Application COM (best-effort)
                                             try:
                                                 import subprocess
+
                                                 # Best-effort: use PowerShell to move to Recycle Bin via .NET (requires PowerShell 5+)
+                                                _escaped = path.replace("'", "''")
                                                 ps_cmd = (
                                                     "[Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null; "
-                                                    f"[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('{path.replace("'", "''")}', 'OnlyTopDirectory', '\\u0000')"
+                                                    f"[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('{_escaped}', 'OnlyTopDirectory', '\\u0000')"
                                                 )
-                                                subprocess.run(['powershell', '-Command', ps_cmd], check=True)
-                                                result = {'success': True, 'message': f'Deleted folder (PowerShell fallback): {path}'}
+                                                subprocess.run(
+                                                    ["powershell", "-Command", ps_cmd], check=True
+                                                )
+                                                result = {
+                                                    "success": True,
+                                                    "message": f"Deleted folder (PowerShell fallback): {path}",
+                                                }
                                             except Exception:
                                                 import shutil
+
                                                 shutil.rmtree(path)
-                                                result = {'success': True, 'message': f'Deleted folder: {path} (fallback permanent)'}
+                                                result = {
+                                                    "success": True,
+                                                    "message": f"Deleted folder: {path} (fallback permanent)",
+                                                }
                                 except Exception as e:
-                                    result = {'success': False, 'message': f'Failed to delete folder: {e}'}
-                    elif step.action == 'delete_file':
+                                    result = {
+                                        "success": False,
+                                        "message": f"Failed to delete folder: {e}",
+                                    }
+                    elif step.action == "delete_file":
                         # Handle file deletion: require confirm; use recycle bin by default
-                        path = step.params.get('path') or step.params.get('file')
+                        path = step.params.get("path") or step.params.get("file")
                         # Default confirm to True when parser omitted it (safe, non-permanent deletion)
-                        confirm = step.params.get('confirm') if 'confirm' in (step.params or {}) else True
-                        permanent = step.params.get('permanent', False)
+                        confirm = (
+                            step.params.get("confirm") if "confirm" in (step.params or {}) else True
+                        )
+                        permanent = step.params.get("permanent", False)
 
                         if not path:
-                            result = {'success': False, 'message': 'No path specified for deletion'}
+                            result = {"success": False, "message": "No path specified for deletion"}
                         else:
                             if not os.path.exists(path):
-                                result = {'success': False, 'message': f'File not found: {path}'}
+                                result = {"success": False, "message": f"File not found: {path}"}
                             elif not confirm and not permanent:
-                                result = {'success': False, 'message': 'Deletion requires confirm=True (or set permanent=True to force)'}
+                                result = {
+                                    "success": False,
+                                    "message": "Deletion requires confirm=True (or set permanent=True to force)",
+                                }
                             else:
                                 try:
                                     if permanent:
                                         os.remove(path)
-                                        result = {'success': True, 'message': f'Permanently deleted file: {path}', 'permanent': True}
+                                        result = {
+                                            "success": True,
+                                            "message": f"Permanently deleted file: {path}",
+                                            "permanent": True,
+                                        }
                                     else:
                                         try:
                                             from send2trash import send2trash
+
                                             send2trash(path)
-                                            result = {'success': True, 'message': f'Moved file to recycle bin: {path}', 'moved_to_trash': True}
+                                            result = {
+                                                "success": True,
+                                                "message": f"Moved file to recycle bin: {path}",
+                                                "moved_to_trash": True,
+                                            }
                                         except Exception:
                                             try:
                                                 import subprocess
-                                                subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{path}" -Force'], check=True)
-                                                result = {'success': True, 'message': f'Deleted file to recycle bin (PS fallback): {path}'}
+
+                                                subprocess.run(
+                                                    [
+                                                        "powershell",
+                                                        "-Command",
+                                                        f'Remove-Item -Path "{path}" -Force',
+                                                    ],
+                                                    check=True,
+                                                )
+                                                result = {
+                                                    "success": True,
+                                                    "message": f"Deleted file to recycle bin (PS fallback): {path}",
+                                                }
                                             except Exception:
                                                 os.remove(path)
-                                                result = {'success': True, 'message': f'Deleted file: {path} (fallback permanent)'}
+                                                result = {
+                                                    "success": True,
+                                                    "message": f"Deleted file: {path} (fallback permanent)",
+                                                }
                                 except Exception as e:
-                                    result = {'success': False, 'message': f'Failed to delete file: {e}'}
-                    elif step.action == 'copy_file':
+                                    result = {
+                                        "success": False,
+                                        "message": f"Failed to delete file: {e}",
+                                    }
+                    elif step.action == "copy_file":
                         # Handle file copy
-                        source = step.params.get('source') or step.params.get('file')
-                        destination = step.params.get('destination') or step.params.get('dest')
+                        source = step.params.get("source") or step.params.get("file")
+                        destination = step.params.get("destination") or step.params.get("dest")
                         if source and destination:
                             try:
                                 if os.path.exists(source):
                                     import shutil
+
                                     # Create destination folder if it doesn't exist
                                     dest_dir = os.path.dirname(destination)
                                     if dest_dir:
                                         os.makedirs(dest_dir, exist_ok=True)
                                     shutil.copy2(source, destination)
-                                    result = {'success': True, 'message': f'Copied {source} to {destination}', 'source': source, 'destination': destination}
+                                    result = {
+                                        "success": True,
+                                        "message": f"Copied {source} to {destination}",
+                                        "source": source,
+                                        "destination": destination,
+                                    }
                                 else:
-                                    result = {'success': False, 'message': f'Source file not found: {source}'}
+                                    result = {
+                                        "success": False,
+                                        "message": f"Source file not found: {source}",
+                                    }
                             except Exception as e:
-                                result = {'success': False, 'message': f'Failed to copy file: {e}'}
+                                result = {"success": False, "message": f"Failed to copy file: {e}"}
                         else:
-                            result = {'success': False, 'message': 'Source and destination paths required'}
-                    elif step.action == 'move_file':
+                            result = {
+                                "success": False,
+                                "message": "Source and destination paths required",
+                            }
+                    elif step.action == "move_file":
                         # Handle file move
-                        source = step.params.get('source') or step.params.get('file') or step.params.get('path')
-                        destination = step.params.get('destination') or step.params.get('dest')
+                        source = (
+                            step.params.get("source")
+                            or step.params.get("file")
+                            or step.params.get("path")
+                        )
+                        destination = step.params.get("destination") or step.params.get("dest")
                         if source and destination:
                             try:
                                 if os.path.exists(source):
                                     import shutil
+
                                     # Create destination folder if it doesn't exist
                                     dest_dir = os.path.dirname(destination)
                                     if dest_dir:
                                         os.makedirs(dest_dir, exist_ok=True)
                                     shutil.move(source, destination)
-                                    result = {'success': True, 'message': f'Moved {source} to {destination}', 'source': source, 'destination': destination}
+                                    result = {
+                                        "success": True,
+                                        "message": f"Moved {source} to {destination}",
+                                        "source": source,
+                                        "destination": destination,
+                                    }
                                 else:
-                                    result = {'success': False, 'message': f'Source file not found: {source}'}
+                                    result = {
+                                        "success": False,
+                                        "message": f"Source file not found: {source}",
+                                    }
                             except Exception as e:
-                                result = {'success': False, 'message': f'Failed to move file: {e}'}
+                                result = {"success": False, "message": f"Failed to move file: {e}"}
                         else:
-                            result = {'success': False, 'message': 'Source and destination paths required'}
-                    elif step.action == 'rename':
+                            result = {
+                                "success": False,
+                                "message": "Source and destination paths required",
+                            }
+                    elif step.action == "rename":
                         # Handle rename/move of files or folders
-                        old_name = step.params.get('old_name') or step.params.get('source') or step.params.get('path')
-                        new_name = step.params.get('new_name') or step.params.get('destination') or step.params.get('dest')
+                        old_name = (
+                            step.params.get("old_name")
+                            or step.params.get("source")
+                            or step.params.get("path")
+                        )
+                        new_name = (
+                            step.params.get("new_name")
+                            or step.params.get("destination")
+                            or step.params.get("dest")
+                        )
                         if old_name and new_name:
                             try:
                                 import shutil
+
                                 if os.path.exists(old_name):
                                     shutil.move(old_name, new_name)
-                                    result = {'success': True, 'message': f'Renamed {old_name} → {new_name}'}
+                                    result = {
+                                        "success": True,
+                                        "message": f"Renamed {old_name} → {new_name}",
+                                    }
                                 else:
-                                    result = {'success': False, 'message': f'Source not found: {old_name}'}
+                                    result = {
+                                        "success": False,
+                                        "message": f"Source not found: {old_name}",
+                                    }
                             except Exception as e:
-                                result = {'success': False, 'message': f'Rename failed: {e}'}
+                                result = {"success": False, "message": f"Rename failed: {e}"}
                         else:
-                            result = {'success': False, 'message': 'old_name and new_name required for rename'}
-                    elif step.action == 'verify_deletion':
+                            result = {
+                                "success": False,
+                                "message": "old_name and new_name required for rename",
+                            }
+                    elif step.action == "verify_deletion":
                         # Verify that a path was deleted
-                        path = step.params.get('path')
+                        path = step.params.get("path")
                         if path:
                             if not os.path.exists(path):
-                                result = {'success': True, 'message': f'Path successfully deleted: {path}'}
+                                result = {
+                                    "success": True,
+                                    "message": f"Path successfully deleted: {path}",
+                                }
                             else:
-                                result = {'success': False, 'message': f'Path still exists: {path}'}
+                                result = {"success": False, "message": f"Path still exists: {path}"}
                         else:
-                            result = {'success': False, 'message': 'No path specified for verification'}
+                            result = {
+                                "success": False,
+                                "message": "No path specified for verification",
+                            }
                     else:
                         raise Exception(f"Unknown filesystem action: {step.action}")
-                elif step.category == 'project_generator':
+                elif step.category == "project_generator":
                     result = self._execute_project_generator_step(step)
-                elif step.category == 'package_manager':
+                elif step.category == "package_manager":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_package_manager_step(step)
-                elif step.category == 'installer':
+                elif step.category == "installer":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_installer_step(step)
-                elif step.category == 'code_generator':
+                elif step.category == "code_generator":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_code_generator_step(step)
-                elif step.category == 'editor':
+                elif step.category == "editor":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_editor_step(step)
-                elif step.category == 'git':
+                elif step.category == "git":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_git_step(step)
-                elif step.category == 'backup':
+                elif step.category == "backup":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
                     else:
                         result = self._execute_backup_step(step)
-                elif step.category == 'downloader':
+                elif step.category == "downloader":
                     plugin_result = self._dispatch_to_plugins(step)
                     if plugin_result is not None:
                         result = plugin_result
@@ -623,9 +809,9 @@ class WorkflowEngine:
                         resolved_params = self._resolve_paths(step.params)
 
                         parsed_command = {
-                            'action': step.action,
-                            'category': step.category,
-                            'params': resolved_params
+                            "action": step.action,
+                            "category": step.category,
+                            "params": resolved_params,
                         }
                         result = self.automator._execute_parsed_command(parsed_command)
 
@@ -636,10 +822,10 @@ class WorkflowEngine:
                 execution_time = step_exec.end_time - step_exec.start_time
 
                 return {
-                    'success': True,
-                    'result': result,
-                    'execution_time': execution_time,
-                    'step_action': step.action
+                    "success": True,
+                    "result": result,
+                    "execution_time": execution_time,
+                    "step_action": step.action,
                 }
 
             except Exception as e:
@@ -654,22 +840,24 @@ class WorkflowEngine:
                     step_exec.end_time = time.time()
 
                     return {
-                        'success': False,
-                        'error': f'Failed to execute step after {self.max_retries} attempts: {e}',
-                        'execution_time': step_exec.end_time - step_exec.start_time if step_exec.start_time else 0,
-                        'step_action': step.action,
-                        'retry_count': attempt + 1
+                        "success": False,
+                        "error": f"Failed to execute step after {self.max_retries} attempts: {e}",
+                        "execution_time": step_exec.end_time - step_exec.start_time
+                        if step_exec.start_time
+                        else 0,
+                        "step_action": step.action,
+                        "retry_count": attempt + 1,
                     }
 
     def _execute_project_generator_step(self, step: ParsedStep) -> Any:
         """Execute project generator steps"""
         # Plugin-first dispatch: prefer plugins for project generation capabilities
         capability = step.action
-        pm = getattr(self.automator, 'plugin_manager', None)
+        pm = getattr(self.automator, "plugin_manager", None)
 
         plugin_params = dict(step.params or {})
-        plugin_params['_sandbox'] = (step.params or {}).get('_sandbox', False)
-        plugin_params['workflow_context'] = getattr(self, 'workflow_context', {})
+        plugin_params["_sandbox"] = (step.params or {}).get("_sandbox", False)
+        plugin_params["workflow_context"] = getattr(self, "workflow_context", {})
 
         if pm:
             try:
@@ -681,15 +869,13 @@ class WorkflowEngine:
                 try:
                     return pm.execute(plugin_name, capability, plugin_params)
                 except Exception as e:
-                    try:
+                    with contextlib.suppress(Exception):
                         self.logger.warning(f"Plugin {plugin_name} failed for {capability}: {e}")
-                    except Exception:
-                        pass
 
         # Fallback: no plugin handled the capability
         return {
-            'success': False,
-            'error': f'No plugin handled project_generator capability: {capability}. Install a suitable plugin.'
+            "success": False,
+            "error": f"No plugin handled project_generator capability: {capability}. Install a suitable plugin.",
         }
 
     def _dispatch_to_plugins(self, step: ParsedStep, capability: str | None = None) -> Any:
@@ -698,15 +884,15 @@ class WorkflowEngine:
         Returns the plugin result if a plugin handles the capability, or None
         if no plugin handled it.
         """
-        pm = getattr(self.automator, 'plugin_manager', None)
+        pm = getattr(self.automator, "plugin_manager", None)
         if not pm:
             return None
 
         cap = capability or step.action
         plugin_params = dict(step.params or {})
         # preserve explicit _sandbox if provided, otherwise default to False
-        plugin_params['_sandbox'] = (step.params or {}).get('_sandbox', False)
-        plugin_params['workflow_context'] = getattr(self, 'workflow_context', {})
+        plugin_params["_sandbox"] = (step.params or {}).get("_sandbox", False)
+        plugin_params["workflow_context"] = getattr(self, "workflow_context", {})
 
         try:
             candidates = pm.get_plugin_by_capability(cap)
@@ -716,15 +902,15 @@ class WorkflowEngine:
         for plugin_name in candidates:
             try:
                 result = pm.execute(plugin_name, cap, plugin_params)
-                if isinstance(result, dict) and result.get('success') is False:
+                if isinstance(result, dict) and result.get("success") is False:
                     # plugin attempted action but reported failure
-                    raise Exception(f"Plugin {plugin_name} failed for {cap}: {result.get('error') or result}")
+                    raise Exception(
+                        f"Plugin {plugin_name} failed for {cap}: {result.get('error') or result}"
+                    )
                 return result
             except Exception as e:
-                try:
+                with contextlib.suppress(Exception):
                     self.logger.warning(f"Plugin {plugin_name} failed for {cap}: {e}")
-                except Exception:
-                    pass
 
         return None
 
@@ -732,18 +918,18 @@ class WorkflowEngine:
         """Execute create_folder step"""
         # use module-level os
 
-        name = step.params.get('name', '')
-        location = step.params.get('location', '.')
-        parent = step.params.get('parent', '')
+        name = step.params.get("name", "")
+        location = step.params.get("location", ".")
+        parent = step.params.get("parent", "")
 
         # Build the full path
         if parent:
             # If parent is specified, create under the parent folder
-            if location and location != '.':
+            if location and location != ".":
                 full_path = os.path.join(location, parent, name)
             else:
                 full_path = os.path.join(parent, name)
-        elif location and location != '.':
+        elif location and location != ".":
             full_path = os.path.join(location, name)
         else:
             full_path = name
@@ -752,11 +938,7 @@ class WorkflowEngine:
         try:
             os.makedirs(full_path, exist_ok=True)
             self.logger.info(f"Created folder: {full_path}")
-            return {
-                'success': True,
-                'path': full_path,
-                'message': f'Created folder: {full_path}'
-            }
+            return {"success": True, "path": full_path, "message": f"Created folder: {full_path}"}
         except Exception as e:
             self.logger.error(f"Failed to create folder {full_path}: {e}")
             raise
@@ -765,11 +947,11 @@ class WorkflowEngine:
         """Execute create_file step"""
         # use module-level os
 
-        name = step.params.get('name', '')
-        content = step.params.get('content', '')
-        parent = step.params.get('parent', '')
-        location = step.params.get('location', '.')
-        template = step.params.get('template', '')
+        name = step.params.get("name", "")
+        content = step.params.get("content", "")
+        parent = step.params.get("parent", "")
+        location = step.params.get("location", ".")
+        template = step.params.get("template", "")
 
         # If no content but template is specified, generate code
         if not content and template:
@@ -778,54 +960,48 @@ class WorkflowEngine:
         # If still no content but filename indicates an algorithm, generate it
         # Check for common programming language extensions
         if not content:
-            code_extensions = ['.c', '.cpp', '.java', '.py', '.js', '.ts', '.go', '.rs', '.rb']
+            code_extensions = [".c", ".cpp", ".java", ".py", ".js", ".ts", ".go", ".rs", ".rb"]
             for ext in code_extensions:
                 if name.endswith(ext):
                     # Extract algorithm name from filename
-                    algo_name = name.replace(ext, '').lower()
-                    if algo_name and algo_name not in ['test', 'debug', 'temp']:
+                    algo_name = name.replace(ext, "").lower()
+                    if algo_name and algo_name not in ["test", "debug", "temp"]:
                         content = self._generate_algorithm_code(algo_name, name)
                     break
 
         # Build the full path
         if parent:
-            if location and location != '.':
-                folder_path = os.path.join(location, parent)
-            else:
-                folder_path = parent
-        elif location and location != '.':
+            folder_path = os.path.join(location, parent) if location and location != "." else parent
+        elif location and location != ".":
             folder_path = location
         else:
-            folder_path = '.'
+            folder_path = "."
 
         file_path = os.path.join(folder_path, name)
 
         # Create the file
         try:
             os.makedirs(folder_path, exist_ok=True)
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(content)
             self.logger.info(f"Created file: {file_path}")
-            return {
-                'success': True,
-                'path': file_path,
-                'message': f'Created file: {file_path}'
-            }
+            return {"success": True, "path": file_path, "message": f"Created file: {file_path}"}
         except Exception as e:
             self.logger.error(f"Failed to create file {file_path}: {e}")
             raise
 
-    def _generate_even_odd_code(self, language: str = 'c') -> str:
+    def _generate_even_odd_code(self, language: str = "c") -> str:
         """Generate even/odd checking code using AI for specified language"""
         language = language.lower().strip()
 
         # Use AI to generate the code dynamically
         try:
             from ..ai.openrouter_integration import OpenRouterAutomationAI
+
             ai = OpenRouterAutomationAI()
 
             prompt = f"""Generate a complete, working {language} program that checks if a number is even or odd.
-            
+
 Requirements:
 - Take user input for a number
 - Check if it's even (divisible by 2) or odd
@@ -838,25 +1014,28 @@ Requirements:
 Return ONLY the code, no explanations or markdown formatting."""
 
             # Use the AI to generate code
-            if hasattr(ai, 'client') and ai.client:
+            if hasattr(ai, "client") and ai.client:
                 try:
                     response = ai.client.chat.completions.create(
                         model=ai.model_name,
                         messages=[
-                            {"role": "system", "content": "You are an expert code generator. Generate production-ready code."},
-                            {"role": "user", "content": prompt}
+                            {
+                                "role": "system",
+                                "content": "You are an expert code generator. Generate production-ready code.",
+                            },
+                            {"role": "user", "content": prompt},
                         ],
                         temperature=0.7,
-                        max_tokens=1000
+                        max_tokens=1000,
                     )
                     code = response.choices[0].message.content if response.choices else ""
 
                     # Clean up markdown code blocks if present
-                    if code and code.startswith('```'):
-                        lines = code.split('\n')
-                        if lines[0].startswith('```'):
-                            code = '\n'.join(lines[1:])
-                        if code.endswith('```'):
+                    if code and code.startswith("```"):
+                        lines = code.split("\n")
+                        if lines[0].startswith("```"):
+                            code = "\n".join(lines[1:])
+                        if code.endswith("```"):
                             code = code[:-3]
                         code = code.strip()
 
@@ -876,45 +1055,52 @@ Return ONLY the code, no explanations or markdown formatting."""
         algorithm = algorithm.lower()
 
         # Simple algorithms (basic logic, one function enough)
-        simple = ['even', 'odd', 'prime', 'factorial', 'palindrome', 'reverse']
+        simple = ["even", "odd", "prime", "factorial", "palindrome", "reverse"]
         # Moderate algorithms (some complexity, good for practice)
-        moderate = ['fibonacci', 'bubble', 'selection', 'insertion', 'linear_search', 'binary_search']
+        moderate = [
+            "fibonacci",
+            "bubble",
+            "selection",
+            "insertion",
+            "linear_search",
+            "binary_search",
+        ]
         # Complex algorithms (optimization, advanced concepts)
-        complex_algos = ['quick', 'merge', 'heap', 'dijkstra', 'bfs', 'dfs', 'dynamic']
+        complex_algos = ["quick", "merge", "heap", "dijkstra", "bfs", "dfs", "dynamic"]
 
         for simple_algo in simple:
             if simple_algo in algorithm:
-                return 'simple'
+                return "simple"
         for moderate_algo in moderate:
             if moderate_algo in algorithm:
-                return 'moderate'
+                return "moderate"
         for complex_algo in complex_algos:
             if complex_algo in algorithm:
-                return 'complex'
+                return "complex"
 
-        return 'moderate'  # default
+        return "moderate"  # default
 
-    def _generate_algorithm_code(self, algorithm: str, filename: str = '') -> str:
+    def _generate_algorithm_code(self, algorithm: str, filename: str = "") -> str:
         """Generate code for any algorithm in any language using AI with adaptive complexity"""
         algorithm = algorithm.lower().strip()
 
         # Detect language and extract class name for Java
-        language = 'c'  # default
+        language = "c"  # default
         java_class_name = None
 
         if filename:
-            if filename.endswith('.py'):
-                language = 'python'
-            elif filename.endswith('.java'):
-                language = 'java'
+            if filename.endswith(".py"):
+                language = "python"
+            elif filename.endswith(".java"):
+                language = "java"
                 # Extract class name from filename (e.g., even_odd.java -> even_odd)
-                java_class_name = filename.replace('.java', '')
-            elif filename.endswith('.js'):
-                language = 'javascript'
-            elif filename.endswith('.cpp'):
-                language = 'cpp'
-            elif filename.endswith('.c'):
-                language = 'c'
+                java_class_name = filename.replace(".java", "")
+            elif filename.endswith(".js"):
+                language = "javascript"
+            elif filename.endswith(".cpp"):
+                language = "cpp"
+            elif filename.endswith(".c"):
+                language = "c"
 
         # Determine complexity level
         complexity = self._get_complexity_level(algorithm)
@@ -922,57 +1108,65 @@ Return ONLY the code, no explanations or markdown formatting."""
         # Use AI to generate code dynamically for any algorithm/problem
         try:
             from ..ai.openrouter_integration import OpenRouterAutomationAI
+
             ai = OpenRouterAutomationAI()
 
             # Build adaptive prompt based on complexity
             # Extend supported algorithms to include more complex systems
-            if algorithm in ['dijkstra', 'a_star', 'floyd_warshall']:
+            if algorithm in ["dijkstra", "a_star", "floyd_warshall"]:
                 algo_desc = f"implement the {algorithm} graph algorithm"
-            elif algorithm in ['knapsack', 'longest_common_subsequence']:
+            elif algorithm in ["knapsack", "longest_common_subsequence"]:
                 algo_desc = f"solve the {algorithm} problem using dynamic programming"
-            elif algorithm in ['trie', 'avl_tree', 'red_black_tree']:
+            elif algorithm in ["trie", "avl_tree", "red_black_tree"]:
                 algo_desc = f"implement the {algorithm} data structure"
-            elif algorithm in ['producer_consumer', 'thread_safe_queue']:
+            elif algorithm in ["producer_consumer", "thread_safe_queue"]:
                 algo_desc = f"solve the {algorithm} concurrency problem"
-            elif algorithm in ['http_server', 'websocket_communication']:
+            elif algorithm in ["http_server", "websocket_communication"]:
                 algo_desc = f"build a {algorithm} system"
-            elif algorithm in ['linear_regression', 'k_means']:
+            elif algorithm in ["linear_regression", "k_means"]:
                 algo_desc = f"implement the {algorithm} machine learning algorithm"
-            elif algorithm in ['rsa_encryption', 'aes_implementation']:
+            elif algorithm in ["rsa_encryption", "aes_implementation"]:
                 algo_desc = f"implement the {algorithm} cryptographic system"
             else:
-                algo_desc = algorithm.replace('_', ' ')
+                algo_desc = algorithm.replace("_", " ")
 
             # Update the prompt to include the new algorithms
             prompt = self._build_generation_prompt(algo_desc, language, complexity, java_class_name)
 
             # Use the AI to generate code
-            if hasattr(ai, 'client') and ai.client:
+            if hasattr(ai, "client") and ai.client:
                 try:
                     response = ai.client.chat.completions.create(
                         model=ai.model_name,
                         messages=[
-                            {"role": "system", "content": self._get_system_prompt(language, complexity)},
-                            {"role": "user", "content": prompt}
+                            {
+                                "role": "system",
+                                "content": self._get_system_prompt(language, complexity),
+                            },
+                            {"role": "user", "content": prompt},
                         ],
                         temperature=0.7,
-                        max_tokens=2000 if complexity == 'complex' else 1500
+                        max_tokens=2000 if complexity == "complex" else 1500,
                     )
                     code = response.choices[0].message.content if response.choices else ""
 
                     # Clean up markdown code blocks if present
-                    if code and code.startswith('```'):
-                        lines = code.split('\n')
-                        if lines[0].startswith('```'):
-                            code = '\n'.join(lines[1:])
-                        if code.endswith('```'):
+                    if code and code.startswith("```"):
+                        lines = code.split("\n")
+                        if lines[0].startswith("```"):
+                            code = "\n".join(lines[1:])
+                        if code.endswith("```"):
                             code = code[:-3]
                         code = code.strip()
 
                     # Post-process code based on language
                     code = self._post_process_code(code, language, complexity)
 
-                    return code if code else self._generate_algorithm_fallback(algorithm, language, complexity)
+                    return (
+                        code
+                        if code
+                        else self._generate_algorithm_fallback(algorithm, language, complexity)
+                    )
                 except Exception as e:
                     self.logger.debug(f"OpenRouter API call failed: {e}")
                     return self._generate_algorithm_fallback(algorithm, language, complexity)
@@ -983,11 +1177,13 @@ Return ONLY the code, no explanations or markdown formatting."""
             self.logger.warning(f"AI code generation failed for {algorithm}, using fallback: {e}")
             return self._generate_algorithm_fallback(algorithm, language, complexity)
 
-    def _build_generation_prompt(self, algorithm: str, language: str, complexity: str, java_class_name: str = None) -> str:
+    def _build_generation_prompt(
+        self, algorithm: str, language: str, complexity: str, java_class_name: str = None
+    ) -> str:
         """Build adaptive prompt based on complexity level"""
-        algo_desc = algorithm.replace('_', ' ')
+        algo_desc = algorithm.replace("_", " ")
 
-        if complexity == 'simple':
+        if complexity == "simple":
             prompt = f"""Write a simple, clean {language} program to {algo_desc}.
 
 Requirements:
@@ -1000,7 +1196,7 @@ Requirements:
 
 Return ONLY the complete, valid {language} code. No markdown formatting."""
 
-        elif complexity == 'moderate':
+        elif complexity == "moderate":
             prompt = f"""Write a {language} program to implement {algo_desc}.
 
 Requirements:
@@ -1033,7 +1229,7 @@ Requirements:
 Return ONLY the complete, valid {language} code. No markdown formatting."""
 
         # Special instruction for Java
-        if language == 'java' and java_class_name:
+        if language == "java" and java_class_name:
             prompt += f"\n\nIMPORTANT: \n1. The public class name MUST be exactly '{java_class_name}'\n2. Include complete main method with all closing braces\n3. Use ASCII complexity notation: O(n log n) not O(n log n) with superscripts"
 
         return prompt
@@ -1041,9 +1237,9 @@ Return ONLY the complete, valid {language} code. No markdown formatting."""
     def _get_system_prompt(self, language: str, complexity: str) -> str:
         """Get language and complexity-appropriate system prompt"""
         complexity_text = {
-            'simple': 'for simple, readable code',
-            'moderate': 'for well-structured, balanced code',
-            'complex': 'for optimized, production-quality code'
+            "simple": "for simple, readable code",
+            "moderate": "for well-structured, balanced code",
+            "complex": "for optimized, production-quality code",
         }
 
         return f"You are an expert {language} programmer specializing in {complexity_text.get(complexity, 'general')}. Generate only executable, working code."
@@ -1054,17 +1250,17 @@ Return ONLY the complete, valid {language} code. No markdown formatting."""
             return code
 
         # Remove Python shebang for simple/moderate complexity
-        if language == 'python' and complexity in ['simple', 'moderate']:
-            lines = code.split('\n')
-            if lines and lines[0].startswith('#!'):
-                code = '\n'.join(lines[1:]).lstrip()
+        if language == "python" and complexity in ["simple", "moderate"]:
+            lines = code.split("\n")
+            if lines and lines[0].startswith("#!"):
+                code = "\n".join(lines[1:]).lstrip()
 
         # Validate and fix Java code
-        if language == 'java':
+        if language == "java":
             code = self._validate_and_fix_java_code(code)
 
         # Validate and fix C code
-        if language == 'c':
+        if language == "c":
             code = self._validate_and_fix_c_code(code)
 
         return code.strip()
@@ -1072,45 +1268,47 @@ Return ONLY the complete, valid {language} code. No markdown formatting."""
     def _validate_and_fix_java_code(self, code: str) -> str:
         """Validate and fix Java code - ensure all braces are matched and ASCII only"""
         # Count opening and closing braces
-        open_braces = code.count('{')
-        close_braces = code.count('}')
+        open_braces = code.count("{")
+        close_braces = code.count("}")
 
         # If there are unmatched braces, add closing ones
         if open_braces > close_braces:
-            code += '\n' + '}\n' * (open_braces - close_braces)
+            code += "\n" + "}\n" * (open_braces - close_braces)
 
         # Replace common Unicode issues with ASCII equivalents
         # Replace superscript 2 with ^2 in comments
-        code = code.replace('O(n²)', 'O(n^2)').replace('n²', 'n^2').replace('Θ(n²)', 'O(n^2)')
-        code = code.replace('O(n²log n)', 'O(n^2 log n)').replace('Θ(n log n)', 'O(n log n)')
+        code = code.replace("O(n²)", "O(n^2)").replace("n²", "n^2").replace("Θ(n²)", "O(n^2)")
+        code = code.replace("O(n²log n)", "O(n^2 log n)").replace("Θ(n log n)", "O(n log n)")
 
         return code
 
     def _validate_and_fix_c_code(self, code: str) -> str:
         """Validate and fix C code - ensure all braces are matched"""
         # Count opening and closing braces
-        open_braces = code.count('{')
-        close_braces = code.count('}')
+        open_braces = code.count("{")
+        close_braces = code.count("}")
 
         # If there are unmatched braces, add closing ones
         if open_braces > close_braces:
-            code += '\n' + '}\n' * (open_braces - close_braces)
+            code += "\n" + "}\n" * (open_braces - close_braces)
 
         return code
 
-    def _generate_algorithm_fallback(self, algorithm: str, language: str, complexity: str = 'moderate') -> str:
+    def _generate_algorithm_fallback(
+        self, algorithm: str, language: str, complexity: str = "moderate"
+    ) -> str:
         """Fallback code generation when AI is unavailable"""
         # Basic fallback templates for common algorithms
-        if language == 'python':
-            if complexity == 'simple':
-                return f'''# {algorithm}
+        if language == "python":
+            if complexity == "simple":
+                return f"""# {algorithm}
 
-def {algorithm.replace('-', '_')}():
+def {algorithm.replace("-", "_")}():
     print("Implementation of {algorithm}")
 
 if __name__ == "__main__":
-    {algorithm.replace('-', '_')}()
-'''
+    {algorithm.replace("-", "_")}()
+"""
             else:
                 return f'''"""
 {algorithm} implementation
@@ -1124,15 +1322,15 @@ if __name__ == "__main__":
     main()
 '''
 
-        elif language == 'java':
+        elif language == "java":
             # Extract class name from algorithm, ensuring it matches Java naming conventions
-            class_name = algorithm.replace('_', '')
+            class_name = algorithm.replace("_", "")
             if class_name and class_name[0].isdigit():
-                class_name = 'Algorithm' + class_name
+                class_name = "Algorithm" + class_name
             if not class_name:
-                class_name = 'Main'
+                class_name = "Main"
 
-            if complexity == 'simple':
+            if complexity == "simple":
                 return f'''public class {class_name} {{
     public static void main(String[] args) {{
         System.out.println("{algorithm}");
@@ -1140,12 +1338,12 @@ if __name__ == "__main__":
 }}
 '''
             else:
-                return f'''/**
+                return f"""/**
  * {algorithm} implementation
  * Auto-generated fallback code
  */
 public class {class_name} {{
-    
+
     /**
      * Main method
      */
@@ -1153,10 +1351,10 @@ public class {class_name} {{
         System.out.println("Implementation of {algorithm}");
     }}
 }}
-'''
+"""
 
-        elif language == 'javascript':
-            if complexity == 'simple':
+        elif language == "javascript":
+            if complexity == "simple":
                 return f'''// {algorithm}
 
 function main() {{
@@ -1166,7 +1364,7 @@ function main() {{
 main();
 '''
             else:
-                return f'''/**
+                return f"""/**
  * {algorithm} implementation
  * Auto-generated fallback code
  */
@@ -1176,10 +1374,10 @@ function main() {{
 }}
 
 main();
-'''
+"""
 
-        elif language == 'cpp':
-            if complexity == 'simple':
+        elif language == "cpp":
+            if complexity == "simple":
                 return f'''#include <iostream>
 using namespace std;
 
@@ -1189,7 +1387,7 @@ int main() {{
 }}
 '''
             else:
-                return f'''#include <iostream>
+                return f"""#include <iostream>
 using namespace std;
 
 /**
@@ -1201,10 +1399,10 @@ int main() {{
     cout << "Implementation of {algorithm}" << endl;
     return 0;
 }}
-'''
+"""
 
         else:  # C
-            if complexity == 'simple':
+            if complexity == "simple":
                 return f'''#include <stdio.h>
 
 int main() {{
@@ -1213,7 +1411,7 @@ int main() {{
 }}
 '''
             else:
-                return f'''#include <stdio.h>
+                return f"""#include <stdio.h>
 
 /**
  * {algorithm} implementation
@@ -1224,12 +1422,12 @@ int main() {{
     printf("Implementation of {algorithm}\\n");
     return 0;
 }}
-'''
+"""
 
     def _generate_even_odd_fallback(self, language: str) -> str:
         """Fallback for even/odd code generation"""
-        if language == 'python':
-            return '''#!/usr/bin/env python3
+        if language == "python":
+            return """#!/usr/bin/env python3
 def check_even_odd(num):
     return f"{num} is even" if num % 2 == 0 else f"{num} is odd"
 
@@ -1239,9 +1437,9 @@ if __name__ == "__main__":
         print(check_even_odd(number))
     except ValueError:
         print("Please enter a valid integer")
-'''
-        elif language == 'java':
-            return '''import java.util.Scanner;
+"""
+        elif language == "java":
+            return """import java.util.Scanner;
 public class EvenOdd {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -1256,18 +1454,18 @@ public class EvenOdd {
         }
     }
 }
-'''
-        elif language == 'javascript':
-            return '''const readline = require('readline');
+"""
+        elif language == "javascript":
+            return """const readline = require('readline');
 const rl = readline.createInterface({input: process.stdin, output: process.stdout});
 rl.question('Enter a number: ', (input) => {
     const num = parseInt(input);
     console.log(isNaN(num) ? "Invalid input" : num + (num % 2 === 0 ? " is even" : " is odd"));
     rl.close();
 });
-'''
-        elif language == 'cpp':
-            return '''#include <iostream>
+"""
+        elif language == "cpp":
+            return """#include <iostream>
 using namespace std;
 int main() {
     int num;
@@ -1276,9 +1474,9 @@ int main() {
     cout << num << (num % 2 == 0 ? " is even" : " is odd") << endl;
     return 0;
 }
-'''
+"""
         else:  # C
-            return '''#include <stdio.h>
+            return """#include <stdio.h>
 int main() {
     int num;
     printf("Enter a number: ");
@@ -1286,24 +1484,21 @@ int main() {
     printf("%d is %s\\n", num, num % 2 == 0 ? "even" : "odd");
     return 0;
 }
-'''
+"""
 
     def _execute_create_bulk_folders(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_bulk_folders step - creates multiple folders with naming pattern"""
         # use module-level os
 
         # Support both old and new parameter formats
-        base_name = step.params.get('base_name', '')
-        start = step.params.get('start', 1)
-        end = step.params.get('end', step.params.get('count', 10))
-        location = step.params.get('location', '.')
-        parent_folder = step.params.get('parent_folder', '')
+        base_name = step.params.get("base_name", "")
+        start = step.params.get("start", 1)
+        end = step.params.get("end", step.params.get("count", 10))
+        location = step.params.get("location", ".")
+        parent_folder = step.params.get("parent_folder", "")
 
         # Build base path
-        if parent_folder:
-            base_path = os.path.join(location, parent_folder)
-        else:
-            base_path = location
+        base_path = os.path.join(location, parent_folder) if parent_folder else location
 
         created = []
 
@@ -1314,21 +1509,18 @@ int main() {
 
             # Create numbered folders
             for i in range(start, end + 1):
-                if base_name:
-                    folder_name = f"{base_name}{i}"
-                else:
-                    folder_name = str(i)
+                folder_name = f"{base_name}{i}" if base_name else str(i)
                 full_path = os.path.join(base_path, folder_name)
                 os.makedirs(full_path, exist_ok=True)
                 created.append(full_path)
 
             self.logger.info(f"Created {len(created)} bulk folders")
             return {
-                'success': True,
-                'created_folders': created,
-                'count': len(created),
-                'message': f'Created {len(created)} folders',
-                'base_path': base_path
+                "success": True,
+                "created_folders": created,
+                "count": len(created),
+                "message": f"Created {len(created)} folders",
+                "base_path": base_path,
             }
         except Exception as e:
             self.logger.error(f"Failed to create bulk folders: {e}")
@@ -1339,17 +1531,17 @@ int main() {
         # use module-level os
 
         # Support both old and new parameter formats
-        parent_name = step.params.get('parent_name', '')
-        parent_folder = step.params.get('parent_folder', parent_name)
-        subfolders = step.params.get('subfolders', [])
-        location = step.params.get('location', '.')
+        parent_name = step.params.get("parent_name", "")
+        parent_folder = step.params.get("parent_folder", parent_name)
+        subfolders = step.params.get("subfolders", [])
+        location = step.params.get("location", ".")
 
         # New format parameters
-        count = step.params.get('count', len(subfolders) if isinstance(subfolders, list) else 0)
-        start = step.params.get('start', 1)
-        end = step.params.get('end', start + count - 1 if count > 0 else start)
-        nested_in_each = step.params.get('nested_in_each', False)
-        level = step.params.get('level', 1)
+        count = step.params.get("count", len(subfolders) if isinstance(subfolders, list) else 0)
+        start = step.params.get("start", 1)
+        end = step.params.get("end", start + count - 1 if count > 0 else start)
+        nested_in_each = step.params.get("nested_in_each", False)
+        step.params.get("level", 1)
 
         created = []
 
@@ -1360,8 +1552,13 @@ int main() {
             if nested_in_each:
                 # Create subfolders inside EACH existing folder at the parent level
                 if os.path.exists(base_path):
-                    parent_dirs = sorted([d for d in os.listdir(base_path)
-                                   if os.path.isdir(os.path.join(base_path, d))])
+                    parent_dirs = sorted(
+                        [
+                            d
+                            for d in os.listdir(base_path)
+                            if os.path.isdir(os.path.join(base_path, d))
+                        ]
+                    )
 
                     for parent_dir in parent_dirs:
                         parent_path = os.path.join(base_path, parent_dir)
@@ -1385,11 +1582,11 @@ int main() {
                 # Handle subfolders based on type
                 if isinstance(subfolders, dict):
                     # Complex nested structure with test_range pattern
-                    if 'test_range' in subfolders:
-                        test_range = subfolders['test_range']
-                        test_base = test_range.get('base', 'test')
-                        test_start = test_range.get('start', 2)
-                        test_end = test_range.get('end', 100)
+                    if "test_range" in subfolders:
+                        test_range = subfolders["test_range"]
+                        test_base = test_range.get("base", "test")
+                        test_start = test_range.get("start", 2)
+                        test_end = test_range.get("end", 100)
 
                         for i in range(test_start, test_end + 1):
                             subfolder_name = f"{test_base}{i}"
@@ -1412,10 +1609,10 @@ int main() {
 
             self.logger.info(f"Created nested folder structure with {len(created)} folders total")
             return {
-                'success': True,
-                'created_folders': created,
-                'count': len(created),
-                'message': f'Created nested folder structure with {len(created)} folders'
+                "success": True,
+                "created_folders": created,
+                "count": len(created),
+                "message": f"Created nested folder structure with {len(created)} folders",
             }
         except Exception as e:
             self.logger.error(f"Failed to create nested folders: {e}")
@@ -1425,12 +1622,12 @@ int main() {
         """Execute create_nested_files step - creates files inside each folder at a nesting level"""
         # use module-level os
 
-        filename = step.params.get('filename', 'README.md')
-        content = step.params.get('content', '')
-        parent_folder = step.params.get('parent_folder', '')
-        location = step.params.get('location', '.')
-        nested_in_each = step.params.get('nested_in_each', False)
-        level = step.params.get('level', 1)
+        filename = step.params.get("filename", "README.md")
+        content = step.params.get("content", "")
+        parent_folder = step.params.get("parent_folder", "")
+        location = step.params.get("location", ".")
+        nested_in_each = step.params.get("nested_in_each", False)
+        step.params.get("level", 1)
 
         created = []
 
@@ -1457,7 +1654,7 @@ int main() {
 
                 for leaf_dir in leaf_dirs:
                     file_path = os.path.join(leaf_dir, filename)
-                    with open(file_path, 'w') as f:
+                    with open(file_path, "w") as f:
                         f.write(content)
                     created.append(file_path)
             else:
@@ -1466,16 +1663,16 @@ int main() {
                     os.makedirs(base_path, exist_ok=True)
 
                 file_path = os.path.join(base_path, filename)
-                with open(file_path, 'w') as f:
+                with open(file_path, "w") as f:
                     f.write(content)
                 created.append(file_path)
 
             self.logger.info(f"Created {len(created)} nested files")
             return {
-                'success': True,
-                'created_files': created,
-                'count': len(created),
-                'message': f'Created {len(created)} files'
+                "success": True,
+                "created_files": created,
+                "count": len(created),
+                "message": f"Created {len(created)} files",
             }
         except Exception as e:
             self.logger.error(f"Failed to create nested files: {e}")
@@ -1490,54 +1687,70 @@ int main() {
         params = step.params or {}
 
         # Prefer universal_automation plugin when loaded (handles Linux/Windows/macOS)
-        pm = getattr(self.automator, 'plugin_manager', None)
-        if pm and 'universal_automation' in getattr(pm, 'plugins', {}):
+        pm = getattr(self.automator, "plugin_manager", None)
+        if pm and "universal_automation" in getattr(pm, "plugins", {}):
             try:
-                return pm.execute('universal_automation', action, dict(params))
+                return pm.execute("universal_automation", action, dict(params))
             except Exception as e:
                 self.logger.warning(f"universal_automation plugin failed for {action}: {e}")
 
         # Fallback: direct OS adapter dispatch
-        sys_adapter = getattr(getattr(self.automator, 'os_adapter', None), 'system', None)
-        if sys_adapter and hasattr(sys_adapter, 'execute'):
+        sys_adapter = getattr(getattr(self.automator, "os_adapter", None), "system", None)
+        if sys_adapter and hasattr(sys_adapter, "execute"):
             try:
                 return sys_adapter.execute(action, params)
             except Exception as e:
                 self.logger.warning(f"sys_adapter failed for {action}: {e}")
 
         # Last resort: call package manager directly on Linux
-        if action in ('install_packages', 'install_package', 'install_software'):
-            packages = params.get('packages') or params.get('package') or params.get('software') or params.get('name', '')
+        if action in ("install_packages", "install_package", "install_software"):
+            packages = (
+                params.get("packages")
+                or params.get("package")
+                or params.get("software")
+                or params.get("name", "")
+            )
             if isinstance(packages, str):
                 packages = [packages]
             if not packages:
-                return {'success': False, 'error': 'No packages specified'}
+                return {"success": False, "error": "No packages specified"}
             results = []
             for pkg in packages:
-                for mgr in (['yay', '-S', '--noconfirm'], ['paru', '-S', '--noconfirm'],
-                             ['sudo', 'pacman', '-S', '--noconfirm'],
-                             ['pip', 'install']):
+                for mgr in (
+                    ["yay", "-S", "--noconfirm"],
+                    ["paru", "-S", "--noconfirm"],
+                    ["sudo", "pacman", "-S", "--noconfirm"],
+                    ["pip", "install"],
+                ):
                     if shutil.which(mgr[0]):
                         r = subprocess.run(mgr + [pkg], capture_output=True, text=True)
-                        results.append({'pkg': pkg, 'success': r.returncode == 0, 'stderr': r.stderr})
+                        results.append(
+                            {"pkg": pkg, "success": r.returncode == 0, "stderr": r.stderr}
+                        )
                         break
-            failed = [r for r in results if not r['success']]
-            return {'success': len(failed) == 0, 'results': results,
-                    'message': f'Installed {len(results)-len(failed)}/{len(results)} packages'}
+            failed = [r for r in results if not r["success"]]
+            return {
+                "success": len(failed) == 0,
+                "results": results,
+                "message": f"Installed {len(results) - len(failed)}/{len(results)} packages",
+            }
 
-        if action in ('uninstall_package', 'uninstall_software', 'remove_package'):
-            pkg = params.get('software') or params.get('package') or params.get('name', '')
+        if action in ("uninstall_package", "uninstall_software", "remove_package"):
+            pkg = params.get("software") or params.get("package") or params.get("name", "")
             if not pkg:
-                return {'success': False, 'error': 'No package specified'}
-            for mgr in (['sudo', 'pacman', '-R', '--noconfirm'], ['pip', 'uninstall', '-y']):
+                return {"success": False, "error": "No package specified"}
+            for mgr in (["sudo", "pacman", "-R", "--noconfirm"], ["pip", "uninstall", "-y"]):
                 if shutil.which(mgr[0]):
                     r = subprocess.run(mgr + [pkg], capture_output=True, text=True)
-                    return {'success': r.returncode == 0, 'message': r.stdout or r.stderr}
+                    return {"success": r.returncode == 0, "message": r.stdout or r.stderr}
 
-        if action in ('check_installed', 'check_package_installed', 'list_installed_packages'):
-            return {'success': True, 'message': 'Check not implemented in fallback; use universal_automation plugin'}
+        if action in ("check_installed", "check_package_installed", "list_installed_packages"):
+            return {
+                "success": True,
+                "message": "Check not implemented in fallback; use universal_automation plugin",
+            }
 
-        return {'success': False, 'error': f'Unhandled package_manager action: {action}'}
+        return {"success": False, "error": f"Unhandled package_manager action: {action}"}
 
     def _execute_installer_step(self, step: ParsedStep) -> Any:
         """Execute installer steps - delegate to package manager"""
@@ -1549,7 +1762,7 @@ int main() {
         params = step.params or {}
 
         # Try plugin first
-        pm = getattr(self.automator, 'plugin_manager', None)
+        pm = getattr(self.automator, "plugin_manager", None)
         if pm:
             candidates = pm.get_plugin_by_capability(action)
             for pname in candidates:
@@ -1558,111 +1771,127 @@ int main() {
                 except Exception:
                     pass
 
-        if action == 'create_news_scraper':
+        if action == "create_news_scraper":
             return self._create_news_scraper_code(params)
 
         # Generic: generate code file with AI
-        name = params.get('name') or params.get('filename', 'generated.py')
-        location = params.get('location', '.')
-        content = params.get('content', '')
+        name = params.get("name") or params.get("filename", "generated.py")
+        location = params.get("location", ".")
+        content = params.get("content", "")
         if not content:
-            algo = params.get('algorithm') or action.replace('_', ' ')
+            algo = params.get("algorithm") or action.replace("_", " ")
             content = self._generate_algorithm_code(algo, name)
-        return self._execute_create_file(type(step)(
-            action='create_file', category='filesystem',
-            params={'name': name, 'location': location, 'content': content}))
+        return self._execute_create_file(
+            type(step)(
+                action="create_file",
+                category="filesystem",
+                params={"name": name, "location": location, "content": content},
+            )
+        )
 
     def _execute_editor_step(self, step: ParsedStep) -> Any:
         """Execute editor steps by launching the real editor"""
         import shutil
         import subprocess
+
         action = step.action
         params = step.params or {}
-        path = params.get('path', '.')
+        path = params.get("path", ".")
 
-        if action in ('open_in_vscode', 'open_vscode', 'open_editor'):
-            editors = ['code', 'codium', 'cursor']
+        if action in ("open_in_vscode", "open_vscode", "open_editor"):
+            editors = ["code", "codium", "cursor"]
             for ed in editors:
                 if shutil.which(ed):
                     subprocess.Popen([ed, path])
-                    return {'success': True, 'message': f'Opened {path} in {ed}'}
-            return {'success': False, 'error': 'No supported editor (code/codium/cursor) found in PATH'}
+                    return {"success": True, "message": f"Opened {path} in {ed}"}
+            return {
+                "success": False,
+                "error": "No supported editor (code/codium/cursor) found in PATH",
+            }
 
-        if action in ('open_in_vim', 'open_vim'):
-            for ed in ['nvim', 'vim', 'vi']:
+        if action in ("open_in_vim", "open_vim"):
+            for ed in ["nvim", "vim", "vi"]:
                 if shutil.which(ed):
                     subprocess.Popen([ed, path])
-                    return {'success': True, 'message': f'Opened {path} in {ed}'}
+                    return {"success": True, "message": f"Opened {path} in {ed}"}
 
-        if action in ('open_file', 'open'):
-            subprocess.Popen(['xdg-open', path])
-            return {'success': True, 'message': f'Opened {path}'}
+        if action in ("open_file", "open"):
+            subprocess.Popen(["xdg-open", path])
+            return {"success": True, "message": f"Opened {path}"}
 
-        return {'success': False, 'error': f'Unknown editor action: {action}'}
+        return {"success": False, "error": f"Unknown editor action: {action}"}
 
     def _execute_git_step(self, step: ParsedStep) -> Any:
         """Execute git steps using subprocess"""
         import subprocess
+
         action = step.action
         params = step.params or {}
 
-        if action == 'clone_repository':
-            url = params.get('url')
-            dest = params.get('destination') or params.get('path', '.')
+        if action == "clone_repository":
+            url = params.get("url")
+            dest = params.get("destination") or params.get("path", ".")
             if not url:
-                return {'success': False, 'error': 'url required for clone_repository'}
-            r = subprocess.run(['git', 'clone', url, dest], capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'message': r.stdout or r.stderr}
+                return {"success": False, "error": "url required for clone_repository"}
+            r = subprocess.run(["git", "clone", url, dest], capture_output=True, text=True)
+            return {"success": r.returncode == 0, "message": r.stdout or r.stderr}
 
-        if action in ('initialize_git_repo', 'git_init'):
-            path = params.get('path', '.')
+        if action in ("initialize_git_repo", "git_init"):
+            path = params.get("path", ".")
             os.makedirs(path, exist_ok=True)
-            r = subprocess.run(['git', 'init', path], capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'message': r.stdout or r.stderr}
+            r = subprocess.run(["git", "init", path], capture_output=True, text=True)
+            return {"success": r.returncode == 0, "message": r.stdout or r.stderr}
 
-        if action in ('git_commit', 'commit'):
-            path = params.get('path', '.')
-            msg = params.get('message', 'Initial commit')
-            r1 = subprocess.run(['git', '-C', path, 'add', '-A'], capture_output=True, text=True)
-            r2 = subprocess.run(['git', '-C', path, 'commit', '-m', msg], capture_output=True, text=True)
-            return {'success': r2.returncode == 0, 'message': r2.stdout or r2.stderr}
+        if action in ("git_commit", "commit"):
+            path = params.get("path", ".")
+            msg = params.get("message", "Initial commit")
+            subprocess.run(["git", "-C", path, "add", "-A"], capture_output=True, text=True)
+            r2 = subprocess.run(
+                ["git", "-C", path, "commit", "-m", msg], capture_output=True, text=True
+            )
+            return {"success": r2.returncode == 0, "message": r2.stdout or r2.stderr}
 
-        if action in ('git_push', 'push'):
-            path = params.get('path', '.')
-            r = subprocess.run(['git', '-C', path, 'push'], capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'message': r.stdout or r.stderr}
+        if action in ("git_push", "push"):
+            path = params.get("path", ".")
+            r = subprocess.run(["git", "-C", path, "push"], capture_output=True, text=True)
+            return {"success": r.returncode == 0, "message": r.stdout or r.stderr}
 
-        if action in ('git_pull', 'pull'):
-            path = params.get('path', '.')
-            r = subprocess.run(['git', '-C', path, 'pull'], capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'message': r.stdout or r.stderr}
+        if action in ("git_pull", "pull"):
+            path = params.get("path", ".")
+            r = subprocess.run(["git", "-C", path, "pull"], capture_output=True, text=True)
+            return {"success": r.returncode == 0, "message": r.stdout or r.stderr}
 
-        if action in ('git_status', 'status'):
-            path = params.get('path', '.')
-            r = subprocess.run(['git', '-C', path, 'status'], capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'output': r.stdout, 'message': r.stdout}
+        if action in ("git_status", "status"):
+            path = params.get("path", ".")
+            r = subprocess.run(["git", "-C", path, "status"], capture_output=True, text=True)
+            return {"success": r.returncode == 0, "output": r.stdout, "message": r.stdout}
 
         # Generic git command passthrough
-        cmd = params.get('command', '')
+        cmd = params.get("command", "")
         if cmd:
-            r = subprocess.run(['git'] + cmd.split(), capture_output=True, text=True)
-            return {'success': r.returncode == 0, 'output': r.stdout, 'message': r.stdout or r.stderr}
+            r = subprocess.run(["git"] + cmd.split(), capture_output=True, text=True)
+            return {
+                "success": r.returncode == 0,
+                "output": r.stdout,
+                "message": r.stdout or r.stderr,
+            }
 
-        return {'success': False, 'error': f'Unknown git action: {action}'}
+        return {"success": False, "error": f"Unknown git action: {action}"}
 
     def _execute_backup_step(self, step: ParsedStep) -> Any:
         """Execute backup steps using shutil"""
         import shutil
-        action = step.action
+
         params = step.params or {}
-        source = params.get('source') or params.get('path') or params.get('folder')
-        destination = params.get('destination') or params.get('dest')
+        source = params.get("source") or params.get("path") or params.get("folder")
+        destination = params.get("destination") or params.get("dest")
 
         if not source:
-            return {'success': False, 'error': 'source required for backup'}
+            return {"success": False, "error": "source required for backup"}
         if not destination:
             import datetime
-            stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             destination = f"{os.path.abspath(source)}_backup_{stamp}"
 
         try:
@@ -1671,45 +1900,58 @@ int main() {
             else:
                 os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
                 shutil.copy2(source, destination)
-            return {'success': True, 'source': source, 'destination': destination,
-                    'message': f'Backed up {source} to {destination}'}
+            return {
+                "success": True,
+                "source": source,
+                "destination": destination,
+                "message": f"Backed up {source} to {destination}",
+            }
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     def _execute_downloader_step(self, step: ParsedStep) -> Any:
         """Execute downloader steps using urllib or wget/curl"""
         import shutil
         import subprocess
         import urllib.request
+
         action = step.action
         params = step.params or {}
-        url = params.get('url') or params.get('source')
-        dest = params.get('destination') or params.get('path') or params.get('filename', '')
+        url = params.get("url") or params.get("source")
+        dest = params.get("destination") or params.get("path") or params.get("filename", "")
 
-        if action == 'download_python_installer':
+        if action == "download_python_installer":
             # On Linux, Python is installed via package manager
             return self._execute_package_manager_step(
-                type(step)(action='install_software', category='package_manager',
-                           params={'software': 'python'}))
+                type(step)(
+                    action="install_software",
+                    category="package_manager",
+                    params={"software": "python"},
+                )
+            )
 
         if not url:
-            return {'success': False, 'error': 'url required for download'}
+            return {"success": False, "error": "url required for download"}
 
         if not dest:
-            dest = os.path.join(os.getcwd(), url.split('/')[-1] or 'download')
+            dest = os.path.join(os.getcwd(), url.split("/")[-1] or "download")
 
         # Try wget first, then curl, then urllib
-        for tool in (['wget', '-O', dest, url], ['curl', '-L', '-o', dest, url]):
+        for tool in (["wget", "-O", dest, url], ["curl", "-L", "-o", dest, url]):
             if shutil.which(tool[0]):
                 r = subprocess.run(tool, capture_output=True, text=True)
-                return {'success': r.returncode == 0, 'path': dest, 'message': r.stderr or 'Download complete'}
+                return {
+                    "success": r.returncode == 0,
+                    "path": dest,
+                    "message": r.stderr or "Download complete",
+                }
 
         try:
             os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
             urllib.request.urlretrieve(url, dest)
-            return {'success': True, 'path': dest, 'message': f'Downloaded to {dest}'}
+            return {"success": True, "path": dest, "message": f"Downloaded to {dest}"}
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     def _group_steps_for_execution(self) -> list[list[StepExecution]]:
         """Group steps for optimal execution order"""
@@ -1734,18 +1976,18 @@ int main() {
 
         return groups
 
-    def _can_execute_step(self, step_exec: StepExecution, completed_steps: list[ParsedStep]) -> bool:
+    def _can_execute_step(
+        self, step_exec: StepExecution, completed_steps: list[ParsedStep]
+    ) -> bool:
         """Check if a step can be executed based on dependencies"""
         if not step_exec.step.dependencies:
             return True
 
-        completed_indices = [i for i, step in enumerate(self.current_workflow.steps) if step in completed_steps]
+        completed_indices = [
+            i for i, step in enumerate(self.current_workflow.steps) if step in completed_steps
+        ]
 
-        for dep_index in step_exec.step.dependencies:
-            if dep_index not in completed_indices:
-                return False
-
-        return True
+        return all(dep_index in completed_indices for dep_index in step_exec.step.dependencies)
 
     def _execute_step_group(self, group: list[StepExecution]) -> list[dict[str, Any]]:
         """Execute a group of steps, potentially in parallel"""
@@ -1766,7 +2008,9 @@ int main() {
 
         with ThreadPoolExecutor(max_workers=min(len(steps), self.max_parallel_steps)) as executor:
             # Submit all steps
-            future_to_step = {executor.submit(self._execute_step, step_exec): step_exec for step_exec in steps}
+            future_to_step = {
+                executor.submit(self._execute_step, step_exec): step_exec for step_exec in steps
+            }
 
             # Collect results as they complete
             for future in as_completed(future_to_step):
@@ -1775,11 +2019,9 @@ int main() {
                     result = future.result()
                     results.append(result)
                 except Exception as e:
-                    results.append({
-                        'success': False,
-                        'error': str(e),
-                        'step_action': step_exec.step.action
-                    })
+                    results.append(
+                        {"success": False, "error": str(e), "step_action": step_exec.step.action}
+                    )
 
         return results
 
@@ -1804,10 +2046,10 @@ int main() {
         for condition in conditions:
             # For now, just return True for basic conditions
             # This would be enhanced with actual condition parsing
-            if 'file exists' in condition.lower():
+            if "file exists" in condition.lower():
                 # Check if file exists
                 continue
-            elif 'process running' in condition.lower():
+            elif "process running" in condition.lower():
                 # Check if process is running
                 continue
 
@@ -1815,17 +2057,19 @@ int main() {
 
     def _update_context(self, step_exec: StepExecution, result: dict[str, Any]):
         """Update workflow context with step results"""
-        if result['success']:
-            self.workflow_context[f"step_{step_exec.step.action}_result"] = result.get('result')
+        if result["success"]:
+            self.workflow_context[f"step_{step_exec.step.action}_result"] = result.get("result")
             self.workflow_context[f"step_{step_exec.step.action}_completed"] = True
 
-    def _notify_progress(self, current_group: int, total_groups: int, group_results: list[dict[str, Any]]):
+    def _notify_progress(
+        self, current_group: int, total_groups: int, group_results: list[dict[str, Any]]
+    ):
         """Notify progress callbacks"""
         progress_info = {
-            'current_group': current_group,
-            'total_groups': total_groups,
-            'group_results': group_results,
-            'overall_progress': (current_group / total_groups) * 100
+            "current_group": current_group,
+            "total_groups": total_groups,
+            "group_results": group_results,
+            "overall_progress": (current_group / total_groups) * 100,
         }
 
         for callback in self.progress_callbacks:
@@ -1836,7 +2080,11 @@ int main() {
 
     def _get_completed_steps(self) -> list[str]:
         """Get list of completed step actions"""
-        return [step_exec.step.action for step_exec in self.step_executions if step_exec.status == StepStatus.COMPLETED]
+        return [
+            step_exec.step.action
+            for step_exec in self.step_executions
+            if step_exec.status == StepStatus.COMPLETED
+        ]
 
     def _get_failed_step(self) -> str | None:
         """Get the first failed step action"""
@@ -1849,13 +2097,17 @@ int main() {
         """Generate execution summary"""
         status_counts = {}
         for status in StepStatus:
-            status_counts[status.value] = sum(1 for step_exec in self.step_executions if step_exec.status == status)
+            status_counts[status.value] = sum(
+                1 for step_exec in self.step_executions if step_exec.status == status
+            )
 
         return {
-            'total_steps': len(self.step_executions),
-            'status_breakdown': status_counts,
-            'success_rate': (status_counts.get('completed', 0) / len(self.step_executions)) * 100 if self.step_executions else 0,
-            'total_retries': sum(step_exec.retry_count for step_exec in self.step_executions)
+            "total_steps": len(self.step_executions),
+            "status_breakdown": status_counts,
+            "success_rate": (status_counts.get("completed", 0) / len(self.step_executions)) * 100
+            if self.step_executions
+            else 0,
+            "total_retries": sum(step_exec.retry_count for step_exec in self.step_executions),
         }
 
     def add_progress_callback(self, callback: Callable):
@@ -1865,14 +2117,23 @@ int main() {
     def get_workflow_status(self) -> dict[str, Any]:
         """Get current workflow status"""
         if not self.current_workflow:
-            return {'status': 'idle'}
+            return {"status": "idle"}
 
         return {
-            'status': 'running' if any(step.status == StepStatus.RUNNING for step in self.step_executions) else 'completed',
-            'original_command': self.current_workflow.original_command,
-            'complexity': self.current_workflow.complexity.value,
-            'progress': self._generate_execution_summary(),
-            'current_step': next((step.step.action for step in self.step_executions if step.status == StepStatus.RUNNING), None)
+            "status": "running"
+            if any(step.status == StepStatus.RUNNING for step in self.step_executions)
+            else "completed",
+            "original_command": self.current_workflow.original_command,
+            "complexity": self.current_workflow.complexity.value,
+            "progress": self._generate_execution_summary(),
+            "current_step": next(
+                (
+                    step.step.action
+                    for step in self.step_executions
+                    if step.status == StepStatus.RUNNING
+                ),
+                None,
+            ),
         }
 
     def _resolve_paths(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1883,33 +2144,37 @@ int main() {
 
         # Common path mappings
         path_mappings = {
-            'desktop': os.path.join(os.path.expanduser('~'), 'Desktop'),
-            'documents': os.path.join(os.path.expanduser('~'), 'Documents'),
-            'downloads': os.path.join(os.path.expanduser('~'), 'Downloads'),
-            'home': os.path.expanduser('~'),
-            'current': os.getcwd(),
-            'temp': os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'Temp') if os.name == 'nt' else '/tmp'
+            "desktop": os.path.join(os.path.expanduser("~"), "Desktop"),
+            "documents": os.path.join(os.path.expanduser("~"), "Documents"),
+            "downloads": os.path.join(os.path.expanduser("~"), "Downloads"),
+            "home": os.path.expanduser("~"),
+            "current": os.getcwd(),
+            "temp": os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp")
+            if os.name == "nt"
+            else "/tmp",
         }
 
         # Resolve location parameter
-        if 'location' in resolved_params:
-            location = resolved_params['location']
+        if "location" in resolved_params:
+            location = resolved_params["location"]
             if isinstance(location, str):
                 location_lower = location.lower()
                 if location_lower in path_mappings:
-                    resolved_params['location'] = path_mappings[location_lower]
-                elif location_lower.startswith('desktop/') or location_lower.startswith('desktop\\'):
+                    resolved_params["location"] = path_mappings[location_lower]
+                elif location_lower.startswith("desktop/") or location_lower.startswith(
+                    "desktop\\"
+                ):
                     # Handle paths like "Desktop/FolderName"
-                    desktop_path = path_mappings['desktop']
+                    desktop_path = path_mappings["desktop"]
                     relative_path = location[8:]  # Remove "Desktop/"
-                    resolved_params['location'] = os.path.join(desktop_path, relative_path)
+                    resolved_params["location"] = os.path.join(desktop_path, relative_path)
 
         # Resolve path parameter
-        if 'path' in resolved_params:
-            path = resolved_params['path']
+        if "path" in resolved_params:
+            path = resolved_params["path"]
             if isinstance(path, str):
                 path_lower = path.lower()
                 if path_lower in path_mappings:
-                    resolved_params['path'] = path_mappings[path_lower]
+                    resolved_params["path"] = path_mappings[path_lower]
 
         return resolved_params

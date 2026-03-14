@@ -16,18 +16,18 @@ def is_arch_based() -> bool:
     """Detect if the system is Arch-based"""
     try:
         # Check /etc/os-release
-        if os.path.exists('/etc/os-release'):
-            with open('/etc/os-release') as f:
+        if os.path.exists("/etc/os-release"):
+            with open("/etc/os-release") as f:
                 content = f.read().lower()
-                if any(distro in content for distro in ['arch', 'manjaro', 'endeavour', 'garuda']):
+                if any(distro in content for distro in ["arch", "manjaro", "endeavour", "garuda"]):
                     return True
 
         # Check for pacman
-        if os.path.exists('/usr/bin/pacman'):
+        if os.path.exists("/usr/bin/pacman"):
             return True
 
         # Check /etc/arch-release
-        if os.path.exists('/etc/arch-release'):
+        if os.path.exists("/etc/arch-release"):
             return True
 
     except Exception:
@@ -44,9 +44,9 @@ class OSAdapterFactory:
         """Create an OS adapter based on the current platform"""
         system = platform.system().lower()
 
-        if system == 'windows':
+        if system == "windows":
             return WindowsAdapter()
-        elif system == 'linux':
+        elif system == "linux":
             # Detect specific Linux distribution
             if is_arch_based():
                 print("🐧 Detected Arch Linux-based system")
@@ -54,7 +54,7 @@ class OSAdapterFactory:
             else:
                 print("🐧 Detected Linux system (generic)")
                 return LinuxAdapter()
-        elif system == 'darwin':  # macOS
+        elif system == "darwin":  # macOS
             return MacOSAdapter()
         else:
             raise NotImplementedError(f"OS '{system}' is not supported")
@@ -62,4 +62,4 @@ class OSAdapterFactory:
     @staticmethod
     def get_supported_platforms() -> list:
         """Get list of supported platforms"""
-        return ['windows', 'linux', 'linux-arch', 'darwin']
+        return ["windows", "linux", "linux-arch", "darwin"]

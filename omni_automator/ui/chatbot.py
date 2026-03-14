@@ -24,41 +24,41 @@ class ChatbotMode:
         # Conversation context
         self.conversation_history: list[dict[str, str]] = []
         self.user_context: dict[str, Any] = {
-            'current_directory': os.getcwd(),
-            'last_operation': None,
-            'created_resources': [],
-            'failed_operations': [],
-            'preferences': {}
+            "current_directory": os.getcwd(),
+            "last_operation": None,
+            "created_resources": [],
+            "failed_operations": [],
+            "preferences": {},
         }
 
         # System prompts
         self.system_messages = {
-            'greeting': "👋 Hello! I'm OmniAutomator. I can help you with file operations, automation tasks, and more. Type 'help' for a list of commands.",
-            'help': self._get_help_message(),
-            'context_summary': self._get_context_summary
+            "greeting": "👋 Hello! I'm OmniAutomator. I can help you with file operations, automation tasks, and more. Type 'help' for a list of commands.",
+            "help": self._get_help_message(),
+            "context_summary": self._get_context_summary,
         }
 
         # Command handlers
         self.command_handlers = {
-            'help': self.handle_help,
-            'status': self.handle_status,
-            'clear': self.handle_clear,
-            'context': self.handle_context,
-            'history': self.handle_history,
-            'cd': self.handle_cd,
-            'pwd': self.handle_pwd,
-            'ls': self.handle_ls,
-            'exit': self.handle_exit,
-            'quit': self.handle_exit,
-            'explain': self.handle_explain,
-            'undo': self.handle_undo,
+            "help": self.handle_help,
+            "status": self.handle_status,
+            "clear": self.handle_clear,
+            "context": self.handle_context,
+            "history": self.handle_history,
+            "cd": self.handle_cd,
+            "pwd": self.handle_pwd,
+            "ls": self.handle_ls,
+            "exit": self.handle_exit,
+            "quit": self.handle_exit,
+            "explain": self.handle_explain,
+            "undo": self.handle_undo,
         }
 
     def start_interactive_session(self):
         """Start an interactive chatbot session"""
         self._print_banner()
-        print(self.system_messages['greeting'])
-        print("\n" + "="*60)
+        print(self.system_messages["greeting"])
+        print("\n" + "=" * 60)
 
         while True:
             try:
@@ -69,14 +69,12 @@ class ChatbotMode:
                     continue
 
                 # Add to history
-                self.conversation_history.append({
-                    'timestamp': datetime.now().isoformat(),
-                    'type': 'user',
-                    'content': user_input
-                })
+                self.conversation_history.append(
+                    {"timestamp": datetime.now().isoformat(), "type": "user", "content": user_input}
+                )
 
                 # Check if it's a special command
-                if user_input.startswith('/'):
+                if user_input.startswith("/"):
                     self._handle_special_command(user_input[1:])
                     continue
 
@@ -95,7 +93,7 @@ class ChatbotMode:
         """Get user input with prompt and formatting"""
         try:
             # Show current context in prompt
-            indicator = "🤖" if self.user_context['last_operation'] else "💬"
+            indicator = "🤖" if self.user_context["last_operation"] else "💬"
             prompt = f"\n{indicator} You: "
             user_input = input(prompt).strip()
             return user_input
@@ -119,17 +117,21 @@ class ChatbotMode:
         self._show_command_analysis(command)
 
         # Add to history
-        self.conversation_history.append({
-            'timestamp': datetime.now().isoformat(),
-            'type': 'bot',
-            'content': f"Processing: {command}"
-        })
+        self.conversation_history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "type": "bot",
+                "content": f"Processing: {command}",
+            }
+        )
 
     def _show_command_analysis(self, command: str):
         """Show analysis of what the command will do"""
         print("📋 Command Analysis:")
         print(f"  • Input: {command}")
-        print(f"  • Keywords detected: {list(self.spell_corrector.extract_keywords(command).keys())}")
+        print(
+            f"  • Keywords detected: {list(self.spell_corrector.extract_keywords(command).keys())}"
+        )
         print(f"  • Current directory: {self.user_context['current_directory']}")
         print("\n✓ Ready to execute. Continue with next command or use /help")
 
@@ -139,7 +141,7 @@ class ChatbotMode:
             print(f"  Context: {context}")
 
         response = input(f"\n{question} (yes/no): ").strip().lower()
-        return response in ['yes', 'y', 'true']
+        return response in ["yes", "y", "true"]
 
     def _handle_special_command(self, command: str):
         """Handle special commands starting with /"""
@@ -157,7 +159,7 @@ class ChatbotMode:
 
     def handle_help(self, args: str = ""):
         """Show help information"""
-        print(self.system_messages['help'])
+        print(self.system_messages["help"])
 
     def handle_status(self, args: str = ""):
         """Show current status"""
@@ -170,13 +172,13 @@ class ChatbotMode:
 
     def handle_clear(self, args: str = ""):
         """Clear screen"""
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print(self.system_messages['greeting'])
+        os.system("cls" if os.name == "nt" else "clear")
+        print(self.system_messages["greeting"])
 
     def handle_context(self, args: str = ""):
         """Show conversation context"""
         print("\n📝 Conversation Context:")
-        print(self.user_context['context_summary']())
+        print(self.user_context["context_summary"]())
 
     def handle_history(self, args: str = ""):
         """Show command history"""
@@ -186,8 +188,8 @@ class ChatbotMode:
             return
 
         for i, entry in enumerate(self.conversation_history[-10:], start=1):
-            speaker = "You" if entry['type'] == 'user' else "Bot"
-            content = entry['content'][:50]
+            speaker = "You" if entry["type"] == "user" else "Bot"
+            content = entry["content"][:50]
             print(f"  {i}. [{speaker}] {content}...")
 
     def handle_cd(self, args: str = ""):
@@ -198,7 +200,7 @@ class ChatbotMode:
 
         try:
             os.chdir(args)
-            self.user_context['current_directory'] = os.getcwd()
+            self.user_context["current_directory"] = os.getcwd()
             print(f"✓ Changed to: {os.getcwd()}")
         except FileNotFoundError:
             print(f"❌ Directory not found: {args}")
@@ -230,6 +232,7 @@ class ChatbotMode:
         """Exit the chatbot"""
         print("\n👋 Thanks for using OmniAutomator! Goodbye!")
         import sys
+
         sys.exit(0)
 
     def handle_explain(self, args: str = ""):
@@ -240,8 +243,8 @@ class ChatbotMode:
 
         last_user_cmd = None
         for entry in reversed(self.conversation_history):
-            if entry['type'] == 'user':
-                last_user_cmd = entry['content']
+            if entry["type"] == "user":
+                last_user_cmd = entry["content"]
                 break
 
         if last_user_cmd:
@@ -255,7 +258,7 @@ class ChatbotMode:
 
     def handle_undo(self, args: str = ""):
         """Undo last operation"""
-        if self.user_context['last_operation']:
+        if self.user_context["last_operation"]:
             print(f"⏮️  Undoing: {self.user_context['last_operation']}")
             print("(Undo not yet fully implemented)")
         else:
@@ -270,7 +273,7 @@ AUTOMATION COMMANDS (type naturally):
   "create a folder named test"
   "delete the test folder"
   "copy file1.txt to backup/"
-  
+
 SPECIAL COMMANDS (start with /):
   /help          - Show this help message
   /status        - Show current status
@@ -300,11 +303,11 @@ TIPS:
     def _get_context_summary(self) -> str:
         """Get context summary"""
         return f"""
-  Current Directory: {self.user_context['current_directory']}
+  Current Directory: {self.user_context["current_directory"]}
   Commands Executed: {len(self.conversation_history)}
-  Resources Created: {len(self.user_context['created_resources'])}
-  Failed Operations: {len(self.user_context['failed_operations'])}
-  Session Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  Resources Created: {len(self.user_context["created_resources"])}
+  Failed Operations: {len(self.user_context["failed_operations"])}
+  Session Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
 
     def _print_banner(self):

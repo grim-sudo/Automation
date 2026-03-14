@@ -61,7 +61,7 @@ class PluginManager:
     def _get_default_plugin_dir(self) -> str:
         """Get default plugin directory"""
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(os.path.dirname(current_dir), 'plugins')
+        return os.path.join(os.path.dirname(current_dir), "plugins")
 
     def _load_plugins(self):
         """Load all plugins from the plugin directory"""
@@ -75,7 +75,7 @@ class PluginManager:
 
         # Load plugins from Python files
         for filename in os.listdir(self.plugin_dir):
-            if filename.endswith('.py') and not filename.startswith('_'):
+            if filename.endswith(".py") and not filename.startswith("_"):
                 module_name = filename[:-3]
                 try:
                     self._load_plugin_from_module(module_name)
@@ -86,14 +86,15 @@ class PluginManager:
         """Load a plugin from a Python module"""
         try:
             # Use fully-qualified package path so relative imports inside plugins work
-            module = importlib.import_module(f'omni_automator.plugins.{module_name}')
+            module = importlib.import_module(f"omni_automator.plugins.{module_name}")
 
             # Find plugin classes in the module
-            for name, obj in inspect.getmembers(module):
-                if (inspect.isclass(obj) and
-                    issubclass(obj, AutomationPlugin) and
-                    obj != AutomationPlugin):
-
+            for _name, obj in inspect.getmembers(module):
+                if (
+                    inspect.isclass(obj)
+                    and issubclass(obj, AutomationPlugin)
+                    and obj != AutomationPlugin
+                ):
                     # Instantiate and register the plugin
                     plugin_instance = obj()
                     if plugin_instance.initialize():
@@ -101,7 +102,7 @@ class PluginManager:
                         print(f"Loaded plugin: {plugin_instance.name} v{plugin_instance.version}")
 
         except Exception as e:
-            raise Exception(f"Error loading plugin module {module_name}: {e}")
+            raise Exception(f"Error loading plugin module {module_name}: {e}") from None
 
     def register_plugin(self, plugin: AutomationPlugin) -> bool:
         """Register a plugin instance"""
@@ -161,9 +162,9 @@ class PluginManager:
 
         for name, plugin in self.plugins.items():
             plugin_info[name] = {
-                'description': plugin.description,
-                'version': plugin.version,
-                'capabilities': plugin.get_capabilities()
+                "description": plugin.description,
+                "version": plugin.version,
+                "capabilities": plugin.get_capabilities(),
             }
 
         return plugin_info

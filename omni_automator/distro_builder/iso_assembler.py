@@ -1,4 +1,5 @@
 """ISO assembly and bootloader configuration for custom distro builds."""
+
 from __future__ import annotations
 
 import shutil
@@ -127,8 +128,7 @@ def assemble_iso(work_dir: Path, output_iso: Path, label: str = "CUSTOM") -> boo
     """
     if not shutil.which("xorriso"):
         raise FileNotFoundError(
-            "xorriso not found on this host. "
-            "Install it with: apt-get install xorriso"
+            "xorriso not found on this host. Install it with: apt-get install xorriso"
         )
 
     output_iso.parent.mkdir(parents=True, exist_ok=True)
