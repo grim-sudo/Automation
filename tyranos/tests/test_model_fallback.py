@@ -24,6 +24,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from tyranos.ai.openrouter_integration import (
     AIProviderError,
     OpenRouterClient,

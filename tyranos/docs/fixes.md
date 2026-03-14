@@ -400,3 +400,29 @@ pytest tests/ -m "not integration and not slow" → 153 passed, 0 failed
 ```
 
 ---
+
+## Enhancement #1 — Futuristic GUI (v2)
+
+**Date:** 2026-03-15
+**Files added:**
+```
+tyranos/ui/gui/__init__.py         ModernTyranosGUI entry point (replaces gui.py)
+tyranos/ui/gui/app.py              TyranosApp main window + splash screen
+tyranos/ui/gui/theme.py            Design-system constants
+tyranos/ui/gui/animations.py       FadeAnimator, PulseAnimator, TypingDotAnimator, SlideInAnimator
+tyranos/ui/gui/sidebar.py          Collapsible 240px/64px navigation
+tyranos/ui/gui/components/         9 components: ChatBubble, Sparkline, StatusBadge, Toast, …
+tyranos/ui/gui/pages/              7 pages: Home, Chat, Automate, n8n, Distro, History, Settings
+```
+**Changes to existing files:**
+- `pyproject.toml` — `[gui]` extras: added `darkdetect>=0.8.0`, `pyperclip>=1.8.0`, `psutil>=5.9.0`
+
+**Design system:** `BG_DEEP=#080810`, `PURPLE=#7c3aed`, `CYAN=#06b6d4` — space-black + neon palette.
+
+**Architecture:** `ModernTyranosGUI(engine).run()` is the public entry point. Pages are loaded lazily.
+Splash screen runs a spinning cyan arc animation during import. All long operations use
+`threading.Thread` + `queue.Queue` + `after(100)` polling to keep the UI responsive.
+
+**Test impact:** Zero regressions — 153 passed. GUI code passes `ruff check` cleanly.
+
+---

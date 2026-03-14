@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from tyranos.ai.response_parser import (
     ExecutionStep,
     IntentResult,

@@ -76,7 +76,7 @@ pip install -e ".[dev,n8n,distro,gui]"  # everything
 | `dev` | pytest, pytest-asyncio, respx, ruff, mypy |
 | `n8n` | aiohttp (webhook listener) |
 | `distro` | kconfiglib (kernel config helpers) |
-| `gui` | customtkinter, pyautogui, pynput, pillow |
+| `gui` | customtkinter, pyautogui, pynput, pillow, darkdetect, pyperclip, psutil |
 | `web` | selenium, playwright, webdriver-manager |
 | `data` | numpy, pandas, matplotlib, seaborn |
 
@@ -218,9 +218,12 @@ exit        — quit
 
 ### `tyranos gui` — Graphical Interface
 
+Tyranos v2.0 ships a futuristic dark-mode GUI (CustomTkinter) with 7 pages:
+**Home · Chat · Automate · n8n · Distro Builder · History · Settings**
+
 ```bash
 pip install -e ".[gui]"
-python omni.py gui
+python tyranos.py gui
 ```
 
 ### `tyranos batch` — Bulk Execution

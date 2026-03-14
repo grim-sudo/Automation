@@ -1,0 +1,43 @@
+# Tyranos example configuration file
+# Copy to ~/.tyranos/config.toml and edit as needed.
+# All settings have defaults — only add what you want to override.
+
+# ── Global ────────────────────────────────────────────────────────────────────
+debug             = false   # verbose debug logging to terminal
+safe_mode         = false   # require confirmation before destructive ops
+continue_on_error = false   # keep going in batch mode after a failure
+# log_file = "/var/log/tyranos.jsonl"   # write structured JSON logs to file
+
+# ── AI ────────────────────────────────────────────────────────────────────────
+[ai]
+# API keys — prefer env vars; config file is encrypted-at-rest on most OSes
+openrouter_api_key = ""   # or OPENROUTER_API_KEY env var
+openai_api_key     = ""   # optional
+anthropic_api_key  = ""   # optional
+
+# Leave model blank to auto-select the best free model from OpenRouter at runtime
+model          = ""
+fallback_chain = []   # list of model IDs to try in order, e.g. ["openai/gpt-4o-mini"]
+
+max_tokens  = 8000   # sliding-window context budget (tokens)
+timeout     = 30     # per-request timeout in seconds
+max_retries = 3      # retries before advancing the fallback chain
+retry_delay = 2.0    # exponential back-off base delay (seconds)
+
+# ── n8n ───────────────────────────────────────────────────────────────────────
+[n8n]
+url     = "http://localhost:5678"
+api_key = ""   # or N8N_API_KEY env var
+
+default_error_webhook    = ""   # POST errors to this webhook (leave blank to disable)
+polling_interval_seconds = 5
+
+# ── Distro Builder ────────────────────────────────────────────────────────────
+[distro_builder]
+work_dir                  = "/tmp/tyranos_distro_build"
+output_dir                = "./distro_output"
+default_jobs              = 0                           # 0 = auto from nproc
+debian_mirror             = "http://deb.debian.org/debian"
+debian_suite              = "bookworm"
+kernel_cache_dir          = "~/.tyranos/kernel_cache"
+require_root_confirmation = true

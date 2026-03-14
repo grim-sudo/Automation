@@ -10,6 +10,7 @@ short commands; the remaining eight covered here are:
 from __future__ import annotations
 
 import pytest
+
 from tyranos.nlp.semantic_engine import (
     IntentType,
     SemanticAnalysis,

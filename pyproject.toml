@@ -71,6 +71,9 @@ gui = [
     "pyautogui>=0.9.54",
     "pynput>=1.7.6",
     "pillow>=10.0.0",
+    "darkdetect>=0.8.0",
+    "pyperclip>=1.8.0",
+    "psutil>=5.9.0",
 ]
 web = [
     "selenium>=4.0.0",

@@ -40,7 +40,7 @@ pip install -e .
 echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
 
 # 3. Run your first command
-python omni.py run "create a folder named my-project"
+python tyranos.py run "create a folder named my-project"
 ```
 
 See [SETUP.md](SETUP.md) for full installation and configuration instructions.
@@ -263,6 +263,15 @@ Tyranos v2.0
 │   │   └── permission_manager.py
 │   └── utils/
 │       └── logger.py                 loguru structured logging
+│   └── ui/
+│       ├── gui/                          Futuristic CustomTkinter GUI (v2)
+│       │   ├── app.py                    Main window + splash screen
+│       │   ├── sidebar.py                Collapsible navigation
+│       │   ├── theme.py                  Design-system constants
+│       │   ├── components/               ChatBubble, Sparkline, StatusBadge, …
+│       │   └── pages/                    Home, Chat, Automate, n8n, Distro, History, Settings
+│       ├── chatbot.py                    REPL chatbot mode
+│       └── cli.py                        Enhanced CLI
 └── tests/                            153 pytest tests
 ```
 
@@ -353,9 +362,11 @@ mypy tyranos/ omni.py --ignore-missing-imports    # type check
 | File | Contents |
 |------|----------|
 | [SETUP.md](SETUP.md) | Full installation, configuration, development workflow |
-| [usage.md](usage.md) | Every capability with example commands |
-| [user_guide.md](user_guide.md) | Interface walkthrough and config reference |
-| [bug_report.md](bug_report.md) | Audit report — 22 bugs found and fixed |
+| [tyranos/docs/usage.md](tyranos/docs/usage.md) | Every capability with example commands |
+| [tyranos/docs/user_guide.md](tyranos/docs/user_guide.md) | Interface walkthrough and config reference |
+| [tyranos/docs/bug_report.md](tyranos/docs/bug_report.md) | Audit report — 22 bugs found and fixed |
+| [tyranos/docs/MIGRATION.md](tyranos/docs/MIGRATION.md) | Polyglot architecture migration plan (v3.0) |
+| [tyranos/docs/fixes.md](tyranos/docs/fixes.md) | Running log of bugs found and fixed |
 
 ---
 
