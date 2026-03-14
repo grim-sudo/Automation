@@ -1,5 +1,5 @@
 """
-Setup script for OmniAutomator
+Setup script for Tyranos
 """
 
 from setuptools import setup, find_packages
@@ -11,14 +11,14 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="omni-automator",
-    version="1.0.0",
-    author="OmniAutomator Team",
-    author_email="contact@omniautomator.com",
+    name="tyranos",
+    version="2.0.0",
+    author="Tyranos Team",
+    author_email="contact@tyranos.dev",
     description="Universal OS Automation Framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/omniautomator/omni-automator",
+    url="https://github.com/grim-sudo/Automation",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -54,8 +54,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "omni-automator=omni_automator.ui.cli:cli",
-            "omni=omni_automator.ui.cli:cli",
+            "tyranos=tyranos.ui.cli:cli",
         ],
     },
     include_package_data=True,

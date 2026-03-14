@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 GUI Launcher — backward compatibility shim.
-Delegates to `omni gui` via the unified omni.py entry point.
+Delegates to `tyranos gui` via the unified omni.py entry point.
 
-Prefer using:  omni gui
+Prefer using:  tyranos gui
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main() -> None:
-    """Launch the OmniAutomator GUI via the unified CLI."""
+    """Launch the Tyranos GUI via the unified CLI."""
     sys.argv = [sys.argv[0], "gui"]
-    from omni import app  # type: ignore[import]
+    from tyranos import app  # type: ignore[import]
     app()
 
 

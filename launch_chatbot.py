@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Interactive Chatbot Launcher — backward compatibility shim.
-Delegates to `omni chatbot` via the unified omni.py entry point.
+Delegates to `tyranos chatbot` via the unified omni.py entry point.
 
-Prefer using:  omni chatbot
+Prefer using:  tyranos chatbot
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main() -> None:
-    """Start the OmniAutomator chatbot via the unified CLI."""
+    """Start the Tyranos chatbot via the unified CLI."""
     sys.argv = [sys.argv[0], "chatbot"]
-    from omni import app  # type: ignore[import]
+    from tyranos import app  # type: ignore[import]
     app()
 
 

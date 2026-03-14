@@ -1,4 +1,4 @@
-# OmniAutomator — Setup & Installation Guide
+# Tyranos — Setup & Installation Guide
 
 > **Quick links**: [README](README.md) | [Usage examples](usage.md) | [Full CLI reference](user_guide.md)
 
@@ -33,7 +33,7 @@ cd Automation
 
 ## Step 2 — Create a Virtual Environment
 
-A virtual environment keeps OmniAutomator's dependencies isolated from your system Python.
+A virtual environment keeps Tyranos's dependencies isolated from your system Python.
 
 ```bash
 # Create the venv (name it whatever you like; the project uses "venv" by convention)
@@ -84,7 +84,7 @@ pip install -e ".[dev,n8n,distro,gui]"  # everything
 
 ## Step 4 — Configure Your API Key
 
-OmniAutomator uses [OpenRouter](https://openrouter.ai) to discover and call free AI models at
+Tyranos uses [OpenRouter](https://openrouter.ai) to discover and call free AI models at
 runtime. At least one API key is required for AI-enhanced features.
 
 ### Option A — `.env` file (recommended)
@@ -97,10 +97,10 @@ OPENROUTER_API_KEY=sk-or-v1-...
 # OPENAI_API_KEY=sk-...           # optional direct OpenAI access
 # ANTHROPIC_API_KEY=sk-ant-...    # optional direct Anthropic access
 
-# Leave OPENROUTER_MODEL blank — OmniAutomator auto-selects the best free model
+# Leave OPENROUTER_MODEL blank — Tyranos auto-selects the best free model
 # OPENROUTER_MODEL=
 
-# n8n integration (optional — only needed for omni n8n commands)
+# n8n integration (optional — only needed for tyranos n8n commands)
 N8N_URL=http://localhost:5678
 N8N_API_KEY=your-n8n-api-key
 ```
@@ -108,7 +108,7 @@ N8N_API_KEY=your-n8n-api-key
 > **Important:** Always use the flat variable names `N8N_URL` and `N8N_API_KEY` (not
 > `OMNI__N8N__URL`). The compat layer maps these to the correct nested config fields.
 
-OmniAutomator reads `.env` automatically on startup.
+Tyranos reads `.env` automatically on startup.
 
 ### Option B — Environment variables
 
@@ -132,14 +132,14 @@ setx OPENROUTER_API_KEY "sk-or-v1-..."
 Generate an example config:
 
 ```bash
-python -c "from omni_automator.config import generate_example_config; generate_example_config()"
-# Writes ~/.omniautomator/config.example.toml
+python -c "from tyranos.config import generate_example_config; generate_example_config()"
+# Writes ~/.tyranos/config.example.toml
 ```
 
 Copy and edit it:
 
 ```bash
-cp ~/.omniautomator/config.example.toml ~/.omniautomator/config.toml
+cp ~/.tyranos/config.example.toml ~/.tyranos/config.toml
 ```
 
 ```toml
@@ -158,7 +158,7 @@ api_key = "your-n8n-api-key"
 ```bash
 # Print version
 python omni.py --version
-# OmniAutomator v1.0.0
+# Tyranos v1.0.0
 
 # Show help
 python omni.py --help
@@ -179,7 +179,7 @@ python omni.py run "delete the folder omni_test"
 
 ## Running Modes
 
-### `omni run` — Single Command
+### `tyranos run` — Single Command
 
 Execute one natural-language command and exit.
 
@@ -194,7 +194,7 @@ python omni.py run "build the project" --debug        # verbose output
 python omni.py run "summarise this" -m openai/gpt-4o  # force a specific model
 ```
 
-### `omni chatbot` — Interactive Mode
+### `tyranos chatbot` — Interactive Mode
 
 Multi-turn conversational interface with context carried across turns.
 
@@ -216,14 +216,14 @@ Special commands inside the chatbot:
 exit        — quit
 ```
 
-### `omni gui` — Graphical Interface
+### `tyranos gui` — Graphical Interface
 
 ```bash
 pip install -e ".[gui]"
 python omni.py gui
 ```
 
-### `omni batch` — Bulk Execution
+### `tyranos batch` — Bulk Execution
 
 Run multiple commands from a plain-text file. Lines starting with `#` and blank lines are skipped.
 
@@ -316,7 +316,7 @@ sudo python omni.py distro build --nl "minimal Debian ISO with nginx, headless, 
 
 ### Custom build profile
 
-Create `~/.omniautomator/profiles/my-server.toml`:
+Create `~/.tyranos/profiles/my-server.toml`:
 
 ```toml
 [meta]
@@ -351,7 +351,7 @@ desktop  = ""
 1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
 2. `OMNI__SECTION__FIELD` env vars — e.g. `OMNI__AI__MAX_TOKENS=16000`
 3. Flat legacy env vars — `OPENROUTER_API_KEY`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
-4. `~/.omniautomator/config.toml`
+4. `~/.tyranos/config.toml`
 5. Built-in defaults
 
 ### Full config skeleton
@@ -361,7 +361,7 @@ desktop  = ""
 debug             = false    # verbose debug logging to console
 safe_mode         = false    # require confirmation before destructive operations
 continue_on_error = false    # keep going in batch mode after a failure
-# log_file = "/var/log/omniautomator.jsonl"   # write JSON logs to file
+# log_file = "/var/log/tyranos.jsonl"   # write JSON logs to file
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 [ai]
@@ -392,7 +392,7 @@ output_dir                = "./distro_output"
 default_jobs              = 0       # 0 = auto from nproc
 debian_mirror             = "http://deb.debian.org/debian"
 debian_suite              = "bookworm"
-kernel_cache_dir          = "~/.omniautomator/kernel_cache"
+kernel_cache_dir          = "~/.tyranos/kernel_cache"
 require_root_confirmation = true
 ```
 
@@ -427,7 +427,7 @@ pytest tests/ -q
 pytest tests/test_response_parser.py -v
 
 # With coverage (requires pytest-cov)
-pytest tests/ --cov=omni_automator --cov-report=term-missing
+pytest tests/ --cov=tyranos --cov-report=term-missing
 
 # Skip slow / integration tests
 pytest tests/ -m "not slow and not integration"
@@ -439,18 +439,18 @@ pytest tests/ -m "not slow and not integration"
 
 ```bash
 # Lint
-ruff check omni_automator/ omni.py tests/
+ruff check tyranos/ omni.py tests/
 
 # Auto-fix + format
-ruff check --fix omni_automator/ omni.py tests/
-ruff format omni_automator/ omni.py tests/
+ruff check --fix tyranos/ omni.py tests/
+ruff format tyranos/ omni.py tests/
 
 # Type check
-mypy omni_automator/ omni.py --ignore-missing-imports
+mypy tyranos/ omni.py --ignore-missing-imports
 
 # Full CI check (same as GitHub Actions)
-ruff check omni_automator/ omni.py tests/ && \
-mypy omni_automator/ omni.py --ignore-missing-imports && \
+ruff check tyranos/ omni.py tests/ && \
+mypy tyranos/ omni.py --ignore-missing-imports && \
 pytest tests/ -v
 ```
 
@@ -525,7 +525,7 @@ python -m json.tool < /tmp/omni.jsonl   # pretty-print JSON logs
 
 ## Security Notes
 
-- **Never commit your API key** — use a `.env` file (add it to `.gitignore`) or `~/.omniautomator/config.toml`
+- **Never commit your API key** — use a `.env` file (add it to `.gitignore`) or `~/.tyranos/config.toml`
 - Use `--safe-mode` to confirm before destructive operations
 - All subprocess calls use `safe_run()` with list-form arguments — no `shell=True` anywhere
 - `PathValidator` blocks `..` traversal sequences and null-byte injection before any path operation
@@ -538,4 +538,4 @@ python -m json.tool < /tmp/omni.jsonl   # pretty-print JSON logs
 1. Run `python omni.py chatbot` to explore capabilities interactively
 2. Read [usage.md](usage.md) for per-task command examples for every capability
 3. Read [user_guide.md](user_guide.md) for the full CLI and Python API reference
-4. Copy `~/.omniautomator/config.example.toml` to `config.toml` and customise it
+4. Copy `~/.tyranos/config.example.toml` to `config.toml` and customise it

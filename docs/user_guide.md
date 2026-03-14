@@ -1,6 +1,6 @@
-# OmniAutomator — User Guide
+# Tyranos — User Guide
 
-OmniAutomator is a natural-language automation framework. You describe what you want in plain English; the framework maps your intent to the right action and runs it.
+Tyranos is a natural-language automation framework. You describe what you want in plain English; the framework maps your intent to the right action and runs it.
 
 ---
 
@@ -54,10 +54,10 @@ python omni.py --version
 
 ## Configuration
 
-OmniAutomator reads settings from multiple sources in this priority order (highest wins):
+Tyranos reads settings from multiple sources in this priority order (highest wins):
 
 ```
-CLI flag → environment variable → .env file → ~/.omniautomator/config.toml → built-in default
+CLI flag → environment variable → .env file → ~/.tyranos/config.toml → built-in default
 ```
 
 ### Quick start: `.env` file
@@ -70,7 +70,7 @@ OPENROUTER_API_KEY=sk-or-...
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Leave OPENROUTER_MODEL blank — OmniAutomator auto-selects the best free model
+# Leave OPENROUTER_MODEL blank — Tyranos auto-selects the best free model
 # OPENROUTER_MODEL=
 
 # n8n integration (optional)
@@ -80,13 +80,13 @@ N8N_API_KEY=your-n8n-api-key
 
 ### Config file
 
-On first run, an example config is written to `~/.omniautomator/config.example.toml`. Copy it:
+On first run, an example config is written to `~/.tyranos/config.example.toml`. Copy it:
 
 ```bash
-cp ~/.omniautomator/config.example.toml ~/.omniautomator/config.toml
+cp ~/.tyranos/config.example.toml ~/.tyranos/config.toml
 ```
 
-Then edit `~/.omniautomator/config.toml` to set your keys and preferences.
+Then edit `~/.tyranos/config.toml` to set your keys and preferences.
 
 ### Nested environment variables
 
@@ -214,7 +214,7 @@ python omni.py n8n create "send a Slack message every morning at 9am"
 python omni.py n8n create "watch a folder for new CSV files and email them to me"
 ```
 
-OmniAutomator uses the AI layer to generate the workflow JSON, then posts it to n8n. You can activate it manually from the n8n UI or via the API.
+Tyranos uses the AI layer to generate the workflow JSON, then posts it to n8n. You can activate it manually from the n8n UI or via the API.
 
 ### Trigger (run) a workflow
 
@@ -301,7 +301,7 @@ python omni.py run "delete old logs"   # will ask for confirmation
 
 ## Logging
 
-OmniAutomator uses [loguru](https://github.com/Delgan/loguru) for structured logging.
+Tyranos uses [loguru](https://github.com/Delgan/loguru) for structured logging.
 
 | Mode | Output |
 |------|--------|
@@ -350,12 +350,12 @@ export OMNI__DISTRO_BUILDER__OUTPUT_DIR=/mnt/builds
 
 ## Configuration file reference
 
-`~/.omniautomator/config.toml`:
+`~/.tyranos/config.toml`:
 
 ```toml
 # Global
 debug = false
-# log_file = "/var/log/omniautomator.jsonl"
+# log_file = "/var/log/tyranos.jsonl"
 safe_mode = false
 continue_on_error = false   # keep going in batch mode even when a step fails
 
@@ -382,7 +382,7 @@ output_dir = "./distro_output"
 default_jobs = 0                  # 0 = auto-detect from nproc
 debian_mirror = "http://deb.debian.org/debian"
 debian_suite = "bookworm"
-kernel_cache_dir = "~/.omniautomator/kernel_cache"
+kernel_cache_dir = "~/.tyranos/kernel_cache"
 require_root_confirmation = true
 ```
 
@@ -392,7 +392,7 @@ require_root_confirmation = true
 
 ### Model selection
 
-OmniAutomator automatically selects the best free model from OpenRouter at startup. You do **not** need to set a model name. If you want to pin a model:
+Tyranos automatically selects the best free model from OpenRouter at startup. You do **not** need to set a model name. If you want to pin a model:
 
 ```bash
 python omni.py run "my command" -m openai/gpt-4o
@@ -426,11 +426,11 @@ python omni.py r<TAB>    # completes to 'run'
 ### Programmatic Python API
 
 ```python
-from omni_automator.config import get_settings
-from omni_automator.core.engine import OmniAutomator
+from tyranos.config import get_settings
+from tyranos.core.engine import Tyranos
 
 settings = get_settings()
-engine = OmniAutomator(settings)
+engine = Tyranos(settings)
 
 result = engine.execute("create a folder named reports in /tmp")
 print(result)

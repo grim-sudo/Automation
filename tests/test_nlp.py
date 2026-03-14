@@ -10,7 +10,7 @@ short commands; the remaining eight covered here are:
 from __future__ import annotations
 
 import pytest
-from omni_automator.nlp.semantic_engine import (
+from tyranos.nlp.semantic_engine import (
     IntentType,
     SemanticAnalysis,
     SemanticNLPEngine,

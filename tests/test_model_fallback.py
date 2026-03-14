@@ -1,6 +1,6 @@
 """Tests for the AI model fallback chain logic.
 
-The module under test: omni_automator.ai.openrouter_integration
+The module under test: tyranos.ai.openrouter_integration
 
 Classes exercised:
 
@@ -24,7 +24,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from omni_automator.ai.openrouter_integration import (
+from tyranos.ai.openrouter_integration import (
     AIProviderError,
     OpenRouterClient,
     OpenRouterConfig,

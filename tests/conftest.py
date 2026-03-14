@@ -1,4 +1,4 @@
-"""pytest configuration and shared fixtures for OmniAutomator tests.
+"""pytest configuration and shared fixtures for Tyranos tests.
 
 Fixtures here are available to every test module automatically.  They are
 kept intentionally small — each test file declares its own local fixtures
@@ -12,7 +12,9 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+import respx
 
 # ─── Event loop policy ────────────────────────────────────────────────────────
 
@@ -20,6 +22,60 @@ import pytest
 @pytest.fixture(scope="session")
 def event_loop_policy():
     return asyncio.DefaultEventLoopPolicy()
+
+
+# ─── Network guard — intercepts all real OpenRouter calls in every test ───────
+
+
+@pytest.fixture(autouse=True)
+def mock_openrouter_models(respx_mock: respx.MockRouter) -> None:
+    """Block every test from hitting the real OpenRouter models endpoint.
+
+    autouse=True means this fixture applies automatically to every test
+    without the test having to request it explicitly.  Any test that
+    constructs a FreeModelResolver (or any code path that calls
+    GET https://openrouter.ai/api/v1/models) receives this canned response
+    instead of making a live network request.
+    """
+    respx_mock.get("https://openrouter.ai/api/v1/models").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "test/free-model-large",
+                        "context_length": 128000,
+                        "pricing": {"prompt": "0", "completion": "0"},
+                    },
+                    {
+                        "id": "test/free-model-medium",
+                        "context_length": 32000,
+                        "pricing": {"prompt": "0", "completion": "0"},
+                    },
+                    {
+                        "id": "test/free-model-small",
+                        "context_length": 8000,
+                        "pricing": {"prompt": "0", "completion": "0"},
+                    },
+                ]
+            },
+        )
+    )
+
+
+# ─── Test configuration ───────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def test_config() -> dict[str, str]:
+    """Return a dict of dummy environment/config values safe for use in tests."""
+    return {
+        "OPENROUTER_API_KEY": "test-key-for-ci",
+        "N8N_URL": "http://localhost:5678",
+        "N8N_API_KEY": "test-n8n-key",
+        "ANTHROPIC_API_KEY": "test-key-for-ci",
+        "OPENAI_API_KEY": "test-key-for-ci",
+    }
 
 
 # ─── Shared AI response data ──────────────────────────────────────────────────

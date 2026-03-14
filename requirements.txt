@@ -1,4 +1,4 @@
-# OmniAutomator requirements
+# Tyranos requirements
 # Generated from pyproject.toml — run `pip install -e ".[dev]"` for full dev setup
 
 # ─── CLI and UI ───────────────────────────────────────────────────────────────

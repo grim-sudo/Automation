@@ -1,1 +1,1 @@
-"""OmniAutomator test suite."""
+"""Tyranos test suite."""

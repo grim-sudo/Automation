@@ -1,4 +1,4 @@
-# OmniAutomator
+# Tyranos
 
 ## Universal Automation Framework with AI Intelligence
 
@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/grim-sudo/Automation/actions/workflows/ci.yml/badge.svg)](https://github.com/grim-sudo/Automation/actions)
 
-OmniAutomator is a cross-platform automation framework that executes complex workflows from plain-English commands. Describe what you want — the framework maps your intent through a multi-layer NLP and AI pipeline and runs it.
+Tyranos is a cross-platform automation framework that executes complex workflows from plain-English commands. Describe what you want — the framework maps your intent through a multi-layer NLP and AI pipeline and runs it.
 
 ---
 
@@ -20,7 +20,7 @@ OmniAutomator is a cross-platform automation framework that executes complex wor
 | **Linux distro builder** | Build bootable ISOs from TOML profiles or NL descriptions (Debian, Arch, Buildroot) |
 | **Async AI layer** | `httpx.AsyncClient` + SSE streaming + `tenacity` fallback chain + `tiktoken` context window |
 | **Unified CLI** | Single `omni` entry point — `run`, `chatbot`, `gui`, `batch`, `n8n`, `distro` |
-| **pydantic-settings config** | `~/.omniautomator/config.toml` + env-var overrides + `.env` file support |
+| **pydantic-settings config** | `~/.tyranos/config.toml` + env-var overrides + `.env` file support |
 | **Structured output parsing** | Pydantic v2 `TaskPlan` / `IntentResult` with JSON-repair fallbacks |
 | **Subprocess security** | All shell commands use list-form `safe_run()` — zero `shell=True` |
 | **Full test suite** | 153 passing pytest tests with async support |
@@ -53,16 +53,16 @@ See [SETUP.md](SETUP.md) for full installation and configuration instructions.
 
 | Command | Description |
 |---------|-------------|
-| `omni run "…"` | Execute one natural-language command and exit |
-| `omni chatbot` | Multi-turn conversational REPL with streaming |
-| `omni gui` | Graphical interface (requires `[gui]` extra) |
-| `omni batch FILE` | Run a file of commands, one per line |
-| `omni n8n …` | n8n workflow management sub-commands |
-| `omni distro …` | Custom Linux ISO builder sub-commands |
+| `tyranos run "…"` | Execute one natural-language command and exit |
+| `tyranos chatbot` | Multi-turn conversational REPL with streaming |
+| `tyranos gui` | Graphical interface (requires `[gui]` extra) |
+| `tyranos batch FILE` | Run a file of commands, one per line |
+| `tyranos n8n …` | n8n workflow management sub-commands |
+| `tyranos distro …` | Custom Linux ISO builder sub-commands |
 
 ### NLP Intent Types
 
-OmniAutomator recognises 10 intent categories and routes each to the appropriate plugin:
+Tyranos recognises 10 intent categories and routes each to the appropriate plugin:
 
 | Intent | Example trigger words |
 |--------|----------------------|
@@ -123,7 +123,7 @@ Full instructions: [SETUP.md](SETUP.md)
 Settings are read in this priority order (highest wins):
 
 ```
-CLI flag  →  OMNI__SECTION__FIELD env var  →  .env file  →  ~/.omniautomator/config.toml  →  default
+CLI flag  →  OMNI__SECTION__FIELD env var  →  .env file  →  ~/.tyranos/config.toml  →  default
 ```
 
 **Minimal `.env`:**
@@ -136,7 +136,7 @@ N8N_URL=http://localhost:5678
 N8N_API_KEY=your-n8n-key
 ```
 
-**Key `~/.omniautomator/config.toml` settings:**
+**Key `~/.tyranos/config.toml` settings:**
 
 ```toml
 [ai]
@@ -223,9 +223,9 @@ python omni.py --log-file ~/omni.jsonl batch tasks.txt
 ## Architecture
 
 ```
-OmniAutomator v2.0
+Tyranos v2.0
 ├── omni.py                         Unified typer CLI entry point
-├── omni_automator/
+├── tyranos/
 │   ├── ai/
 │   │   ├── model_resolver.py       Dynamic free-model resolution (OpenRouter)
 │   │   ├── model_manager.py        Priority-ordered fallback chain (tenacity)
@@ -235,7 +235,7 @@ OmniAutomator v2.0
 │   │   └── task_planner.py         High-level planning orchestration
 │   ├── config.py                   pydantic-settings (TOML + env vars)
 │   ├── core/
-│   │   ├── engine.py               Main OmniAutomator orchestrator
+│   │   ├── engine.py               Main Tyranos orchestrator
 │   │   └── plugin_manager.py       Plugin discovery and dispatch
 │   ├── nlp/
 │   │   ├── semantic_engine.py      10-intent NLP classifier
@@ -272,15 +272,15 @@ OmniAutomator v2.0
 
 ```python
 # High-level engine
-from omni_automator.core.engine import OmniAutomator
+from tyranos.core.engine import Tyranos
 
-engine = OmniAutomator()
+engine = Tyranos()
 result = engine.execute("create folder my_project")
 engine.shutdown()
 
 # Async AI direct
 import asyncio
-from omni_automator.ai.openrouter_integration import OpenRouterAutomationAI
+from tyranos.ai.openrouter_integration import OpenRouterAutomationAI
 
 ai = OpenRouterAutomationAI()
 plan = asyncio.run(ai.analyze_automation_request_async("setup a Python project"))
@@ -289,7 +289,7 @@ for step in plan.steps:
 
 # n8n bridge
 import asyncio
-from omni_automator.plugins.n8n_bridge import WorkflowManager, N8nConfig
+from tyranos.plugins.n8n_bridge import WorkflowManager, N8nConfig
 
 cfg = N8nConfig(url="http://localhost:5678", api_key="...")
 mgr = WorkflowManager(cfg)
@@ -318,9 +318,9 @@ workflows = asyncio.run(mgr.list_workflows())
 pip install -e ".[dev]"
 
 pytest tests/ -v                                         # run all 153 tests
-ruff check --fix omni_automator/ omni.py                 # lint + auto-fix
-ruff format omni_automator/ omni.py                      # format
-mypy omni_automator/ omni.py --ignore-missing-imports    # type check
+ruff check --fix tyranos/ omni.py                 # lint + auto-fix
+ruff format tyranos/ omni.py                      # format
+mypy tyranos/ omni.py --ignore-missing-imports    # type check
 ```
 
 ---
@@ -340,7 +340,7 @@ mypy omni_automator/ omni.py --ignore-missing-imports    # type check
 | Problem | Fix |
 |---------|-----|
 | `omni: command not found` | Activate venv: `source .venv/bin/activate` |
-| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `omni --debug run "hello"` |
+| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `tyranos --debug run "hello"` |
 | 401 from n8n | Ensure `N8N_API_KEY` and `N8N_URL` are set in `.env` |
 | GUI not launching | `pip install -e ".[gui]"` |
 | distro: permission denied | Run distro commands with `sudo` |

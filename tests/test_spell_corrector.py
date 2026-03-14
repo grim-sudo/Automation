@@ -28,7 +28,7 @@ The public surface under test:
 from __future__ import annotations
 
 import pytest
-from omni_automator.nlp.spell_corrector import SpellCorrector, get_spell_corrector
+from tyranos.nlp.spell_corrector import SpellCorrector, get_spell_corrector
 
 # ─── Fixture ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
-# OmniAutomator — Complete Task Reference
+# Tyranos — Complete Task Reference
 
-Every example below runs as `python omni.py run "..."`, inside `omni chatbot`, or as a line in a batch file.
+Every example below runs as `python omni.py run "..."`, inside `tyranos chatbot`, or as a line in a batch file.
 
 > **Typos are auto-corrected.** "creat a fodler" → "create a folder" — you don't have to be exact.
 
@@ -1064,7 +1064,7 @@ sudo python omni.py distro build --nl "minimal buildroot image for an embedded A
 ### What gets built (10 stages)
 
 1. Validate environment and check host tools
-2. Fetch kernel source (cached in `~/.omniautomator/kernel_cache`)
+2. Fetch kernel source (cached in `~/.tyranos/kernel_cache`)
 3. Configure kernel (apply kconfig overrides from profile)
 4. Compile kernel
 5. Build root filesystem (`debootstrap` / `pacstrap`)
@@ -1246,7 +1246,7 @@ These flags prefix any command:
 | `--log-file PATH` | Write structured JSON logs to a file |
 | `--version` / `-V` | Print version and exit |
 
-Per-command flags (on `omni run` only):
+Per-command flags (on `tyranos run` only):
 
 | Flag | Description |
 |------|-------------|
@@ -1324,7 +1324,7 @@ python -m json.tool < ~/audit.jsonl   # pretty-print
 grep '"level":"ERROR"' ~/audit.jsonl  # filter errors only
 ```
 
-**Explore interactively first, then automate** — use `omni chatbot` to validate sequences, then copy them into a batch file:
+**Explore interactively first, then automate** — use `tyranos chatbot` to validate sequences, then copy them into a batch file:
 
 ```bash
 python omni.py chatbot
@@ -1332,7 +1332,7 @@ python omni.py chatbot
 # then copy them into a batch file for repeatable execution
 ```
 
-**Model selection** — OmniAutomator auto-picks the best free model. Override only when you need a specific capability:
+**Model selection** — Tyranos auto-picks the best free model. Override only when you need a specific capability:
 
 ```bash
 python omni.py run "translate this to French" -m openai/gpt-4o

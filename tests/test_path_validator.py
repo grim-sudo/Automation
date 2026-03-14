@@ -1,6 +1,6 @@
 """Tests for the path validator — safe paths and traversal prevention.
 
-The module under test: omni_automator.security.path_validator
+The module under test: tyranos.security.path_validator
 
 Public surface exercised here:
 
@@ -23,7 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from omni_automator.security.path_validator import (
+from tyranos.security.path_validator import (
     PathValidationError,
     PathValidator,
 )

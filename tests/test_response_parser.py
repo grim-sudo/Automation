@@ -1,6 +1,6 @@
 """Tests for the AI response parser.
 
-The module under test: omni_automator.ai.response_parser
+The module under test: tyranos.ai.response_parser
 
 Public surface exercised here:
 
@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from omni_automator.ai.response_parser import (
+from tyranos.ai.response_parser import (
     ExecutionStep,
     IntentResult,
     ResponseParser,
