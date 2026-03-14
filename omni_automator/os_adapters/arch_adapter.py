@@ -5,24 +5,27 @@ Uses pacman/yay for package management
 """
 
 import os
+import platform
 import shutil
 import subprocess
-import time
+from typing import Any
+
 import psutil
-import platform
-from typing import Dict, Any, List, Optional
-from pathlib import Path
 
 from .base_adapter import (
-    BaseOSAdapter, BaseFilesystemAdapter, BaseProcessAdapter,
-    BaseGUIAdapter, BaseSystemAdapter, BaseNetworkAdapter
+    BaseFilesystemAdapter,
+    BaseGUIAdapter,
+    BaseNetworkAdapter,
+    BaseOSAdapter,
+    BaseProcessAdapter,
+    BaseSystemAdapter,
 )
 
 
 def detect_arch_distro() -> str:
     """Detect specific Arch-based distribution"""
     try:
-        with open('/etc/os-release', 'r') as f:
+        with open('/etc/os-release') as f:
             content = f.read().lower()
             if 'manjaro' in content:
                 return 'manjaro'
@@ -32,15 +35,15 @@ def detect_arch_distro() -> str:
                 return 'garuda'
             elif 'arch' in content:
                 return 'arch'
-    except:
+    except Exception:
         pass
     return 'arch'
 
 
 class ArchFilesystemAdapter(BaseFilesystemAdapter):
     """Arch Linux filesystem operations with proper fallbacks"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute filesystem action with fallback handling"""
         try:
             if action == 'create_folder':
@@ -71,17 +74,17 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
             # Fallback: log error and return safe default
             print(f"⚠️  Filesystem action '{action}' failed: {e}")
             return False
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'rename', 'list']
-    
+
     def create_folder(self, name: str, location: str = None) -> bool:
         """Create folder with Arch-appropriate permissions"""
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             os.makedirs(path, exist_ok=True)
             os.chmod(path, 0o755)  # rwxr-xr-x
@@ -92,20 +95,20 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to create folder: {e}")
             return False
-    
+
     def create_file(self, name: str, location: str = None, content: str = "") -> bool:
         """Create file with proper encoding and permissions"""
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             # Ensure parent directory exists
             parent = os.path.dirname(path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            
+
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             os.chmod(path, 0o644)  # rw-r--r--
@@ -116,14 +119,14 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to create file: {e}")
             return False
-    
+
     def delete(self, path: str, recursive: bool = True) -> bool:
         """Delete file or directory with safety checks"""
         try:
             if not os.path.exists(path):
                 print(f"⚠️  Path does not exist: {path}")
                 return False
-            
+
             if os.path.isfile(path):
                 os.remove(path)
             elif os.path.isdir(path):
@@ -138,14 +141,14 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to delete: {e}")
             return False
-    
+
     def copy(self, source: str, destination: str) -> bool:
         """Copy file or directory with fallback"""
         try:
             if not os.path.exists(source):
                 print(f"⚠️  Source does not exist: {source}")
                 return False
-            
+
             if os.path.isfile(source):
                 shutil.copy2(source, destination)
             elif os.path.isdir(source):
@@ -154,21 +157,21 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to copy: {e}")
             return False
-    
+
     def move(self, source: str, destination: str) -> bool:
         """Move file or directory with fallback"""
         try:
             if not os.path.exists(source):
                 print(f"⚠️  Source does not exist: {source}")
                 return False
-            
+
             shutil.move(source, destination)
             return True
         except Exception as e:
             print(f"⚠️  Failed to move: {e}")
             return False
-    
-    def list_directory(self, path: str = '.') -> List[Dict[str, Any]]:
+
+    def list_directory(self, path: str = '.') -> list[dict[str, Any]]:
         """List directory contents with metadata"""
         try:
             items = []
@@ -183,19 +186,19 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                         'size': stat.st_size,
                         'modified': stat.st_mtime
                     })
-                except:
+                except Exception:
                     items.append({'name': item, 'path': item_path, 'type': 'unknown'})
             return items
         except Exception as e:
             print(f"⚠️  Failed to list directory: {e}")
             return []
-    
-    def get_file_info(self, path: str) -> Dict[str, Any]:
+
+    def get_file_info(self, path: str) -> dict[str, Any]:
         """Get detailed file/folder information"""
         try:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Path does not exist: {path}")
-            
+
             stat = os.stat(path)
             return {
                 'path': path,
@@ -215,8 +218,8 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
 
 class ArchProcessAdapter(BaseProcessAdapter):
     """Arch Linux process management with fallbacks"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute process action with fallback handling"""
         try:
             if action == 'start':
@@ -230,22 +233,22 @@ class ArchProcessAdapter(BaseProcessAdapter):
         except Exception as e:
             print(f"⚠️  Process action '{action}' failed: {e}")
             return None
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['start', 'kill', 'list', 'monitor']
-    
-    def start_process(self, command: str, args: List[str] = None) -> int:
+
+    def start_process(self, command: str, args: list[str] = None) -> int:
         """Start a process with fallback"""
         try:
             cmd = [command] + (args or [])
-            process = subprocess.Popen(cmd, 
+            process = subprocess.Popen(cmd,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             return process.pid
         except Exception as e:
             print(f"⚠️  Failed to start process: {e}")
             return -1
-    
+
     def kill_process(self, identifier: Any) -> bool:
         """Kill process by PID or name with fallback"""
         try:
@@ -263,7 +266,7 @@ class ArchProcessAdapter(BaseProcessAdapter):
         except Exception as e:
             print(f"⚠️  Failed to kill process: {e}")
             return False
-    
+
     def terminate_process(self, pid_or_name: Any) -> bool:
         """Terminate process by PID or name with fallback"""
         try:
@@ -282,22 +285,22 @@ class ArchProcessAdapter(BaseProcessAdapter):
         except Exception as e:
             print(f"⚠️  Failed to terminate process: {e}")
             return False
-    
-    def list_processes(self) -> List[Dict[str, Any]]:
+
+    def list_processes(self) -> list[dict[str, Any]]:
         """List running processes with fallback"""
         try:
             processes = []
             for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
                 try:
                     processes.append(proc.info)
-                except:
+                except Exception:
                     continue
             return processes
         except Exception as e:
             print(f"⚠️  Failed to list processes: {e}")
             return []
-    
-    def get_process_info(self, pid: int) -> Dict[str, Any]:
+
+    def get_process_info(self, pid: int) -> dict[str, Any]:
         """Get detailed process information"""
         try:
             proc = psutil.Process(pid)
@@ -324,11 +327,11 @@ class ArchProcessAdapter(BaseProcessAdapter):
 
 class ArchSystemAdapter(BaseSystemAdapter):
     """Arch Linux system management with pacman/yay support"""
-    
+
     def __init__(self):
         self.distro = detect_arch_distro()
         self.aur_helper = self._detect_aur_helper()
-    
+
     def _detect_aur_helper(self) -> str:
         """Detect available AUR helper"""
         helpers = ['yay', 'paru', 'pikaur', 'trizen']
@@ -336,8 +339,8 @@ class ArchSystemAdapter(BaseSystemAdapter):
             if shutil.which(helper):
                 return helper
         return 'pacman'
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute system action with fallback handling"""
         try:
             if action == 'install_package':
@@ -353,24 +356,24 @@ class ArchSystemAdapter(BaseSystemAdapter):
         except Exception as e:
             print(f"⚠️  System action '{action}' failed: {e}")
             return False
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['install_package', 'remove_package', 'update_system', 'get_info', 'service_control']
-    
+
     def install_package(self, package: str) -> bool:
         """Install package using pacman/yay with fallback"""
         try:
             print(f"📦 Installing package: {package} (using {self.aur_helper})")
-            
+
             if self.aur_helper == 'pacman':
                 # Official repos only
                 cmd = ['sudo', 'pacman', '-S', '--noconfirm', package]
             else:
                 # AUR helper (no sudo needed for yay/paru)
                 cmd = [self.aur_helper, '-S', '--noconfirm', package]
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 print(f"✅ Package '{package}' installed successfully")
                 return True
@@ -383,14 +386,14 @@ class ArchSystemAdapter(BaseSystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to install package: {e}")
             return False
-    
+
     def remove_package(self, package: str) -> bool:
         """Remove package with fallback"""
         try:
             print(f"🗑️  Removing package: {package}")
             cmd = ['sudo', 'pacman', '-R', '--noconfirm', package]
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 print(f"✅ Package '{package}' removed successfully")
                 return True
@@ -400,19 +403,19 @@ class ArchSystemAdapter(BaseSystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to remove package: {e}")
             return False
-    
+
     def update_system(self) -> bool:
         """Update system packages with fallback"""
         try:
             print(f"🔄 Updating system using {self.aur_helper}...")
-            
+
             if self.aur_helper == 'pacman':
                 cmd = ['sudo', 'pacman', '-Syu', '--noconfirm']
             else:
                 cmd = [self.aur_helper, '-Syu', '--noconfirm']
-            
+
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 print("✅ System updated successfully")
                 return True
@@ -422,8 +425,8 @@ class ArchSystemAdapter(BaseSystemAdapter):
         except Exception as e:
             print(f"⚠️  Failed to update system: {e}")
             return False
-    
-    def get_system_info(self) -> Dict[str, Any]:
+
+    def get_system_info(self) -> dict[str, Any]:
         """Get Arch system information with fallback"""
         try:
             info = {
@@ -436,68 +439,68 @@ class ArchSystemAdapter(BaseSystemAdapter):
                 'cpu_count': os.cpu_count(),
                 'python_version': platform.python_version()
             }
-            
+
             # Try to get more detailed info
             try:
-                with open('/etc/os-release', 'r') as f:
+                with open('/etc/os-release') as f:
                     for line in f:
                         if line.startswith('PRETTY_NAME'):
                             info['pretty_name'] = line.split('=')[1].strip().strip('"')
-            except:
+            except Exception:
                 pass
-            
+
             return info
         except Exception as e:
             print(f"⚠️  Failed to get system info: {e}")
             return {'os': 'Arch Linux', 'error': str(e)}
-    
+
     def set_volume(self, level: int) -> bool:
         """Set system volume with multiple fallbacks"""
         try:
             volume_percent = max(0, min(100, level))
-            
+
             # Try pactl (PulseAudio/PipeWire)
             if shutil.which('pactl'):
                 try:
-                    subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%'], 
+                    subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%'],
                                  check=True, capture_output=True)
                     print(f"🔊 Volume set to {volume_percent}%")
                     return True
-                except:
+                except Exception:
                     pass
-            
+
             # Try amixer (ALSA)
             if shutil.which('amixer'):
                 try:
-                    subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'], 
+                    subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'],
                                  check=True, capture_output=True)
                     print(f"🔊 Volume set to {volume_percent}%")
                     return True
-                except:
+                except Exception:
                     pass
-            
+
             # Try wpctl (WirePlumber for PipeWire)
             if shutil.which('wpctl'):
                 try:
                     volume_decimal = volume_percent / 100.0
-                    subprocess.run(['wpctl', 'set-volume', '@DEFAULT_AUDIO_SINK@', str(volume_decimal)], 
+                    subprocess.run(['wpctl', 'set-volume', '@DEFAULT_AUDIO_SINK@', str(volume_decimal)],
                                  check=True, capture_output=True)
                     print(f"🔊 Volume set to {volume_percent}%")
                     return True
-                except:
+                except Exception:
                     pass
-            
-            print(f"⚠️  No volume control method available")
+
+            print("⚠️  No volume control method available")
             return False
         except Exception as e:
             print(f"⚠️  Failed to set volume: {e}")
             return False
-    
+
     def power_action(self, action: str) -> bool:
         """Perform power actions with fallback"""
         try:
             action_lower = action.lower()
-            
+
             if action_lower in ['shutdown', 'poweroff']:
                 print("🔌 Initiating system shutdown...")
                 subprocess.run(['sudo', 'shutdown', '-h', 'now'], check=True, capture_output=True)
@@ -514,21 +517,21 @@ class ArchSystemAdapter(BaseSystemAdapter):
                 print("👋 Logging out...")
                 # Try different logout methods
                 if os.environ.get('XDG_CURRENT_DESKTOP') == 'KDE':
-                    subprocess.run(['qdbus', 'org.kde.ksmserver', '/KSMServer', 'logout', '0', '0', '0'], 
+                    subprocess.run(['qdbus', 'org.kde.ksmserver', '/KSMServer', 'logout', '0', '0', '0'],
                                  check=True, capture_output=True)
                 else:
-                    subprocess.run(['loginctl', 'terminate-user', os.environ.get('USER', '')], 
+                    subprocess.run(['loginctl', 'terminate-user', os.environ.get('USER', '')],
                                  check=True, capture_output=True)
             else:
                 print(f"⚠️  Unknown power action: {action}")
                 return False
-            
+
             return True
         except Exception as e:
             print(f"⚠️  Failed to perform power action: {e}")
             return False
-    
-    def get_environment_variables(self) -> Dict[str, str]:
+
+    def get_environment_variables(self) -> dict[str, str]:
         """Get environment variables"""
         try:
             return dict(os.environ)
@@ -539,10 +542,10 @@ class ArchSystemAdapter(BaseSystemAdapter):
 
 class ArchGUIAdapter(BaseGUIAdapter):
     """Arch Linux GUI operations with Wayland/X11 fallbacks"""
-    
+
     def __init__(self):
         self.display_server = self._detect_display_server()
-    
+
     def _detect_display_server(self) -> str:
         """Detect if running Wayland or X11"""
         if os.environ.get('WAYLAND_DISPLAY'):
@@ -550,8 +553,8 @@ class ArchGUIAdapter(BaseGUIAdapter):
         elif os.environ.get('DISPLAY'):
             return 'x11'
         return 'unknown'
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute GUI action with fallback"""
         try:
             if action == 'screenshot':
@@ -565,22 +568,22 @@ class ArchGUIAdapter(BaseGUIAdapter):
         except Exception as e:
             print(f"⚠️  GUI action '{action}' failed: {e}")
             return False
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         caps = ['screenshot']
         if self.display_server != 'unknown':
             caps.extend(['click', 'type', 'get_window'])
         return caps
-    
+
     def take_screenshot(self, path: str = 'screenshot.png') -> bool:
         """Take screenshot with fallback to multiple tools"""
         tools = []
-        
+
         if self.display_server == 'wayland':
             tools = ['grim', 'grimshot', 'spectacle']
         else:  # X11 or unknown
             tools = ['scrot', 'import', 'spectacle', 'gnome-screenshot']
-        
+
         for tool in tools:
             if shutil.which(tool):
                 try:
@@ -594,12 +597,12 @@ class ArchGUIAdapter(BaseGUIAdapter):
                         subprocess.run(['spectacle', '-b', '-n', '-o', path], check=True)
                     elif tool == 'gnome-screenshot':
                         subprocess.run(['gnome-screenshot', '-f', path], check=True)
-                    
+
                     print(f"✅ Screenshot saved: {path} (using {tool})")
                     return True
-                except:
+                except Exception:
                     continue
-        
+
         # Ultimate fallback: try pyautogui
         try:
             import pyautogui
@@ -609,9 +612,9 @@ class ArchGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             print(f"⚠️  Failed to take screenshot: {e}")
-            print(f"💡 Install: sudo pacman -S scrot (X11) or grim (Wayland)")
+            print("💡 Install: sudo pacman -S scrot (X11) or grim (Wayland)")
             return False
-    
+
     def click(self, x: int, y: int) -> bool:
         """Click at position with fallback"""
         try:
@@ -621,7 +624,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
         except Exception as e:
             print(f"⚠️  Failed to click: {e}")
             return False
-    
+
     def type_text(self, text: str) -> bool:
         """Type text with fallback"""
         try:
@@ -631,7 +634,7 @@ class ArchGUIAdapter(BaseGUIAdapter):
         except Exception as e:
             print(f"⚠️  Failed to type text: {e}")
             return False
-    
+
     def press_key(self, key: str) -> bool:
         """Press a key with fallback"""
         try:
@@ -641,8 +644,8 @@ class ArchGUIAdapter(BaseGUIAdapter):
         except Exception as e:
             print(f"⚠️  Failed to press key: {e}")
             return False
-    
-    def find_element(self, image_path: str) -> Dict[str, int]:
+
+    def find_element(self, image_path: str) -> dict[str, int]:
         """Find element on screen by image with fallback"""
         try:
             import pyautogui
@@ -660,8 +663,8 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
 class ArchNetworkAdapter(BaseNetworkAdapter):
     """Arch Linux network operations with fallbacks"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute network action with fallback"""
         try:
             if action == 'download':
@@ -673,10 +676,10 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
         except Exception as e:
             print(f"⚠️  Network action '{action}' failed: {e}")
             return False
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['download', 'test_connection', 'get_ip']
-    
+
     def download_file(self, url: str, destination: str) -> bool:
         """Download file with multiple fallbacks"""
         # Try curl first (usually installed on Arch)
@@ -685,49 +688,50 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
                 subprocess.run(['curl', '-L', '-o', destination, url], check=True)
                 print(f"✅ Downloaded: {destination}")
                 return True
-            except:
+            except Exception:
                 pass
-        
+
         # Try wget
         if shutil.which('wget'):
             try:
                 subprocess.run(['wget', '-O', destination, url], check=True)
                 print(f"✅ Downloaded: {destination}")
                 return True
-            except:
+            except Exception:
                 pass
-        
-        # Fallback to Python requests
+
+        # Fallback to Python httpx
         try:
-            import requests
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            
-            with open(destination, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
+            import httpx
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    with open(destination, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            f.write(chunk)
+
             print(f"✅ Downloaded: {destination}")
             return True
         except Exception as e:
             print(f"⚠️  Failed to download file: {e}")
             return False
-    
+
     def test_connection(self, host: str = 'google.com') -> bool:
         """Test network connection with fallback"""
         try:
-            subprocess.run(['ping', '-c', '1', '-W', '2', host], 
-                         check=True, 
+            subprocess.run(['ping', '-c', '1', '-W', '2', host],
+                         check=True,
                          capture_output=True)
             return True
-        except:
+        except Exception:
             return False
-    
-    def http_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
+
+    def http_request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request with fallback"""
         try:
-            import requests
-            response = requests.request(method, url, **kwargs)
+            import httpx
+            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                response = client.request(method, url, **kwargs)
             return {
                 'success': True,
                 'status_code': response.status_code,
@@ -741,22 +745,22 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
                 'success': False,
                 'error': str(e)
             }
-    
-    def get_network_info(self) -> Dict[str, Any]:
+
+    def get_network_info(self) -> dict[str, Any]:
         """Get network information with fallback"""
         try:
             import socket
-            
+
             info = {
                 'hostname': socket.gethostname(),
             }
-            
+
             # Try to get IP address
             try:
                 info['ip_address'] = socket.gethostbyname(socket.gethostname())
-            except:
+            except Exception:
                 info['ip_address'] = 'unknown'
-            
+
             # Try to get network interfaces
             try:
                 info['network_interfaces'] = [
@@ -766,9 +770,9 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
                     }
                     for interface, addrs in psutil.net_if_addrs().items()
                 ]
-            except:
+            except Exception:
                 info['network_interfaces'] = []
-            
+
             return info
         except Exception as e:
             print(f"⚠️  Failed to get network info: {e}")
@@ -777,35 +781,35 @@ class ArchNetworkAdapter(BaseNetworkAdapter):
 
 class ArchLinuxAdapter(BaseOSAdapter):
     """Main Arch Linux adapter with all sub-adapters"""
-    
+
     def __init__(self):
         super().__init__()
-        print(f"🐧 Arch Linux Adapter initialized")
+        print("🐧 Arch Linux Adapter initialized")
         print(f"   Distro: {self.system.distro}")
         print(f"   AUR Helper: {self.system.aur_helper}")
         print(f"   Display: {self.gui.display_server}")
-    
+
     def _create_filesystem_adapter(self) -> BaseFilesystemAdapter:
         """Create Arch filesystem adapter"""
         return ArchFilesystemAdapter()
-    
+
     def _create_process_adapter(self) -> BaseProcessAdapter:
         """Create Arch process adapter"""
         return ArchProcessAdapter()
-    
+
     def _create_gui_adapter(self) -> BaseGUIAdapter:
         """Create Arch GUI adapter"""
         return ArchGUIAdapter()
-    
+
     def _create_system_adapter(self) -> BaseSystemAdapter:
         """Create Arch system adapter"""
         return ArchSystemAdapter()
-    
+
     def _create_network_adapter(self) -> BaseNetworkAdapter:
         """Create Arch network adapter"""
         return ArchNetworkAdapter()
-    
-    def execute(self, category: str, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, category: str, action: str, params: dict[str, Any]) -> Any:
         """Execute action with robust fallback chain"""
         try:
             if category == 'filesystem':
@@ -825,8 +829,8 @@ class ArchLinuxAdapter(BaseOSAdapter):
             print(f"⚠️  Adapter execution failed: {e}")
             print(f"   Category: {category}, Action: {action}")
             return None
-    
-    def get_all_capabilities(self) -> Dict[str, List[str]]:
+
+    def get_all_capabilities(self) -> dict[str, list[str]]:
         """Get all capabilities with fallback"""
         try:
             return {

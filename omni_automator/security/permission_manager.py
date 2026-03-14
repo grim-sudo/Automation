@@ -2,13 +2,12 @@
 Permission and security management for automation operations
 """
 
-import os
 import json
-import hashlib
-from typing import Dict, Any, List, Optional, Set
-from enum import Enum
+import os
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
 
 class PermissionLevel(Enum):
@@ -37,32 +36,32 @@ class PermissionRule:
     """A permission rule for specific actions"""
     category: ActionCategory
     permission_level: PermissionLevel
-    allowed_paths: Optional[List[str]] = None
-    blocked_paths: Optional[List[str]] = None
+    allowed_paths: list[str] | None = None
+    blocked_paths: list[str] | None = None
     requires_confirmation: bool = False
     description: str = ""
 
 
 class PermissionManager:
     """Manages permissions and security for automation operations"""
-    
-    def __init__(self, config_file: Optional[str] = None):
+
+    def __init__(self, config_file: str | None = None):
         self.config_file = config_file or self._get_default_config_path()
         self.sandbox_mode = False
         self.permission_rules = self._load_default_rules()
         self.user_permissions = self._load_user_permissions()
-        self.blocked_operations: Set[str] = set()
-        
+        self.blocked_operations: set[str] = set()
+
         # Load custom configuration if exists
         self._load_config()
-    
+
     def _get_default_config_path(self) -> str:
         """Get default configuration file path"""
         config_dir = os.path.expanduser("~/.omni_automator")
         os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "permissions.json")
-    
-    def _load_default_rules(self) -> Dict[ActionCategory, PermissionRule]:
+
+    def _load_default_rules(self) -> dict[ActionCategory, PermissionRule]:
         """Load default permission rules"""
         self.action_permissions = {
             # Safe operations
@@ -70,7 +69,7 @@ class PermissionManager:
             'list_directory': PermissionLevel.SAFE,
             'take_screenshot': PermissionLevel.SAFE,
             'get_capabilities': PermissionLevel.SAFE,
-            
+
             # Project generator actions
             'create_python_project': PermissionLevel.MODERATE,
             'create_c_project': PermissionLevel.MODERATE,
@@ -83,7 +82,7 @@ class PermissionManager:
             'install_packages': PermissionLevel.MODERATE,
             'generate_sample_data': PermissionLevel.SAFE,
         }
-        
+
         return {
             ActionCategory.FILESYSTEM_READ: PermissionRule(
                 category=ActionCategory.FILESYSTEM_READ,
@@ -137,8 +136,8 @@ class PermissionManager:
                 description="Power operations (shutdown, restart)"
             )
         }
-    
-    def _load_user_permissions(self) -> Dict[str, bool]:
+
+    def _load_user_permissions(self) -> dict[str, bool]:
         """Load user-granted permissions"""
         return {
             'filesystem_write': True,
@@ -147,18 +146,18 @@ class PermissionManager:
             'system_settings': False,
             'power_management': False
         }
-    
+
     def _load_config(self):
         """Load configuration from file"""
         try:
             if os.path.exists(self.config_file):
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file) as f:
                     config = json.load(f)
                     self.user_permissions.update(config.get('permissions', {}))
                     self.blocked_operations.update(config.get('blocked_operations', []))
         except Exception as e:
             print(f"Warning: Could not load permission config: {e}")
-    
+
     def _save_config(self):
         """Save configuration to file"""
         try:
@@ -167,70 +166,70 @@ class PermissionManager:
                 'blocked_operations': list(self.blocked_operations),
                 'last_updated': datetime.now().isoformat()
             }
-            
+
             with open(self.config_file, 'w') as f:
                 json.dump(config, f, indent=2)
         except Exception as e:
             print(f"Warning: Could not save permission config: {e}")
-    
-    def check_permission(self, parsed_command: Dict[str, Any]) -> bool:
+
+    def check_permission(self, parsed_command: dict[str, Any]) -> bool:
         """Check if a parsed command is allowed to execute"""
         try:
             # Input validation
             if not isinstance(parsed_command, dict):
                 print("Error: parsed_command must be a dictionary")
                 return False
-            
+
             action = parsed_command.get('action')
             category = parsed_command.get('category')
             params = parsed_command.get('params', {})
-            
+
             # Validate required fields
             if not action or not category:
                 print("Error: action and category are required")
                 return False
-            
+
             # Check if operation is explicitly blocked
             operation_id = f"{category}:{action}"
             if operation_id in self.blocked_operations:
                 print(f"Operation blocked: {operation_id}")
                 return False
-            
+
             # Sandbox mode has been removed; perform normal permission checks
-            
+
             # Get action category
             action_category = self._map_to_action_category(category, action)
             if not action_category:
                 # Log unknown actions but allow them (with warning)
                 print(f"Warning: Unknown action category for {category}:{action}")
                 return True
-            
+
             # Check permission rule
             rule = self.permission_rules.get(action_category)
             if not rule:
                 return True
-            
+
             # Check user permissions
             permission_key = action_category.value
             if not self.user_permissions.get(permission_key, True):
                 print(f"Permission denied: {permission_key}")
                 return False
-            
+
             # Check path restrictions
             if not self._check_path_permissions(rule, params):
                 print(f"Path restriction violation for {category}:{action}")
                 return False
-            
+
             # All checks passed
             return True
-            
+
         except Exception as e:
             print(f"Error checking permissions: {e}")
             import traceback
             traceback.print_exc()
             return False  # Deny on error
-    
-    def _is_safe_operation(self, category: str, action: str, params: Dict[str, Any]) -> bool:
+
+    def _is_safe_operation(self, category: str, action: str, params: dict[str, Any]) -> bool:
         """Check if operation is safe for sandbox mode"""
         safe_operations = {
             'filesystem': ['list', 'get_info', 'create_folder', 'create_file'],
@@ -260,8 +259,8 @@ class PermissionManager:
             return True
 
         return False
-    
-    def _map_to_action_category(self, category: str, action: str) -> Optional[ActionCategory]:
+
+    def _map_to_action_category(self, category: str, action: str) -> ActionCategory | None:
         """Map command category/action to ActionCategory"""
         mapping = {
             ('filesystem', 'list'): ActionCategory.FILESYSTEM_READ,
@@ -360,29 +359,29 @@ class PermissionManager:
             ('devops_generator', 'create_dockerfile'): ActionCategory.FILESYSTEM_WRITE,
             ('devops_generator', 'check_docker_installed'): ActionCategory.FILESYSTEM_READ,
         }
-        
+
         return mapping.get((category, action))
-    
-    def _check_path_permissions(self, rule: PermissionRule, params: Dict[str, Any]) -> bool:
+
+    def _check_path_permissions(self, rule: PermissionRule, params: dict[str, Any]) -> bool:
         """Check if paths in parameters are allowed"""
         # Extract paths from parameters
         paths_to_check = []
-        
+
         for key in ['path', 'source', 'destination', 'location', 'name']:
             if key in params and params[key]:
                 paths_to_check.append(str(params[key]))
-        
+
         # Check each path
         for path in paths_to_check:
             # Normalize path
             normalized_path = os.path.normpath(os.path.abspath(path))
-            
+
             # Check blocked paths
             if rule.blocked_paths:
                 for blocked_path in rule.blocked_paths:
                     if normalized_path.startswith(os.path.normpath(blocked_path)):
                         return False
-            
+
             # Check allowed paths (if specified)
             if rule.allowed_paths:
                 allowed = False
@@ -392,23 +391,23 @@ class PermissionManager:
                         break
                 if not allowed:
                     return False
-        
+
         return True
-    
+
     def request_permission(self, action_category: ActionCategory, description: str = "") -> bool:
         """Request permission from user for a specific action category"""
         rule = self.permission_rules.get(action_category)
         if not rule:
             return True
-        
+
         if rule.requires_confirmation or not self.user_permissions.get(action_category.value, False):
             # In a real implementation, this would show a GUI dialog or prompt
-            print(f"\nPermission Request:")
+            print("\nPermission Request:")
             print(f"Action: {rule.description}")
             print(f"Risk Level: {rule.permission_level.value}")
             if description:
                 print(f"Details: {description}")
-            
+
             # For now, automatically grant moderate and below, deny high and critical
             if rule.permission_level in [PermissionLevel.SAFE, PermissionLevel.MODERATE]:
                 self.user_permissions[action_category.value] = True
@@ -416,30 +415,30 @@ class PermissionManager:
                 return True
             else:
                 return False
-        
+
         return True
-    
+
     def block_operation(self, category: str, action: str):
         """Block a specific operation"""
         operation_id = f"{category}:{action}"
         self.blocked_operations.add(operation_id)
         self._save_config()
-    
+
     def unblock_operation(self, category: str, action: str):
         """Unblock a specific operation"""
         operation_id = f"{category}:{action}"
         self.blocked_operations.discard(operation_id)
         self._save_config()
-    
+
     def enable_sandbox_mode(self):
         """Sandbox mode removed - no-op"""
         print("Sandbox mode support removed; enable_sandbox_mode() is a no-op")
-    
+
     def disable_sandbox_mode(self):
         """Sandbox mode removed - no-op"""
         print("Sandbox mode support removed; disable_sandbox_mode() is a no-op")
-    
-    def get_permission_summary(self) -> Dict[str, Any]:
+
+    def get_permission_summary(self) -> dict[str, Any]:
         """Get summary of current permissions"""
         return {
             'sandbox_mode': self.sandbox_mode,
@@ -454,7 +453,7 @@ class PermissionManager:
                 for category, rule in self.permission_rules.items()
             }
         }
-    
+
     def reset_permissions(self):
         """Reset all permissions to defaults"""
         self.user_permissions = self._load_user_permissions()

@@ -46,24 +46,24 @@ pywin32>=306; sys_platform == "win32"
 python-xlib>=0.33; sys_platform == "linux"
 
 # ─── Optional: GUI (install with: pip install -e ".[gui]") ───────────────────
-# customtkinter>=5.2.0
-# pyautogui>=0.9.54
-# pynput>=1.7.6
-# pillow>=10.0.0
+customtkinter>=5.2.0
+pyautogui>=0.9.54
+pynput>=1.7.6
+pillow>=10.0.0
 
 # ─── Optional: Web automation (install with: pip install -e ".[web]") ─────────
-# selenium>=4.0.0
-# webdriver-manager>=4.0.0
-# playwright>=1.40.0
+selenium>=4.0.0
+webdriver-manager>=4.0.0
+playwright>=1.40.0
 
 # ─── Optional: n8n bridge (install with: pip install -e ".[n8n]") ─────────────
-# aiohttp>=3.9.0
+aiohttp>=3.9.0
 
 # ─── Optional: Distro builder (install with: pip install -e ".[distro]") ──────
-# kconfiglib>=14.1.0
+kconfiglib>=14.1.0
 
 # ─── Optional: Data analysis (install with: pip install -e ".[data]") ─────────
-# numpy>=1.24.0
-# pandas>=1.5.0
-# matplotlib>=3.6.0
-# seaborn>=0.12.0
+numpy>=1.24.0
+pandas>=1.5.0
+matplotlib>=3.6.0
+seaborn>=0.12.0

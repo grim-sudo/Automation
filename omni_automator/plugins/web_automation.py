@@ -2,11 +2,12 @@
 Web automation plugin using Selenium
 """
 
-from typing import Dict, Any, List
-import sys
 import os
 import re
+import sys
 import time as time_module
+from typing import Any
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omni_automator.core.plugin_manager import AutomationPlugin
@@ -25,19 +26,19 @@ except ImportError:
 
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
     HAS_SELENIUM = True
 except ImportError:
     HAS_SELENIUM = False
 try:
     # webdriver-manager for automatic driver resolution
-    from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.firefox import GeckoDriverManager
     from selenium.webdriver.chrome.service import Service as ChromeService
     from selenium.webdriver.firefox.service import Service as FirefoxService
+    from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.firefox import GeckoDriverManager
     HAS_WDM = True
 except Exception:
     HAS_WDM = False
@@ -50,7 +51,7 @@ except Exception:
 
 class WebAutomationPlugin(AutomationPlugin):
     """Plugin for web browser automation"""
-    
+
     def __init__(self):
         self.driver = None
         self.wait = None
@@ -59,20 +60,20 @@ class WebAutomationPlugin(AutomationPlugin):
         self._pw_browser = None
         self._pw_context = None
         self._pw_page = None
-    
+
     @property
     def name(self) -> str:
         return "web_automation"
-    
+
     @property
     def description(self) -> str:
         return "Web browser automation using Selenium"
-    
+
     @property
     def version(self) -> str:
         return "1.0.0"
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         if not HAS_SELENIUM:
             return []
         # Include canonical capability names plus common parser-emitted aliases
@@ -94,15 +95,15 @@ class WebAutomationPlugin(AutomationPlugin):
             'get_article_content', 'extract_article',
             'search_and_extract', 'browse_and_scrape'
         ]
-    
+
     def initialize(self) -> bool:
         """Initialize the web automation plugin"""
         if not HAS_SELENIUM:
             print("Selenium not available. Install with: pip install selenium")
             return False
         return True
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute web automation action"""
         # Normalize plugin outputs: always return a dict with 'success' key.
         import logging
@@ -137,8 +138,8 @@ class WebAutomationPlugin(AutomationPlugin):
                 # If caller requests the system (interactive) browser, open the search URL with the user's default browser
                 use_system = params.get('use_system_browser') if 'use_system_browser' in params else params.get('interactive', True)
                 try:
-                    from urllib.parse import quote_plus
                     import webbrowser
+                    from urllib.parse import quote_plus
                 except Exception:
                     quote_plus = None
                     webbrowser = None
@@ -161,7 +162,8 @@ class WebAutomationPlugin(AutomationPlugin):
 
                 if use_system and webbrowser:
                     try:
-                        import logging, platform
+                        import logging
+                        import platform
                         logging.getLogger(__name__).info(f"perform_search: opening system browser url={search_url}")
                         # prefer opening a new tab/window
                         try:
@@ -179,7 +181,7 @@ class WebAutomationPlugin(AutomationPlugin):
                                     pass
 
                         return {'success': True, 'message': 'Opened system browser', 'url': search_url}
-                    except Exception as e:
+                    except Exception:
                         # fall through to webdriver-based approach
                         pass
                 # Open browser if not already open
@@ -246,7 +248,7 @@ class WebAutomationPlugin(AutomationPlugin):
                             return {'success': True}
                 except Exception as e:
                     return {'success': False, 'error': f'wait_for_page_load failed: {e}'}
-            
+
             # Advanced web scraping and data extraction
             elif action in ('scrape_website', 'extract_data', 'scrape_page', 'get_page_content'):
                 res = self._scrape_website(params)
@@ -277,7 +279,7 @@ class WebAutomationPlugin(AutomationPlugin):
         except Exception as e:
             logger.exception(f"web_automation action failed: {action}")
             return {'success': False, 'error': str(e)}
-    
+
     def _open_browser(self, browser: str = 'chrome', headless: bool = False) -> bool:
         """Open a web browser"""
         import platform
@@ -423,14 +425,14 @@ class WebAutomationPlugin(AutomationPlugin):
                 res2 = self._open_browser('playwright', headless)
                 if isinstance(res2, dict) and res2.get('success'):
                     return {'success': True}
-            except Exception as e:
+            except Exception:
                 logger.exception('Playwright fallback failed')
 
         # propagate original error dict or create one
         if isinstance(res, dict):
             return res
         return {'success': False, 'error': 'Failed to open any browser backend'}
-    
+
     def _navigate_to(self, url: str) -> bool:
         """Navigate to a URL"""
         # Support both Selenium driver and Playwright
@@ -468,7 +470,7 @@ class WebAutomationPlugin(AutomationPlugin):
             return {'success': True, 'url': url}
         except Exception as e:
             return {'success': False, 'error': f'Failed to navigate to {url}: {e}'}
-    
+
     def _click_element(self, selector: str, by: str = 'css') -> bool:
         """Click an element"""
         ensure = self._ensure_browser_open()
@@ -488,7 +490,7 @@ class WebAutomationPlugin(AutomationPlugin):
             return True
         except Exception as e:
             raise Exception(f"Failed to click element: {e}")
-    
+
     def _type_text(self, selector: str, text: str, by: str = 'css') -> bool:
         """Type text into an element"""
         ensure = self._ensure_browser_open()
@@ -604,20 +606,20 @@ class WebAutomationPlugin(AutomationPlugin):
             return True
         except Exception as e:
             raise Exception(f'Failed to press key: {e}')
-    
+
     def _get_text(self, selector: str, by: str = 'css') -> str:
         """Get text from an element"""
         ensure = self._ensure_browser_open()
         if isinstance(ensure, dict) and ensure.get('success') is False:
             raise Exception(ensure.get('error') or 'Browser not open')
-        
+
         try:
             element = self._find_element(selector, by)
             return element.text
         except Exception as e:
             raise Exception(f"Failed to get text: {e}")
-    
-    def _take_screenshot(self, params: Dict[str, Any]) -> Any:
+
+    def _take_screenshot(self, params: dict[str, Any]) -> Any:
         """Take a screenshot"""
         import time
         try:
@@ -717,7 +719,7 @@ class WebAutomationPlugin(AutomationPlugin):
 
                     if saved:
                         return {'success': True, 'filename': filename}
-                except Exception as e:
+                except Exception:
                     # continue to fallback
                     pass
 
@@ -762,7 +764,7 @@ class WebAutomationPlugin(AutomationPlugin):
             return {'success': False, 'error': 'No browser available and no URL to fallback to'}
         except Exception as e:
             return {'success': False, 'error': f'Failed to take screenshot: {e}'}
-    
+
     def _find_element(self, selector: str, by: str = 'css'):
         """Find an element"""
         ensure = self._ensure_browser_open()
@@ -775,7 +777,7 @@ class WebAutomationPlugin(AutomationPlugin):
                 if not el:
                     raise Exception(f"Element not found: {selector}")
                 return el
-            except Exception as e:
+            except Exception:
                 raise Exception(f"Element not found: {selector}")
 
         by_mapping = {
@@ -791,9 +793,9 @@ class WebAutomationPlugin(AutomationPlugin):
 
         try:
             return self.driver.find_element(by_method, selector)
-        except Exception as e:
+        except Exception:
             raise Exception(f"Element not found: {selector}")
-    
+
     def _wait_for_element(self, selector: str, by: str = 'css', timeout: int = 10) -> bool:
         """Wait for an element to be present"""
         ensure = self._ensure_browser_open()
@@ -804,7 +806,7 @@ class WebAutomationPlugin(AutomationPlugin):
             try:
                 self._pw_page.wait_for_selector(selector, timeout=timeout * 1000)
                 return True
-            except Exception as e:
+            except Exception:
                 raise Exception(f"Element not found within {timeout} seconds: {selector}")
 
         by_mapping = {
@@ -822,9 +824,9 @@ class WebAutomationPlugin(AutomationPlugin):
             wait = WebDriverWait(self.driver, timeout)
             wait.until(EC.presence_of_element_located((by_method, selector)))
             return True
-        except Exception as e:
+        except Exception:
             raise Exception(f"Element not found within {timeout} seconds: {selector}")
-    
+
     def _close_browser(self) -> bool:
         """Close the browser"""
         if self.driver:
@@ -836,35 +838,35 @@ class WebAutomationPlugin(AutomationPlugin):
             except Exception as e:
                 return {'success': False, 'error': f'Failed to close browser: {e}'}
         return {'success': True, 'message': 'No browser open'}
-    
+
     def cleanup(self):
         """Cleanup plugin resources"""
         self._close_browser()
 
-    def _scrape_website(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _scrape_website(self, params: dict[str, Any]) -> dict[str, Any]:
         """Scrape website content with intelligent extraction"""
         url = params.get('url') or params.get('website')
         if not url:
             return {'success': False, 'error': 'No URL provided'}
-        
+
         try:
             # Try to get page content
             html_content = None
-            
+
             # Try using active browser first
             if self.driver or getattr(self, '_playwright_active', False):
                 try:
                     nav_result = self._navigate_to(url)
                     if isinstance(nav_result, dict) and nav_result.get('success'):
                         time_module.sleep(2)  # Wait for dynamic content
-                        
+
                         if getattr(self, '_playwright_active', False):
                             html_content = self._pw_page.content()
                         else:
                             html_content = self.driver.page_source
-                except Exception as e:
+                except Exception:
                     pass
-            
+
             # Fallback to requests if no browser or browser failed
             if not html_content and HAS_REQUESTS:
                 try:
@@ -875,16 +877,16 @@ class WebAutomationPlugin(AutomationPlugin):
                     html_content = response.text
                 except Exception as e:
                     return {'success': False, 'error': f'Failed to fetch content: {e}'}
-            
+
             if not html_content:
                 return {'success': False, 'error': 'Could not retrieve page content'}
-            
+
             # Parse with BeautifulSoup
             if not HAS_BS4:
                 return {'success': True, 'raw_html': html_content, 'note': 'BeautifulSoup not available, returning raw HTML'}
-            
+
             soup = BeautifulSoup(html_content, 'html.parser')
-            
+
             # Extract structured data
             data = {
                 'url': url,
@@ -897,22 +899,22 @@ class WebAutomationPlugin(AutomationPlugin):
                 'paragraphs': [p.get_text(strip=True) for p in soup.find_all('p') if p.get_text(strip=True)],
                 'links': [{'text': a.get_text(strip=True), 'href': a.get('href')} for a in soup.find_all('a', href=True)],
                 'images': [{'alt': img.get('alt', ''), 'src': img.get('src')} for img in soup.find_all('img')],
-                'meta': {meta.get('name', meta.get('property', '')): meta.get('content', '') 
+                'meta': {meta.get('name', meta.get('property', '')): meta.get('content', '')
                         for meta in soup.find_all('meta') if meta.get('content')}
             }
-            
+
             return {'success': True, 'data': data, 'raw_html': html_content}
-            
+
         except Exception as e:
             import logging
             logging.getLogger(__name__).exception('Scraping failed')
             return {'success': False, 'error': str(e)}
-    
-    def _extract_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _extract_text(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract clean text content from a webpage"""
         url = params.get('url')
         selector = params.get('selector')
-        
+
         try:
             # Navigate to page if URL provided
             if url:
@@ -935,7 +937,7 @@ class WebAutomationPlugin(AutomationPlugin):
                                     script.decompose()
                                 text = soup.get_text(separator='\n', strip=True)
                             return {'success': True, 'text': text, 'length': len(text)}
-            
+
             # Get text from browser
             if selector:
                 text = self._get_text(selector)
@@ -945,90 +947,90 @@ class WebAutomationPlugin(AutomationPlugin):
                     text = self._pw_page.inner_text('body')
                 else:
                     text = self.driver.find_element(By.TAG_NAME, 'body').text
-            
+
             return {'success': True, 'text': text, 'length': len(text)}
-            
+
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _extract_links(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _extract_links(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract all links from a webpage"""
         url = params.get('url')
         filter_pattern = params.get('filter')
-        
+
         try:
             if url:
                 self._navigate_to(url)
-            
+
             links = []
-            
+
             if getattr(self, '_playwright_active', False):
                 elements = self._pw_page.query_selector_all('a[href]')
                 links = [{'text': el.inner_text(), 'href': el.get_attribute('href')} for el in elements]
             else:
                 elements = self.driver.find_elements(By.TAG_NAME, 'a')
                 links = [{'text': el.text, 'href': el.get_attribute('href')} for el in elements if el.get_attribute('href')]
-            
+
             # Apply filter if provided
             if filter_pattern:
                 links = [link for link in links if re.search(filter_pattern, link['href'] or '')]
-            
+
             return {'success': True, 'links': links, 'count': len(links)}
-            
+
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _extract_images(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _extract_images(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract all images from a webpage"""
         url = params.get('url')
-        
+
         try:
             if url:
                 self._navigate_to(url)
-            
+
             images = []
-            
+
             if getattr(self, '_playwright_active', False):
                 elements = self._pw_page.query_selector_all('img')
                 images = [{'src': el.get_attribute('src'), 'alt': el.get_attribute('alt')} for el in elements]
             else:
                 elements = self.driver.find_elements(By.TAG_NAME, 'img')
                 images = [{'src': el.get_attribute('src'), 'alt': el.get_attribute('alt')} for el in elements]
-            
+
             return {'success': True, 'images': images, 'count': len(images)}
-            
+
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _scrape_table(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _scrape_table(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract table data from webpage"""
         url = params.get('url')
         table_index = params.get('table_index', 0)
-        
+
         try:
             if url:
                 self._navigate_to(url)
-            
+
             # Get page source
             if getattr(self, '_playwright_active', False):
                 html_content = self._pw_page.content()
             else:
                 html_content = self.driver.page_source
-            
+
             if not HAS_BS4:
                 return {'success': False, 'error': 'BeautifulSoup required for table extraction'}
-            
+
             soup = BeautifulSoup(html_content, 'html.parser')
             tables = soup.find_all('table')
-            
+
             if not tables:
                 return {'success': False, 'error': 'No tables found on page'}
-            
+
             if table_index >= len(tables):
                 return {'success': False, 'error': f'Table index {table_index} out of range (found {len(tables)} tables)'}
-            
+
             table = tables[table_index]
-            
+
             # Extract headers
             headers = []
             header_row = table.find('thead')
@@ -1039,7 +1041,7 @@ class WebAutomationPlugin(AutomationPlugin):
                 first_row = table.find('tr')
                 if first_row:
                     headers = [th.get_text(strip=True) for th in first_row.find_all(['th', 'td'])]
-            
+
             # Extract rows
             rows = []
             tbody = table.find('tbody') or table
@@ -1047,7 +1049,7 @@ class WebAutomationPlugin(AutomationPlugin):
                 cells = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
                 if cells:
                     rows.append(cells)
-            
+
             return {
                 'success': True,
                 'headers': headers,
@@ -1055,19 +1057,19 @@ class WebAutomationPlugin(AutomationPlugin):
                 'row_count': len(rows),
                 'column_count': len(headers)
             }
-            
+
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _extract_article(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _extract_article(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract main article content from webpage (intelligent extraction)"""
         url = params.get('url')
-        
+
         try:
             if url:
                 nav_result = self._navigate_to(url)
                 time_module.sleep(1)  # Wait for content to load
-            
+
             # Get page source
             if getattr(self, '_playwright_active', False):
                 html_content = self._pw_page.content()
@@ -1080,36 +1082,36 @@ class WebAutomationPlugin(AutomationPlugin):
                 html_content = response.text
             else:
                 return {'success': False, 'error': 'No content source available'}
-            
+
             if not HAS_BS4:
                 return {'success': False, 'error': 'BeautifulSoup required for article extraction'}
-            
+
             soup = BeautifulSoup(html_content, 'html.parser')
-            
+
             # Remove unwanted elements
             for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'iframe', 'noscript']):
                 element.decompose()
-            
+
             # Try to find main content area
             article = None
             for selector in ['article', '[role="main"]', 'main', '.content', '#content', '.post-content', '.article-content']:
                 article = soup.select_one(selector)
                 if article:
                     break
-            
+
             if not article:
                 article = soup.find('body')
-            
+
             # Extract title
             title = ''
             title_elem = soup.find('h1') or soup.find('title')
             if title_elem:
                 title = title_elem.get_text(strip=True)
-            
+
             # Extract text content
             paragraphs = article.find_all('p') if article else []
             content = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 20])
-            
+
             # Extract headings
             headings = []
             if article:
@@ -1118,7 +1120,7 @@ class WebAutomationPlugin(AutomationPlugin):
                         'level': h.name,
                         'text': h.get_text(strip=True)
                     })
-            
+
             # Extract images in article
             images = []
             if article:
@@ -1128,7 +1130,7 @@ class WebAutomationPlugin(AutomationPlugin):
                         'alt': img.get('alt', ''),
                         'title': img.get('title', '')
                     })
-            
+
             return {
                 'success': True,
                 'title': title,
@@ -1138,18 +1140,18 @@ class WebAutomationPlugin(AutomationPlugin):
                 'word_count': len(content.split()),
                 'url': url
             }
-            
+
         except Exception as e:
             import logging
             logging.getLogger(__name__).exception('Article extraction failed')
             return {'success': False, 'error': str(e)}
-    
-    def _search_and_extract(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _search_and_extract(self, params: dict[str, Any]) -> dict[str, Any]:
         """Perform web search and extract data from results"""
         query = params.get('query') or params.get('search_term')
         num_results = params.get('num_results', 5)
         extract_from_first = params.get('extract_from_first', True)
-        
+
         try:
             # Perform search
             search_result = self.execute('perform_search', {
@@ -1157,15 +1159,15 @@ class WebAutomationPlugin(AutomationPlugin):
                 'use_system_browser': False,
                 'headless': params.get('headless', False)
             })
-            
+
             if not search_result.get('success'):
                 return search_result
-            
+
             time_module.sleep(2)  # Wait for results
-            
+
             # Extract search result links
             results = []
-            
+
             if getattr(self, '_playwright_active', False):
                 # Get search result links
                 links = self._pw_page.query_selector_all('a[href]')
@@ -1187,7 +1189,7 @@ class WebAutomationPlugin(AutomationPlugin):
                                 break
                     except:
                         continue
-            
+
             # Extract content from first result if requested
             extracted_content = None
             if extract_from_first and results:
@@ -1195,14 +1197,14 @@ class WebAutomationPlugin(AutomationPlugin):
                 article_result = self._extract_article({'url': first_url})
                 if article_result.get('success'):
                     extracted_content = article_result
-            
+
             return {
                 'success': True,
                 'query': query,
                 'results': results,
                 'extracted_content': extracted_content
             }
-            
+
         except Exception as e:
             import logging
             logging.getLogger(__name__).exception('Search and extract failed')

@@ -27,7 +27,7 @@ import os
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Tuple, Type
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
@@ -56,7 +56,7 @@ try:
     if sys.version_info >= (3, 11):
         import tomllib  # stdlib
     else:
-        import tomli as tomllib  # type: ignore[no-redef]
+        import tomli as tomllib
     _TOML_AVAILABLE = True
 except ImportError:
     _TOML_AVAILABLE = False
@@ -65,7 +65,7 @@ except ImportError:
 class _TomlFileSource(PydanticBaseSettingsSource):
     """Reads settings from a TOML file and merges them into the model."""
 
-    def __init__(self, settings_cls: Type[BaseSettings], toml_path: Path) -> None:
+    def __init__(self, settings_cls: type[BaseSettings], toml_path: Path) -> None:
         super().__init__(settings_cls)
         self._path = toml_path.expanduser().resolve()
         self._data: dict[str, Any] = self._load()
@@ -83,7 +83,7 @@ class _TomlFileSource(PydanticBaseSettingsSource):
 
     def get_field_value(
         self, field: Any, field_name: str
-    ) -> Tuple[Any, str, bool]:
+    ) -> tuple[Any, str, bool]:
         val = self._data.get(field_name)
         return val, field_name, False
 
@@ -102,6 +102,9 @@ _COMPAT_MAP: dict[str, tuple[str, str]] = {
     "OPENAI_API_KEY": ("ai", "openai_api_key"),
     "ANTHROPIC_API_KEY": ("ai", "anthropic_api_key"),
     "MAX_RETRIES": ("ai", "max_retries"),
+    # n8n flat env vars
+    "N8N_API_KEY": ("n8n", "api_key"),
+    "N8N_URL": ("n8n", "url"),
 }
 
 
@@ -110,13 +113,22 @@ class _CompatEnvSource(PydanticBaseSettingsSource):
 
     def get_field_value(
         self, field: Any, field_name: str
-    ) -> Tuple[Any, str, bool]:
+    ) -> tuple[Any, str, bool]:
         return None, field_name, False
 
     def __call__(self) -> dict[str, Any]:
+        # Merge os.environ with values from the .env file (os.environ takes priority)
+        dotenv: dict[str, str | None] = {}
+        try:
+            from dotenv import dotenv_values
+            if os.path.exists(".env"):
+                dotenv = dotenv_values(".env")
+        except ImportError:
+            pass
+
         result: dict[str, Any] = {}
         for env_key, (section, field) in _COMPAT_MAP.items():
-            val = os.environ.get(env_key)
+            val = os.environ.get(env_key) or dotenv.get(env_key)
             if val is not None:
                 result.setdefault(section, {})[field] = val
         return result
@@ -343,12 +355,12 @@ class Settings(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[BaseSettings],
+        settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
         """
         Custom source priority:
 

@@ -6,7 +6,6 @@ All blocking build operations run in asyncio.to_thread().
 
 from __future__ import annotations
 
-import asyncio
 import os
 import subprocess
 from pathlib import Path

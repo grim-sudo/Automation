@@ -283,7 +283,7 @@ class ContextManager:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ContextManager":
+    def from_dict(cls, data: dict[str, Any]) -> ContextManager:
         """Reconstruct a :class:`ContextManager` from a serialised dict.
 
         Args:
@@ -382,7 +382,7 @@ class ContextWindow:
         return self._ctx.to_dict()
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ContextWindow":
+    def from_dict(cls, data: dict[str, Any]) -> ContextWindow:
         """Reconstruct from a serialised dict."""
         obj = cls.__new__(cls)
         obj._ctx = ContextManager.from_dict(data)

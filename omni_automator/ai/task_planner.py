@@ -10,12 +10,11 @@ output into validated Pydantic :class:`TaskPlan` objects.
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
 
 from .context_manager import ContextManager
 from .model_manager import ModelManager
 from .response_parser import ResponseParser, TaskPlan, parse_task_plan
-from .openrouter_integration import StreamChunk
 
 logger = logging.getLogger(__name__)
 
@@ -212,10 +211,9 @@ class TaskPlanner:
 
 import os  # noqa: E402
 from datetime import datetime  # noqa: E402
-from typing import Dict, List, Optional  # noqa: E402
 
 from ..utils.logger import get_logger as _get_logger  # noqa: E402
-from .openrouter_integration import OpenRouterAutomationAI, AITaskPlan  # noqa: E402
+from .openrouter_integration import AITaskPlan, OpenRouterAutomationAI  # noqa: E402
 
 
 class AIPoweredTaskPlanner:
@@ -229,8 +227,8 @@ class AIPoweredTaskPlanner:
 
     def __init__(self) -> None:
         self.logger = _get_logger("AIPoweredTaskPlanner")
-        self.openrouter_ai: Optional[OpenRouterAutomationAI] = None
-        self.task_history: List[Dict] = []
+        self.openrouter_ai: OpenRouterAutomationAI | None = None
+        self.task_history: list[dict] = []
         self._initialize_openrouter()
 
     def _initialize_openrouter(self) -> None:
@@ -246,8 +244,8 @@ class AIPoweredTaskPlanner:
             self.logger.warning("Failed to initialise OpenRouter: %s", exc)
 
     def plan_and_execute(
-        self, request: str, context: Optional[Dict] = None
-    ) -> Dict:
+        self, request: str, context: dict | None = None
+    ) -> dict:
         """Generate a task plan and execute it (legacy sync API)."""
         from .task_executor import get_ai_task_executor
 
@@ -257,7 +255,7 @@ class AIPoweredTaskPlanner:
             return {"success": False, "error": "Failed to generate task plan", "request": request}
 
         executor = get_ai_task_executor()
-        unknown_actions: List[str] = []
+        unknown_actions: list[str] = []
         try:
             known = set(executor.execution_handlers.keys())
             for step in task_plan.get("execution_steps", []):
@@ -293,8 +291,8 @@ class AIPoweredTaskPlanner:
         return result
 
     def _generate_task_plan(
-        self, request: str, context: Optional[Dict] = None
-    ) -> Optional[Dict]:
+        self, request: str, context: dict | None = None
+    ) -> dict | None:
         if self.openrouter_ai and self.openrouter_ai.is_available:
             try:
                 ai_plan: AITaskPlan = self.openrouter_ai.analyze_automation_request(
@@ -315,7 +313,7 @@ class AIPoweredTaskPlanner:
         return self._fallback_plan(request)
 
     @staticmethod
-    def _fallback_plan(request: str) -> Dict:
+    def _fallback_plan(request: str) -> dict:
         request_lower = request.lower()
         if any(w in request_lower for w in ["ml", "machine learning", "pipeline", "deep learning"]):
             action, description = "create_ml_pipeline", "Create ML pipeline folder structure"
@@ -339,7 +337,7 @@ class AIPoweredTaskPlanner:
             "optimization_suggestions": [],
         }
 
-    def get_task_history(self, limit: int = 10) -> List[Dict]:
+    def get_task_history(self, limit: int = 10) -> list[dict]:
         return self.task_history[-limit:]
 
     def switch_ai_model(self, model_name: str) -> bool:
@@ -353,7 +351,7 @@ class AIPoweredTaskPlanner:
 
 
 # Process-level singleton for the legacy shim.
-_planner_instance: Optional[AIPoweredTaskPlanner] = None
+_planner_instance: AIPoweredTaskPlanner | None = None
 
 
 def get_ai_task_planner() -> AIPoweredTaskPlanner:

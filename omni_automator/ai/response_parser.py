@@ -139,7 +139,7 @@ class TaskPlan(BaseModel):
         return data
 
     @model_validator(mode="after")
-    def _sync_step_lists(self) -> "TaskPlan":
+    def _sync_step_lists(self) -> TaskPlan:
         """Keep steps and execution_steps in sync after construction."""
         if self.steps and not self.execution_steps:
             object.__setattr__(self, "execution_steps", list(self.steps))
@@ -156,7 +156,7 @@ class TaskPlan(BaseModel):
             return 0.5
 
     @classmethod
-    def empty(cls, original_request: str = "") -> "TaskPlan":
+    def empty(cls, original_request: str = "") -> TaskPlan:
         """Return a minimal TaskPlan with no steps (safe fallback)."""
         return cls(
             original_request=original_request,

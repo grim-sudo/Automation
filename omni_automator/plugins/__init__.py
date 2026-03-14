@@ -26,9 +26,9 @@ from .web_automation import WebAutomationPlugin
 # Optional: n8n bridge — requires aiohttp
 try:
     from .n8n_bridge import (  # noqa: F401
-        WorkflowManager,
-        TriggerEngine,
         N8nConfig,
+        TriggerEngine,
+        WorkflowManager,
         build_linear_workflow,
         parse_nl_to_steps,
     )
@@ -42,10 +42,10 @@ except ImportError:
 # Optional: distro builder — requires root + Linux build tools
 try:
     from ..distro_builder import (  # noqa: F401
+        DistroProfile,
         build_distro,
         build_from_nl,
         estimate_build_time,
-        DistroProfile,
     )
 
     __all__ += ["build_distro", "build_from_nl", "estimate_build_time", "DistroProfile"]

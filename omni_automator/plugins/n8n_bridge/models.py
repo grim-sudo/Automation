@@ -78,7 +78,7 @@ class N8nWorkflow(BaseModel):
     """A complete n8n workflow.
 
     Attributes:
-        id:          Workflow UUID (empty before creation).
+        id:          Workflow UUID (None before creation, assigned by n8n).
         name:        Workflow display name.
         active:      Whether the workflow is active (trigger-eligible).
         nodes:       List of workflow nodes.
@@ -87,7 +87,7 @@ class N8nWorkflow(BaseModel):
         tags:        Tag labels for organisation.
     """
 
-    id: str = ""
+    id: str | None = None  # None before creation; assigned by n8n
     name: str = "Untitled Workflow"
     active: bool = False
     nodes: list[N8nNode] = Field(default_factory=list)

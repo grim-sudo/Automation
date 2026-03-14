@@ -6,9 +6,10 @@ Provides deep intent recognition, context awareness, and sophisticated parsing
 """
 
 import re
-from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
+
 from ..utils.logger import get_logger
 
 
@@ -58,11 +59,11 @@ class SemanticAnalysis:
     corrected_text: str
     intent: IntentType
     confidence: float
-    entities: List[SemanticToken]
-    parameters: Dict[str, Any]
-    context_requirements: List[str]
-    ambiguities: List[str]
-    suggestions: List[str]
+    entities: list[SemanticToken]
+    parameters: dict[str, Any]
+    context_requirements: list[str]
+    ambiguities: list[str]
+    suggestions: list[str]
 
 
 class SemanticNLPEngine:
@@ -76,10 +77,10 @@ class SemanticNLPEngine:
     - Ambiguity resolution
     - Multi-level interpretation
     """
-    
+
     def __init__(self):
         self.logger = get_logger("SemanticNLP")
-        
+
         # Intent patterns with context sensitivity
         self.intent_patterns = {
             IntentType.CREATE: [
@@ -101,7 +102,8 @@ class SemanticNLPEngine:
             ],
             IntentType.EXECUTE: [
                 r'\b(run|execute|start|launch|begin|trigger|invoke)\b',
-                r'\b(call|perform|do)\b'
+                r'\b(call|perform|do)\b',
+                r'\b(deploy|release|publish|ship)\b',
             ],
             IntentType.CONFIGURE: [
                 r'\b(configure|setup|config|set|adjust|tune|optimize)\b',
@@ -121,13 +123,15 @@ class SemanticNLPEngine:
             ],
             IntentType.BUILD_DISTRO: [
                 r'\b(build|create|compile|make)\s+(?:custom\s+)?(?:distro|linux|iso|distribution)\b',
+                r'\b(build|create|compile|make)\b.*\b(iso|distro|distribution|linux\s+image)\b',
+                r'\b(?:linux\s+iso|linux\s+distro|linux\s+distribution|custom\s+iso)\b',
                 r'\bcompile\s+kernel\b',
                 r'\bbuild\s+(?:custom\s+)?(?:debian|arch|ubuntu)\b',
                 r'\bcreate\s+iso\b',
                 r'\bmake\s+(?:custom\s+)?distro\b',
             ],
         }
-        
+
         # Entity patterns
         self.entity_patterns = {
             EntityType.FILE: [
@@ -150,7 +154,7 @@ class SemanticNLPEngine:
                 r'(?:one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand)\s+(?:folders?|items?)'
             ]
         }
-        
+
         # Semantic relationship mappings
         self.semantic_relations = {
             'containment': ['in', 'inside', 'within', 'under'],
@@ -160,14 +164,14 @@ class SemanticNLPEngine:
             'quantity': ['of', 'with'],
             'timing': ['before', 'after', 'when', 'as']
         }
-        
+
         # Contextual ambiguity resolvers
         self.ambiguity_resolvers = {
             'test': ['testing folder', 'test data', 'test script'],
             'run': ['execute', 'operate', 'start'],
             'make': ['create', 'build', 'construct']
         }
-    
+
     def analyze(self, text: str) -> SemanticAnalysis:
         """
         Perform comprehensive semantic analysis
@@ -183,10 +187,10 @@ class SemanticNLPEngine:
         context_requirements = self._identify_context_requirements(intent, entities)
         ambiguities = self._detect_ambiguities(text, intent)
         suggestions = self._generate_suggestions(intent, parameters, ambiguities)
-        
+
         # Calculate overall confidence
         confidence = self._calculate_confidence(intent, entities, parameters)
-        
+
         return SemanticAnalysis(
             original_text=original,
             corrected_text=corrected,
@@ -198,34 +202,34 @@ class SemanticNLPEngine:
             ambiguities=ambiguities,
             suggestions=suggestions
         )
-    
+
     def _determine_intent(self, text: str) -> IntentType:
         """Determine primary intent from text"""
         text_lower = text.lower()
-        
+
         # Score each intent type
         intent_scores = {}
-        
+
         for intent, patterns in self.intent_patterns.items():
             score = 0
             for pattern in patterns:
                 matches = len(re.findall(pattern, text_lower, re.IGNORECASE))
                 score += matches
             intent_scores[intent] = score
-        
+
         # Find highest scoring intent
         if max(intent_scores.values()) > 0:
             return max(intent_scores, key=intent_scores.get)
-        
+
         return IntentType.UNKNOWN
-    
-    def _extract_entities(self, text: str) -> List[SemanticToken]:
+
+    def _extract_entities(self, text: str) -> list[SemanticToken]:
         """
         Extract semantic entities from text
         Identifies files, folders, paths, quantities, etc.
         """
         entities = []
-        
+
         # Extract quantities
         quantity_matches = re.finditer(r'(\d+)\s+(?:folder|dir|file|item)s?', text, re.IGNORECASE)
         for match in quantity_matches:
@@ -236,7 +240,7 @@ class SemanticNLPEngine:
                 original_text=match.group(0),
                 semantic_value=int(match.group(1))
             ))
-        
+
         # Extract file paths
         path_pattern = r'(?:[A-Z]:|~|\.)?(?:[\/\\][\w\-\.]+)*[\/\\]?[\w\-\.]+'
         path_matches = re.finditer(path_pattern, text)
@@ -247,7 +251,7 @@ class SemanticNLPEngine:
                 confidence=0.85,
                 original_text=match.group(0)
             ))
-        
+
         # Extract filenames
         file_pattern = r'[\w\-]+\.\w+'
         file_matches = re.finditer(file_pattern, text)
@@ -258,7 +262,7 @@ class SemanticNLPEngine:
                 confidence=0.90,
                 original_text=match.group(0)
             ))
-        
+
         # Extract folder/project names (in quotes or after keywords)
         named_pattern = r'(?:named|called|is)\s+"?([^"\s,]+)"?'
         named_matches = re.finditer(named_pattern, text, re.IGNORECASE)
@@ -271,14 +275,14 @@ class SemanticNLPEngine:
                 confidence=0.92,
                 original_text=match.group(0)
             ))
-        
+
         return entities
-    
-    def _extract_parameters(self, text: str, entities: List[SemanticToken]) -> Dict[str, Any]:
+
+    def _extract_parameters(self, text: str, entities: list[SemanticToken]) -> dict[str, Any]:
         """Extract structured parameters from text"""
         parameters = {}
         text_lower = text.lower()
-        
+
         # Extract full file paths (e.g., C:\Users\shefa\Desktop, /home/user/path)
         full_path_pattern = r'(?:[A-Z]:\\[\w\s\-\\\.]+|/[\w\s\-/\.]+)'
         full_path_matches = re.finditer(full_path_pattern, text)
@@ -287,7 +291,7 @@ class SemanticNLPEngine:
             if '\\' in path or path.startswith('/'):
                 parameters['location'] = path
                 parameters['destination'] = path
-        
+
         # Extract location/path parameters from text patterns
         # Patterns like "in Desktop", "to C:\...", "as C:\..."
         location_patterns = [
@@ -301,17 +305,17 @@ class SemanticNLPEngine:
                 if location:
                     parameters['location'] = location
                     parameters['destination'] = location
-        
+
         # Extract naming parameters
         for entity in entities:
             if entity.entity_type in [EntityType.FILE, EntityType.FOLDER, EntityType.PROJECT]:
                 parameters['name'] = entity.text
-        
+
         # Extract quantity parameters
         for entity in entities:
             if entity.entity_type == EntityType.QUANTITY:
                 parameters['quantity'] = entity.semantic_value
-        
+
         # Extract range parameters (test1 to test100)
         range_pattern = r'(?:from|to)\s+(\w+)(\d+)\s+(?:to|through)\s+(\w+)(\d+)'
         range_match = re.search(range_pattern, text, re.IGNORECASE)
@@ -319,52 +323,52 @@ class SemanticNLPEngine:
             parameters['range_start'] = int(range_match.group(2))
             parameters['range_end'] = int(range_match.group(4))
             parameters['range_prefix'] = range_match.group(1)
-        
+
         return parameters
-    
-    def _identify_context_requirements(self, intent: IntentType, entities: List[SemanticToken]) -> List[str]:
+
+    def _identify_context_requirements(self, intent: IntentType, entities: list[SemanticToken]) -> list[str]:
         """Identify what context/information is needed"""
         requirements = []
-        
+
         if intent in [IntentType.CREATE, IntentType.DELETE]:
             if not any(e.entity_type in [EntityType.FILE, EntityType.FOLDER] for e in entities):
                 requirements.append("target_name")
             if not any(e.entity_type == EntityType.PATH for e in entities):
                 requirements.append("target_location")
-        
+
         if intent == IntentType.DELETE:
             requirements.append("confirmation")
-        
+
         if intent == IntentType.EXECUTE:
             if not any(e.entity_type == EntityType.COMMAND for e in entities):
                 requirements.append("command_name")
-        
+
         return requirements
-    
-    def _detect_ambiguities(self, text: str, intent: IntentType) -> List[str]:
+
+    def _detect_ambiguities(self, text: str, intent: IntentType) -> list[str]:
         """Detect potential ambiguities or unclear elements"""
         ambiguities = []
-        
+
         # Check for pronouns without clear antecedent
         if re.search(r'\b(it|them|that|this)\b', text, re.IGNORECASE):
             if 'location' not in text.lower() and 'path' not in text.lower():
                 ambiguities.append("unclear_target_reference")
-        
+
         # Check for multiple possible interpretations
         if 'test' in text.lower():
             ambiguities.append("test_folder_or_test_data")
-        
+
         # Check for missing parameters
         if intent == IntentType.CREATE and 'in' not in text.lower():
             ambiguities.append("missing_target_location")
-        
+
         return ambiguities
-    
-    def _generate_suggestions(self, intent: IntentType, parameters: Dict[str, Any], 
-                             ambiguities: List[str]) -> List[str]:
+
+    def _generate_suggestions(self, intent: IntentType, parameters: dict[str, Any],
+                             ambiguities: list[str]) -> list[str]:
         """Generate helpful suggestions for the user"""
         suggestions = []
-        
+
         # Suggest clarification for ambiguities
         for ambiguity in ambiguities:
             if ambiguity == "unclear_target_reference":
@@ -373,44 +377,44 @@ class SemanticNLPEngine:
                 suggestions.append("Did you mean a 'test' folder or test data?")
             elif ambiguity == "missing_target_location":
                 suggestions.append("Where should I create this? (Desktop, Documents, or specific path)")
-        
+
         # Suggest related operations
         if intent == IntentType.CREATE:
             suggestions.append("Would you like to add nested folders?")
-        
+
         if intent == IntentType.DELETE:
             suggestions.append("Would you like to backup before deleting?")
-        
+
         return suggestions
-    
-    def _calculate_confidence(self, intent: IntentType, entities: List[SemanticToken], 
-                             parameters: Dict[str, Any]) -> float:
+
+    def _calculate_confidence(self, intent: IntentType, entities: list[SemanticToken],
+                             parameters: dict[str, Any]) -> float:
         """Calculate overall confidence in interpretation"""
         confidence = 0.5  # Base confidence
-        
+
         # Boost for clear intent
         if intent != IntentType.UNKNOWN:
             confidence += 0.2
-        
+
         # Boost for extracted entities
         confidence += min(0.2, len(entities) * 0.05)
-        
+
         # Boost for complete parameters
         confidence += min(0.1, len(parameters) * 0.03)
-        
+
         # Confidence from entity confidence scores
         if entities:
             avg_entity_confidence = sum(e.confidence for e in entities) / len(entities)
             confidence += avg_entity_confidence * 0.1
-        
+
         return min(1.0, max(0.0, confidence))
-    
-    def resolve_ambiguity(self, ambiguity: str, options: List[str], user_choice: int = 0) -> str:
+
+    def resolve_ambiguity(self, ambiguity: str, options: list[str], user_choice: int = 0) -> str:
         """Resolve detected ambiguity"""
         if 0 <= user_choice < len(options):
             return options[user_choice]
         return options[0] if options else ""
-    
+
     def generate_clarification_question(self, ambiguity: str) -> str:
         """Generate natural clarification question"""
         questions = {
@@ -420,8 +424,8 @@ class SemanticNLPEngine:
             'missing_command': "What command should I execute?"
         }
         return questions.get(ambiguity, "Could you clarify this?")
-    
-    def understand_context(self, conversation_history: List[Dict[str, str]]) -> Dict[str, Any]:
+
+    def understand_context(self, conversation_history: list[dict[str, str]]) -> dict[str, Any]:
         """
         Understand context from conversation history
         Provides multi-turn conversation awareness
@@ -433,25 +437,25 @@ class SemanticNLPEngine:
             'conversation_topics': [],
             'established_facts': []
         }
-        
+
         for exchange in conversation_history[-5:]:  # Look at last 5 exchanges
             user_msg = exchange.get('user', '')
             bot_response = exchange.get('bot', '')
-            
+
             # Analyze user message for intent
             analysis = self.analyze(user_msg)
             context['last_intent'] = analysis.intent
-            
+
             # Extract established targets and locations
             if analysis.parameters.get('name'):
                 context['last_target'] = analysis.parameters['name']
             if analysis.parameters.get('location'):
                 context['last_location'] = analysis.parameters['location']
-            
+
             # Track conversation topics
             if analysis.intent != IntentType.UNKNOWN:
                 context['conversation_topics'].append(analysis.intent.value)
-        
+
         return context
 
 

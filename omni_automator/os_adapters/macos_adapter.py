@@ -6,20 +6,24 @@ import os
 import shutil
 import subprocess
 import time
+from typing import Any
+
+import httpx
 import psutil
-import requests
-from typing import Dict, Any, List, Optional
 
 # Make pyautogui optional (may not be available on headless systems)
 try:
     import pyautogui
-except ImportError:
+except (ImportError, SystemExit, Exception):
     pyautogui = None
-from pathlib import Path
 
 from .base_adapter import (
-    BaseOSAdapter, BaseFilesystemAdapter, BaseProcessAdapter,
-    BaseGUIAdapter, BaseSystemAdapter, BaseNetworkAdapter
+    BaseFilesystemAdapter,
+    BaseGUIAdapter,
+    BaseNetworkAdapter,
+    BaseOSAdapter,
+    BaseProcessAdapter,
+    BaseSystemAdapter,
 )
 
 # macOS-specific imports
@@ -33,8 +37,8 @@ except ImportError:
 
 class MacOSFilesystemAdapter(BaseFilesystemAdapter):
     """macOS filesystem operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'create_folder':
             return self.create_folder(params.get('name'), params.get('location'))
         elif action == 'create_file':
@@ -49,28 +53,28 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
             return self.list_directory(params.get('path', '.'))
         else:
             raise ValueError(f"Unknown filesystem action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'list']
-    
+
     def create_folder(self, name: str, location: str = None) -> bool:
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             os.makedirs(path, exist_ok=True)
             return True
         except Exception as e:
             raise Exception(f"Failed to create folder: {e}")
-    
+
     def create_file(self, name: str, location: str = None, content: str = "") -> bool:
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f:
@@ -78,7 +82,7 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to create file: {e}")
-    
+
     def delete(self, path: str, recursive: bool = True) -> bool:
         try:
             if os.path.isfile(path):
@@ -95,7 +99,7 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to delete: {e}")
-    
+
     def copy(self, source: str, destination: str) -> bool:
         try:
             if os.path.isfile(source):
@@ -105,21 +109,21 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to copy: {e}")
-    
+
     def move(self, source: str, destination: str) -> bool:
         try:
             shutil.move(source, destination)
             return True
         except Exception as e:
             raise Exception(f"Failed to move: {e}")
-    
-    def list_directory(self, path: str) -> List[Dict[str, Any]]:
+
+    def list_directory(self, path: str) -> list[dict[str, Any]]:
         try:
             items = []
             for item in os.listdir(path):
                 if item.startswith('.') and item not in ['.', '..']:
                     continue  # Skip hidden files by default on macOS
-                
+
                 item_path = os.path.join(path, item)
                 stat = os.stat(item_path)
                 items.append({
@@ -133,8 +137,8 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
             return items
         except Exception as e:
             raise Exception(f"Failed to list directory: {e}")
-    
-    def get_file_info(self, path: str) -> Dict[str, Any]:
+
+    def get_file_info(self, path: str) -> dict[str, Any]:
         try:
             stat = os.stat(path)
             return {
@@ -152,8 +156,8 @@ class MacOSFilesystemAdapter(BaseFilesystemAdapter):
 
 class MacOSProcessAdapter(BaseProcessAdapter):
     """macOS process management"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'start':
             return self.start_process(params.get('program'), params.get('args'))
         elif action == 'terminate':
@@ -162,11 +166,11 @@ class MacOSProcessAdapter(BaseProcessAdapter):
             return self.list_processes()
         else:
             raise ValueError(f"Unknown process action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['start', 'terminate', 'list']
-    
-    def start_process(self, program: str, args: List[str] = None) -> int:
+
+    def start_process(self, program: str, args: list[str] = None) -> int:
         try:
             # Handle macOS app bundles
             if program.endswith('.app') or '/' not in program:
@@ -178,12 +182,12 @@ class MacOSProcessAdapter(BaseProcessAdapter):
                 cmd = [program]
                 if args:
                     cmd.extend(args if isinstance(args, list) else args.split())
-            
+
             process = subprocess.Popen(cmd)
             return process.pid
         except Exception as e:
             raise Exception(f"Failed to start process: {e}")
-    
+
     def terminate_process(self, pid_or_name: Any) -> bool:
         try:
             if isinstance(pid_or_name, int):
@@ -195,8 +199,8 @@ class MacOSProcessAdapter(BaseProcessAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to terminate process: {e}")
-    
-    def list_processes(self) -> List[Dict[str, Any]]:
+
+    def list_processes(self) -> list[dict[str, Any]]:
         try:
             processes = []
             for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info', 'username']):
@@ -213,8 +217,8 @@ class MacOSProcessAdapter(BaseProcessAdapter):
             return processes
         except Exception as e:
             raise Exception(f"Failed to list processes: {e}")
-    
-    def get_process_info(self, pid: int) -> Dict[str, Any]:
+
+    def get_process_info(self, pid: int) -> dict[str, Any]:
         try:
             proc = psutil.Process(pid)
             return {
@@ -232,12 +236,13 @@ class MacOSProcessAdapter(BaseProcessAdapter):
 
 class MacOSGUIAdapter(BaseGUIAdapter):
     """macOS GUI automation using Quartz and AppKit"""
-    
+
     def __init__(self):
-        pyautogui.FAILSAFE = True
-        pyautogui.PAUSE = 0.1
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+        if pyautogui is not None:
+            pyautogui.FAILSAFE = True
+            pyautogui.PAUSE = 0.1
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'click':
             return self.click(params.get('x'), params.get('y'), params.get('button', 'left'))
         elif action == 'type':
@@ -251,11 +256,13 @@ class MacOSGUIAdapter(BaseGUIAdapter):
             return True
         else:
             raise ValueError(f"Unknown GUI action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['click', 'type', 'press_key', 'screenshot', 'wait']
-    
+
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             if x is not None and y is not None:
                 pyautogui.click(x, y, button=button)
@@ -264,39 +271,43 @@ class MacOSGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to click: {e}")
-    
+
     def type_text(self, text: str) -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             pyautogui.typewrite(text)
             return True
         except Exception as e:
             raise Exception(f"Failed to type text: {e}")
-    
+
     def press_key(self, key: str) -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             pyautogui.press(key)
             return True
         except Exception as e:
             raise Exception(f"Failed to press key: {e}")
-    
+
     def take_screenshot(self, filename: str = None) -> str:
         try:
             if not filename:
                 filename = f"screenshot_{int(time.time())}.png"
-            
-            # Use macOS screencapture for better quality
             try:
                 subprocess.run(['screencapture', '-x', filename], check=True)
             except (subprocess.CalledProcessError, FileNotFoundError):
-                # Fallback to pyautogui
+                if pyautogui is None:
+                    raise RuntimeError("pyautogui not available and screencapture failed")
                 screenshot = pyautogui.screenshot()
                 screenshot.save(filename)
-            
             return filename
         except Exception as e:
             raise Exception(f"Failed to take screenshot: {e}")
-    
-    def find_element(self, image_path: str) -> Dict[str, int]:
+
+    def find_element(self, image_path: str) -> dict[str, int]:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             location = pyautogui.locateOnScreen(image_path)
             if location:
@@ -310,8 +321,8 @@ class MacOSGUIAdapter(BaseGUIAdapter):
 
 class MacOSSystemAdapter(BaseSystemAdapter):
     """macOS system operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'get_info':
             return self.get_system_info()
         elif action == 'set_volume':
@@ -320,17 +331,17 @@ class MacOSSystemAdapter(BaseSystemAdapter):
             return self.power_action(params.get('action'))
         else:
             raise ValueError(f"Unknown system action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['get_info', 'set_volume', 'power_action']
-    
-    def get_system_info(self) -> Dict[str, Any]:
+
+    def get_system_info(self) -> dict[str, Any]:
         try:
             import platform
-            
+
             # Get macOS version info
             macos_version = platform.mac_ver()[0]
-            
+
             return {
                 'platform': platform.platform(),
                 'system': platform.system(),
@@ -350,19 +361,19 @@ class MacOSSystemAdapter(BaseSystemAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to get system info: {e}")
-    
+
     def set_volume(self, level: int) -> bool:
         try:
             volume_percent = max(0, min(100, level))
             volume_decimal = volume_percent / 100.0
-            
+
             # Use AppleScript to set volume
             script = f'set volume output volume {volume_percent}'
             subprocess.run(['osascript', '-e', script], check=True)
             return True
         except Exception as e:
             raise Exception(f"Failed to set volume: {e}")
-    
+
     def power_action(self, action: str) -> bool:
         try:
             if action.lower() in ['shutdown', 'poweroff']:
@@ -376,44 +387,45 @@ class MacOSSystemAdapter(BaseSystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to perform power action: {e}")
-    
-    def get_environment_variables(self) -> Dict[str, str]:
+
+    def get_environment_variables(self) -> dict[str, str]:
         return dict(os.environ)
 
 
 class MacOSNetworkAdapter(BaseNetworkAdapter):
     """macOS network operations - same as other platforms"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'download':
             return self.download_file(params.get('url'), params.get('filename'))
         elif action == 'http_get':
             return self.http_request('GET', params.get('url'))
         else:
             raise ValueError(f"Unknown network action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['download', 'http_get', 'http_post']
-    
+
     def download_file(self, url: str, filename: str = None) -> str:
         try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            
             if not filename:
                 filename = url.split('/')[-1] or 'downloaded_file'
-            
-            with open(filename, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
+
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    with open(filename, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            f.write(chunk)
+
             return filename
         except Exception as e:
             raise Exception(f"Failed to download file: {e}")
-    
-    def http_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
+
+    def http_request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         try:
-            response = requests.request(method, url, **kwargs)
+            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                response = client.request(method, url, **kwargs)
             return {
                 'status_code': response.status_code,
                 'headers': dict(response.headers),
@@ -422,11 +434,11 @@ class MacOSNetworkAdapter(BaseNetworkAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to make HTTP request: {e}")
-    
-    def get_network_info(self) -> Dict[str, Any]:
+
+    def get_network_info(self) -> dict[str, Any]:
         try:
             import socket
-            
+
             return {
                 'hostname': socket.gethostname(),
                 'ip_address': socket.gethostbyname(socket.gethostname()),
@@ -444,18 +456,18 @@ class MacOSNetworkAdapter(BaseNetworkAdapter):
 
 class MacOSAdapter(BaseOSAdapter):
     """macOS OS adapter"""
-    
+
     def _create_filesystem_adapter(self) -> BaseFilesystemAdapter:
         return MacOSFilesystemAdapter()
-    
+
     def _create_process_adapter(self) -> BaseProcessAdapter:
         return MacOSProcessAdapter()
-    
+
     def _create_gui_adapter(self) -> BaseGUIAdapter:
         return MacOSGUIAdapter()
-    
+
     def _create_system_adapter(self) -> BaseSystemAdapter:
         return MacOSSystemAdapter()
-    
+
     def _create_network_adapter(self) -> BaseNetworkAdapter:
         return MacOSNetworkAdapter()

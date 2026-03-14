@@ -5,26 +5,27 @@ Handles bulk folder creation, deletion, and organization tasks
 
 import os
 import shutil
-from typing import Dict, Any, List
+from typing import Any
+
 from omni_automator.core.plugin_manager import AutomationPlugin
 
 
 class FolderOperations(AutomationPlugin):
     """Handle folder creation and management tasks"""
-    
+
     @property
     def name(self) -> str:
         return "folder_operations"
-    
+
     @property
     def description(self) -> str:
         return "Create, delete, and manage folder structures with bulk operations"
-    
+
     @property
     def version(self) -> str:
         return "1.0.0"
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return [
             'create_bulk_folders',
             'create_nested_folders',
@@ -32,8 +33,8 @@ class FolderOperations(AutomationPlugin):
             'move',
             'delete_folder_tree'
         ]
-    
-    def execute(self, operation: str, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def execute(self, operation: str, params: dict[str, Any]) -> dict[str, Any]:
         """Execute folder operation"""
         if operation == 'create_bulk_folders':
             return self.create_bulk_folders(params)
@@ -45,8 +46,8 @@ class FolderOperations(AutomationPlugin):
             return self.delete_folder_tree(params)
         else:
             return {'success': False, 'error': f'Unknown operation: {operation}'}
-    
-    def create_bulk_folders(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def create_bulk_folders(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Create multiple folders with naming pattern
         params:
@@ -114,8 +115,8 @@ class FolderOperations(AutomationPlugin):
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def create_nested_folders(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def create_nested_folders(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Create a main folder with nested subfolders
         params:
@@ -258,7 +259,7 @@ class FolderOperations(AutomationPlugin):
                 c_created, c_failed = create_children_at(main_path, sub_folders)
                 created_folders.extend(c_created)
                 failed_folders.extend(c_failed)
-            
+
             return {
                 'success': True,
                 'operation': 'create_nested_folders',
@@ -270,8 +271,8 @@ class FolderOperations(AutomationPlugin):
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def delete_folder_tree(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def delete_folder_tree(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Delete a folder and all its contents
         params:
@@ -324,7 +325,7 @@ class FolderOperations(AutomationPlugin):
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def move_folder(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def move_folder(self, params: dict[str, Any]) -> dict[str, Any]:
         """
         Move a folder from source to destination
         params:

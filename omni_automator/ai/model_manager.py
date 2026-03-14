@@ -7,9 +7,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -75,7 +76,7 @@ class AISettings:
     default_model: str = ""
 
     @classmethod
-    def from_env(cls) -> "AISettings":
+    def from_env(cls) -> AISettings:
         """Build :class:`AISettings` from environment variables."""
         api_key = os.getenv("OPENROUTER_API_KEY", "")
         default_model = os.getenv("OPENROUTER_MODEL", "")
@@ -112,7 +113,7 @@ class AISettings:
         )
 
     @classmethod
-    def from_config(cls, config: Any) -> "AISettings":
+    def from_config(cls, config: Any) -> AISettings:
         """
         Build :class:`AISettings` from an ``OmniConfig`` (or any object that
         exposes the same attribute names).
@@ -333,7 +334,7 @@ class ModelManager:
     # Async context-manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "ModelManager":
+    async def __aenter__(self) -> ModelManager:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -383,7 +384,6 @@ class ModelManager:
 # ---------------------------------------------------------------------------
 
 from dataclasses import dataclass as _dc  # noqa: E402
-from typing import Dict, List, Optional  # noqa: E402
 
 
 @_dc
@@ -393,8 +393,8 @@ class AIModelConfig:
     name: str
     provider: str = "openrouter"
     model_id: str = ""
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    api_key: str | None = None
+    base_url: str | None = None
     max_tokens: int = 2048
     temperature: float = 0.7
     is_default: bool = False
@@ -411,9 +411,9 @@ class AIModelManager:
 
     def __init__(self) -> None:
         self._settings = AISettings.from_env()
-        self._slots: Dict[str, AIModelConfig] = {}
-        self._current_slot: Optional[str] = None
-        self._async_manager: Optional[ModelManager] = None
+        self._slots: dict[str, AIModelConfig] = {}
+        self._current_slot: str | None = None
+        self._async_manager: ModelManager | None = None
         self._load_from_env()
 
     def _load_from_env(self) -> None:
@@ -445,7 +445,7 @@ class AIModelManager:
                 return True
         return False
 
-    def list_registered_models(self) -> Dict[str, Dict]:
+    def list_registered_models(self) -> dict[str, dict]:
         return {
             name: {
                 "provider": cfg.provider,
@@ -455,7 +455,7 @@ class AIModelManager:
             for name, cfg in self._slots.items()
         }
 
-    def get_current_model_info(self) -> Optional[Dict]:
+    def get_current_model_info(self) -> dict | None:
         if not self._current_slot or self._current_slot not in self._slots:
             return None
         cfg = self._slots[self._current_slot]
@@ -470,9 +470,9 @@ class AIModelManager:
     def query(
         self,
         prompt: str,
-        context: Optional[Dict] = None,
-        model: Optional[str] = None,
-    ) -> Dict:
+        context: dict | None = None,
+        model: str | None = None,
+    ) -> dict:
         """Synchronous query — blocks the event loop; prefer async methods."""
         import asyncio
 
@@ -485,7 +485,7 @@ class AIModelManager:
                 "provider": "none",
             }
 
-        messages: List[Dict] = [{"role": "user", "content": prompt}]
+        messages: list[dict] = [{"role": "user", "content": prompt}]
         if context:
             system_parts = [
                 f"{k}: {v}" for k, v in context.items() if v
@@ -513,12 +513,12 @@ class AIModelManager:
             "timestamp": datetime.now().isoformat(),
         }
 
-    def get_available_models(self) -> Dict[str, List[str]]:
+    def get_available_models(self) -> dict[str, list[str]]:
         return {"openrouter": list(self._slots.keys())}
 
 
 # Process-level singleton for the legacy shim.
-_ai_manager_instance: Optional[AIModelManager] = None
+_ai_manager_instance: AIModelManager | None = None
 
 
 def get_ai_manager() -> AIModelManager:

@@ -3,33 +3,37 @@ Windows-specific OS adapter implementation
 """
 
 import os
-import sys
 import shutil
 import subprocess
 import time
+from typing import Any
+
+import httpx
 import psutil
-import requests
-from typing import Dict, Any, List, Optional
-from pathlib import Path
 
 # Make pyautogui optional (only needed on Windows)
 try:
     import pyautogui
-except ImportError:
+except (ImportError, SystemExit, Exception):
     pyautogui = None
 
 from .base_adapter import (
-    BaseOSAdapter, BaseFilesystemAdapter, BaseProcessAdapter,
-    BaseGUIAdapter, BaseSystemAdapter, BaseNetworkAdapter
+    BaseFilesystemAdapter,
+    BaseGUIAdapter,
+    BaseNetworkAdapter,
+    BaseOSAdapter,
+    BaseProcessAdapter,
+    BaseSystemAdapter,
 )
 
 # Windows-specific imports
 try:
+    import winreg
+
     import win32api
     import win32con
     import win32gui
     import win32process
-    import winreg
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
@@ -37,8 +41,8 @@ except ImportError:
 
 class WindowsFilesystemAdapter(BaseFilesystemAdapter):
     """Windows filesystem operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute filesystem action"""
         try:
             # Input validation
@@ -46,7 +50,7 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 raise ValueError("Action must be a non-empty string")
             if not isinstance(params, dict):
                 raise ValueError("Params must be a dictionary")
-            
+
             if action == 'create_folder':
                 # Handle both old and new parameter formats
                 name = params.get('name') or params.get('folder_name')
@@ -89,20 +93,20 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 raise ValueError(f"Unknown filesystem action: {action}")
         except Exception as e:
             raise Exception(f"Filesystem operation failed: {e}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'list']
-    
+
     def create_folder(self, name: str, location: str = None) -> bool:
         """Create a folder"""
         try:
             # Input validation
             if not name or not isinstance(name, str):
                 raise ValueError("Folder name must be a non-empty string")
-            
+
             # Sanitize folder name
             name = self._sanitize_filename(name)
-            
+
             if location:
                 if not isinstance(location, str):
                     raise ValueError("Location must be a string")
@@ -112,45 +116,45 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 path = os.path.join(location, name)
             else:
                 path = name
-            
+
             # Security check - prevent path traversal
             if '..' in path:
                 raise ValueError("Invalid path detected - path traversal not allowed")
-            
+
             os.makedirs(path, exist_ok=True)
             return True
         except Exception as e:
             raise Exception(f"Failed to create folder '{name}': {e}")
-    
+
     def create_folders_batch(self, count: int, start_name: str, end_name: str, location: str = None) -> dict:
         """Create multiple folders with names generated from start_name to end_name"""
         try:
             # Extract base name and number from start_name
             import re
-            
+
             # Match pattern like "project1"
             match = re.match(r'([a-zA-Z_]+)(\d+)', start_name)
             if not match:
                 raise ValueError(f"Invalid start_name format: {start_name}. Expected format like 'project1'")
-            
+
             base_name = match.group(1)
             start_num = int(match.group(2))
-            
+
             # Extract number from end_name
             match_end = re.match(r'([a-zA-Z_]+)(\d+)', end_name)
             if not match_end:
                 raise ValueError(f"Invalid end_name format: {end_name}. Expected format like 'project10'")
-            
+
             end_num = int(match_end.group(2))
-            
+
             # Verify base names match
             if base_name != match_end.group(1):
                 raise ValueError(f"Base names don't match: {base_name} vs {match_end.group(1)}")
-            
+
             # Generate folder names and create them
             created_folders = []
             failed_folders = []
-            
+
             for num in range(start_num, end_num + 1):
                 folder_name = f"{base_name}{num}"
                 try:
@@ -161,7 +165,7 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                         'name': folder_name,
                         'error': str(e)
                     })
-            
+
             return {
                 'success': len(failed_folders) == 0,
                 'created': created_folders,
@@ -169,7 +173,7 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 'total_requested': count,
                 'total_created': len(created_folders)
             }
-            
+
         except Exception as e:
             raise Exception(f"Failed to create batch folders: {e}")
 
@@ -181,48 +185,48 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
                 raise ValueError("File name must be a non-empty string")
             if not isinstance(content, str):
                 raise ValueError("Content must be a string")
-            
+
             # Sanitize filename
             name = self._sanitize_filename(name)
-            
+
             if location:
                 if not isinstance(location, str):
                     raise ValueError("Location must be a string")
                 path = os.path.join(location, name)
             else:
                 path = name
-            
+
             # Security check - prevent path traversal
             if '..' in path:
                 raise ValueError("Invalid path detected - path traversal not allowed")
-            
+
             # Ensure directory exists
             dir_path = os.path.dirname(path)
             if dir_path and not os.path.exists(dir_path):
                 os.makedirs(dir_path, exist_ok=True)
-            
+
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return True
         except Exception as e:
             raise Exception(f"Failed to create file '{name}': {e}")
-    
+
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename to prevent issues"""
         # Remove or replace invalid characters
         invalid_chars = '<>:"/\\|?*'
         for char in invalid_chars:
             filename = filename.replace(char, '_')
-        
+
         # Remove leading/trailing spaces and dots
         filename = filename.strip(' .')
-        
+
         # Ensure filename is not empty after sanitization
         if not filename:
             filename = 'unnamed'
-        
+
         return filename
-    
+
     def delete(self, path: str, recursive: bool = True) -> bool:
         """Delete file or folder"""
         try:
@@ -236,7 +240,7 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to delete: {e}")
-    
+
     def copy(self, source: str, destination: str) -> bool:
         """Copy file or folder"""
         try:
@@ -247,7 +251,7 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to copy: {e}")
-    
+
     def move(self, source: str, destination: str) -> bool:
         """Move file or folder"""
         try:
@@ -255,8 +259,8 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to move: {e}")
-    
-    def list_directory(self, path: str) -> List[Dict[str, Any]]:
+
+    def list_directory(self, path: str) -> list[dict[str, Any]]:
         """List directory contents"""
         try:
             items = []
@@ -273,8 +277,8 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
             return items
         except Exception as e:
             raise Exception(f"Failed to list directory: {e}")
-    
-    def get_file_info(self, path: str) -> Dict[str, Any]:
+
+    def get_file_info(self, path: str) -> dict[str, Any]:
         """Get file/folder information"""
         try:
             stat = os.stat(path)
@@ -292,8 +296,8 @@ class WindowsFilesystemAdapter(BaseFilesystemAdapter):
 
 class WindowsProcessAdapter(BaseProcessAdapter):
     """Windows process management"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute process action"""
         if action == 'start' or action == 'launch_application':
             # Accept both 'start' and 'launch_application' as aliases
@@ -306,11 +310,11 @@ class WindowsProcessAdapter(BaseProcessAdapter):
             return self.list_processes()
         else:
             raise ValueError(f"Unknown process action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['start', 'launch_application', 'terminate', 'list']
-    
-    def start_process(self, program: str, args: List[str] = None) -> int:
+
+    def start_process(self, program: str, args: list[str] = None) -> int:
         """Start a new process"""
         try:
             cmd = [program]
@@ -319,12 +323,12 @@ class WindowsProcessAdapter(BaseProcessAdapter):
                     cmd.extend(args.split())
                 else:
                     cmd.extend(args)
-            
+
             process = subprocess.Popen(cmd)
             return process.pid
         except Exception as e:
             raise Exception(f"Failed to start process: {e}")
-    
+
     def terminate_process(self, pid_or_name: Any) -> bool:
         """Terminate a process by PID or name"""
         try:
@@ -340,8 +344,8 @@ class WindowsProcessAdapter(BaseProcessAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to terminate process: {e}")
-    
-    def list_processes(self) -> List[Dict[str, Any]]:
+
+    def list_processes(self) -> list[dict[str, Any]]:
         """List running processes"""
         try:
             processes = []
@@ -358,8 +362,8 @@ class WindowsProcessAdapter(BaseProcessAdapter):
             return processes
         except Exception as e:
             raise Exception(f"Failed to list processes: {e}")
-    
-    def get_process_info(self, pid: int) -> Dict[str, Any]:
+
+    def get_process_info(self, pid: int) -> dict[str, Any]:
         """Get process information"""
         try:
             proc = psutil.Process(pid)
@@ -377,12 +381,13 @@ class WindowsProcessAdapter(BaseProcessAdapter):
 
 class WindowsGUIAdapter(BaseGUIAdapter):
     """Windows GUI automation"""
-    
+
     def __init__(self):
-        pyautogui.FAILSAFE = True
-        pyautogui.PAUSE = 0.1
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+        if pyautogui is not None:
+            pyautogui.FAILSAFE = True
+            pyautogui.PAUSE = 0.1
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute GUI action"""
         if action == 'click':
             return self.click(params.get('x'), params.get('y'), params.get('button', 'left'))
@@ -401,11 +406,11 @@ class WindowsGUIAdapter(BaseGUIAdapter):
             return True
         else:
             raise ValueError(f"Unknown GUI action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         # Windows GUI capabilities (no headless browser on Windows)
         return ['click', 'type', 'press_key', 'screenshot', 'wait', 'wait_for_page_load', 'open_browser', 'navigate_to_url', 'take_screenshot', 'close_browser']
-    
+
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
         """Click at coordinates or current position"""
         try:
@@ -416,7 +421,7 @@ class WindowsGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to click: {e}")
-    
+
     def type_text(self, text: str) -> bool:
         """Type text"""
         try:
@@ -424,7 +429,7 @@ class WindowsGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to type text: {e}")
-    
+
     def press_key(self, key: str) -> bool:
         """Press a key"""
         try:
@@ -432,20 +437,20 @@ class WindowsGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to press key: {e}")
-    
+
     def take_screenshot(self, filename: str = None) -> str:
         """Take screenshot"""
         try:
             if not filename:
                 filename = f"screenshot_{int(time.time())}.png"
-            
+
             screenshot = pyautogui.screenshot()
             screenshot.save(filename)
             return filename
         except Exception as e:
             raise Exception(f"Failed to take screenshot: {e}")
-    
-    def find_element(self, image_path: str) -> Dict[str, int]:
+
+    def find_element(self, image_path: str) -> dict[str, int]:
         """Find element by image"""
         try:
             location = pyautogui.locateOnScreen(image_path)
@@ -460,8 +465,8 @@ class WindowsGUIAdapter(BaseGUIAdapter):
 
 class WindowsSystemAdapter(BaseSystemAdapter):
     """Windows system operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute system action"""
         if action == 'get_info':
             return self.get_system_info()
@@ -471,15 +476,15 @@ class WindowsSystemAdapter(BaseSystemAdapter):
             return self.power_action(params.get('action'))
         else:
             raise ValueError(f"Unknown system action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['get_info', 'set_volume', 'power_action']
-    
-    def get_system_info(self) -> Dict[str, Any]:
+
+    def get_system_info(self) -> dict[str, Any]:
         """Get system information"""
         try:
             import platform
-            
+
             return {
                 'platform': platform.platform(),
                 'system': platform.system(),
@@ -498,16 +503,15 @@ class WindowsSystemAdapter(BaseSystemAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to get system info: {e}")
-    
+
     def set_volume(self, level: int) -> bool:
         """Set system volume (0-100)"""
         try:
             if HAS_WIN32:
                 # Use Windows API to set volume
-                import pycaw.pycaw as pycaw
                 from comtypes import CLSCTX_ALL
                 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-                
+
                 devices = AudioUtilities.GetSpeakers()
                 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
                 volume = interface.QueryInterface(IAudioEndpointVolume)
@@ -519,7 +523,7 @@ class WindowsSystemAdapter(BaseSystemAdapter):
                 return True
         except Exception as e:
             raise Exception(f"Failed to set volume: {e}")
-    
+
     def power_action(self, action: str) -> bool:
         """Perform power action"""
         try:
@@ -534,16 +538,16 @@ class WindowsSystemAdapter(BaseSystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to perform power action: {e}")
-    
-    def get_environment_variables(self) -> Dict[str, str]:
+
+    def get_environment_variables(self) -> dict[str, str]:
         """Get environment variables"""
         return dict(os.environ)
 
 
 class WindowsNetworkAdapter(BaseNetworkAdapter):
     """Windows network operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute network action"""
         if action == 'download':
             return self.download_file(params.get('url'), params.get('filename'))
@@ -551,31 +555,32 @@ class WindowsNetworkAdapter(BaseNetworkAdapter):
             return self.http_request('GET', params.get('url'))
         else:
             raise ValueError(f"Unknown network action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['download', 'http_get', 'http_post']
-    
+
     def download_file(self, url: str, filename: str = None) -> str:
         """Download file from URL"""
         try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            
             if not filename:
                 filename = url.split('/')[-1] or 'downloaded_file'
-            
-            with open(filename, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
+
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    with open(filename, 'wb') as f:
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            f.write(chunk)
+
             return filename
         except Exception as e:
             raise Exception(f"Failed to download file: {e}")
-    
-    def http_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
+
+    def http_request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request"""
         try:
-            response = requests.request(method, url, **kwargs)
+            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                response = client.request(method, url, **kwargs)
             return {
                 'status_code': response.status_code,
                 'headers': dict(response.headers),
@@ -584,12 +589,12 @@ class WindowsNetworkAdapter(BaseNetworkAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to make HTTP request: {e}")
-    
-    def get_network_info(self) -> Dict[str, Any]:
+
+    def get_network_info(self) -> dict[str, Any]:
         """Get network information"""
         try:
             import socket
-            
+
             return {
                 'hostname': socket.gethostname(),
                 'ip_address': socket.gethostbyname(socket.gethostname()),
@@ -607,18 +612,18 @@ class WindowsNetworkAdapter(BaseNetworkAdapter):
 
 class WindowsAdapter(BaseOSAdapter):
     """Windows OS adapter"""
-    
+
     def _create_filesystem_adapter(self) -> BaseFilesystemAdapter:
         return WindowsFilesystemAdapter()
-    
+
     def _create_process_adapter(self) -> BaseProcessAdapter:
         return WindowsProcessAdapter()
-    
+
     def _create_gui_adapter(self) -> BaseGUIAdapter:
         return WindowsGUIAdapter()
-    
+
     def _create_system_adapter(self) -> BaseSystemAdapter:
         return WindowsSystemAdapter()
-    
+
     def _create_network_adapter(self) -> BaseNetworkAdapter:
         return WindowsNetworkAdapter()

@@ -12,17 +12,18 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 from loguru import logger
 
-from .model_resolver import get_resolver, FreeModelResolver
-from .response_parser import parse_task_plan, TaskPlan
-from .context_manager import ContextWindow
 from ..config import get_config
 from ..utils.logger import get_logger
+from .context_manager import ContextWindow
+from .model_resolver import FreeModelResolver, get_resolver
+from .response_parser import TaskPlan, parse_task_plan
 
 __all__ = [
     # New async client (spec-required)
@@ -110,26 +111,27 @@ class OpenRouterAutomationAI:
 
     def __init__(self, api_key: str | None = None) -> None:
         self.logger = get_logger("OpenRouterAI")
-        self._api_key = api_key or os.getenv("OPENROUTER_API_KEY", "")
+        _config = get_config()
+        self._api_key = api_key or _config.ai.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
         self._resolver: FreeModelResolver | None = None
         self._model_name: str = ""          # set after ensure_loaded()
         self._is_available: bool = False
         self.last_error: str | None = None
         self._context_window = ContextWindow(
-            max_tokens=get_config().ai.max_tokens,
+            max_tokens=_config.ai.max_tokens,
             system_prompt=_SYSTEM_PROMPT.strip(),
         )
         # Attempt async initialisation in the background
         self._init_task: asyncio.Task[None] | None = None
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                self._init_task = loop.create_task(self._async_init())
-            else:
-                asyncio.run(self._async_init())
+            loop = asyncio.get_running_loop()
+            self._init_task = loop.create_task(self._async_init())
         except RuntimeError:
-            # No running loop — caller must await _async_init() manually
-            pass
+            # No running loop — initialise synchronously
+            try:
+                asyncio.run(self._async_init())
+            except RuntimeError:
+                pass
 
     # ── Properties (backward compat) ─────────────────────────────────────────
 
@@ -276,8 +278,13 @@ class OpenRouterAutomationAI:
             AITaskPlan.
         """
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            try:
+                asyncio.get_running_loop()
+                loop_running = True
+            except RuntimeError:
+                loop_running = False
+
+            if loop_running:
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(
@@ -624,7 +631,7 @@ class OpenRouterConfig:
     max_retries: int = 3
 
     @classmethod
-    def from_env(cls) -> "OpenRouterConfig":
+    def from_env(cls) -> OpenRouterConfig:
         """Construct a config instance from environment variables."""
         return cls(
             api_key=os.getenv("OPENROUTER_API_KEY", ""),
@@ -822,7 +829,7 @@ class OpenRouterClient:
     # Async context-manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "OpenRouterClient":
+    async def __aenter__(self) -> OpenRouterClient:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -871,7 +878,7 @@ class OpenRouterClient:
             ) from exc
 
     @staticmethod
-    def _parse_sse_line(line: str, model: str) -> "StreamChunk | None":
+    def _parse_sse_line(line: str, model: str) -> StreamChunk | None:
         """
         Parse one raw SSE text line.
 

@@ -4,8 +4,8 @@ Includes permission enforcement, path validation, and safe subprocess utilities.
 """
 from __future__ import annotations
 
-from .permission_manager import PermissionManager, PermissionLevel, ActionCategory
-from .subprocess_runner import safe_run, safe_popen, build_package_cmd, SubprocessError
+from .permission_manager import ActionCategory, PermissionLevel, PermissionManager
+from .subprocess_runner import SubprocessError, build_package_cmd, safe_popen, safe_run
 
 __all__ = [
     "PermissionManager",

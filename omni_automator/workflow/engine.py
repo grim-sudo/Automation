@@ -2,15 +2,15 @@
 Workflow execution engine for complex multi-step automation
 """
 
-import asyncio
-import time
 import os
-from typing import Dict, Any, List, Optional, Callable
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
-from ..parsers.command_parser import ComplexCommand, ParsedStep, CommandComplexity
+from ..parsers.command_parser import CommandComplexity, ComplexCommand, ParsedStep
 from ..utils.logger import get_logger
 
 
@@ -27,35 +27,35 @@ class StepExecution:
     """Execution state for a workflow step"""
     step: ParsedStep
     status: StepStatus = StepStatus.PENDING
-    start_time: Optional[float] = None
-    end_time: Optional[float] = None
+    start_time: float | None = None
+    end_time: float | None = None
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     retry_count: int = 0
 
 
 class WorkflowEngine:
     """Engine for executing complex multi-step workflows"""
-    
+
     def __init__(self, automator_instance):
         self.automator = automator_instance
         self.logger = get_logger("WorkflowEngine")
         self.max_retries = 3
         self.retry_delay = 2  # seconds
         self.max_parallel_steps = 3
-        
+
         # Execution state
-        self.current_workflow: Optional[ComplexCommand] = None
-        self.step_executions: List[StepExecution] = []
-        self.workflow_context: Dict[str, Any] = {}
-        
+        self.current_workflow: ComplexCommand | None = None
+        self.step_executions: list[StepExecution] = []
+        self.workflow_context: dict[str, Any] = {}
+
         # Progress callbacks
-        self.progress_callbacks: List[Callable] = []
-    
-    def execute_workflow(self, complex_command: ComplexCommand) -> Dict[str, Any]:
+        self.progress_callbacks: list[Callable] = []
+
+    def execute_workflow(self, complex_command: ComplexCommand) -> dict[str, Any]:
         """Execute a complex workflow"""
         self.logger.info(f"Starting workflow execution: {complex_command.original_command}")
-        
+
         self.current_workflow = complex_command
         self.step_executions = [StepExecution(step) for step in complex_command.steps]
         self.workflow_context = complex_command.context.copy()
@@ -69,7 +69,7 @@ class WorkflowEngine:
                     self.logger.debug(f"Workflow step {idx}: action={s.action}, category={s.category}")
         except Exception:
             pass
-        
+
         try:
             if complex_command.complexity == CommandComplexity.SIMPLE:
                 return self._execute_simple_workflow()
@@ -79,7 +79,7 @@ class WorkflowEngine:
                 return self._execute_complex_workflow()
             else:  # CONDITIONAL
                 return self._execute_conditional_workflow()
-                
+
         except Exception as e:
             self.logger.error(f"Workflow execution failed: {e}")
             return {
@@ -88,48 +88,48 @@ class WorkflowEngine:
                 'completed_steps': self._get_completed_steps(),
                 'failed_step': self._get_failed_step()
             }
-    
-    def _execute_simple_workflow(self) -> Dict[str, Any]:
+
+    def _execute_simple_workflow(self) -> dict[str, Any]:
         """Execute simple single-step workflow"""
         if not self.step_executions:
             return {'success': True, 'message': 'No steps to execute'}
-        
+
         step_exec = self.step_executions[0]
         result = self._execute_step(step_exec)
-        
+
         return {
             'success': result['success'],
             'result': result.get('result'),
             'error': result.get('error'),
             'execution_time': result.get('execution_time', 0)
         }
-    
-    def _execute_compound_workflow(self) -> Dict[str, Any]:
+
+    def _execute_compound_workflow(self) -> dict[str, Any]:
         """Execute compound workflow with sequential steps"""
         results = []
         total_time = 0
-        
+
         for step_exec in self.step_executions:
             # Check dependencies
             if not self._check_dependencies(step_exec):
                 step_exec.status = StepStatus.SKIPPED
                 self.logger.warning(f"Skipping step due to failed dependencies: {step_exec.step.action}")
                 continue
-            
+
             # Execute step
             result = self._execute_step(step_exec)
             results.append(result)
             total_time += result.get('execution_time', 0)
-            
+
             # Stop on failure unless configured to continue
             if not result['success'] and not self.automator.config.get('continue_on_error', False):
                 break
-            
+
             # Update workflow context with results
             self._update_context(step_exec, result)
-        
+
         success_count = sum(1 for r in results if r['success'])
-        
+
         return {
             'success': success_count == len(results),
             'completed_steps': success_count,
@@ -138,41 +138,41 @@ class WorkflowEngine:
             'total_execution_time': total_time,
             'workflow_context': self.workflow_context
         }
-    
-    def _execute_complex_workflow(self) -> Dict[str, Any]:
+
+    def _execute_complex_workflow(self) -> dict[str, Any]:
         """Execute complex workflow with parallel execution where possible"""
         self.logger.info(f"Executing complex workflow with {len(self.step_executions)} steps")
-        
+
         # Group steps by priority and dependencies
         execution_groups = self._group_steps_for_execution()
-        
+
         results = []
         total_time = 0
         start_time = time.time()
-        
+
         for group_index, group in enumerate(execution_groups):
             group_start = time.time()
             self.logger.info(f"Executing group {group_index + 1}/{len(execution_groups)} with {len(group)} steps")
-            
+
             # Execute group (potentially in parallel)
             group_results = self._execute_step_group(group)
             results.extend(group_results)
-            
+
             group_time = time.time() - group_start
             total_time += group_time
-            
+
             # Check if we should continue
             failed_in_group = sum(1 for r in group_results if not r['success'])
             if failed_in_group > 0 and not self.automator.config.get('continue_on_error', False):
                 self.logger.error(f"Stopping workflow due to {failed_in_group} failed steps in group {group_index + 1}")
                 break
-            
+
             # Notify progress
             self._notify_progress(group_index + 1, len(execution_groups), group_results)
-        
+
         total_time = time.time() - start_time
         success_count = sum(1 for r in results if r['success'])
-        
+
         return {
             'success': success_count == len(self.step_executions),
             'completed_steps': success_count,
@@ -184,11 +184,11 @@ class WorkflowEngine:
             'workflow_context': self.workflow_context,
             'execution_summary': self._generate_execution_summary()
         }
-    
-    def _execute_conditional_workflow(self) -> Dict[str, Any]:
+
+    def _execute_conditional_workflow(self) -> dict[str, Any]:
         """Execute conditional workflow with condition checking"""
         results = []
-        
+
         for step_exec in self.step_executions:
             # Check conditions
             if step_exec.step.conditions:
@@ -196,37 +196,37 @@ class WorkflowEngine:
                     step_exec.status = StepStatus.SKIPPED
                     self.logger.info(f"Skipping step due to unmet conditions: {step_exec.step.action}")
                     continue
-            
+
             # Check dependencies
             if not self._check_dependencies(step_exec):
                 step_exec.status = StepStatus.SKIPPED
                 continue
-            
+
             # Execute step
             result = self._execute_step(step_exec)
             results.append(result)
-            
+
             # Update context
             self._update_context(step_exec, result)
-        
+
         success_count = sum(1 for r in results if r['success'])
-        
+
         return {
             'success': success_count > 0,  # At least one step succeeded
             'completed_steps': success_count,
             'total_steps': len(results),
             'results': results
         }
-    
-    def _execute_step(self, step_exec: StepExecution) -> Dict[str, Any]:
+
+    def _execute_step(self, step_exec: StepExecution) -> dict[str, Any]:
         """Execute a single workflow step with retry logic"""
         step = step_exec.step
-        
+
         for attempt in range(self.max_retries + 1):
             step_exec.retry_count = attempt
             step_exec.status = StepStatus.RUNNING
             step_exec.start_time = time.time()
-            
+
             try:
                 self.logger.info(f"Executing step: {step.action} (attempt {attempt + 1})")
                 # Prefer plugin-capability dispatch for any action before falling back
@@ -264,7 +264,7 @@ class WorkflowEngine:
                                 pass
                     except Exception:
                         pass
-                
+
                 # Execute based on category
                 if step.category == 'gui':
                     # Prefer plugin-first dispatch to handle GUI-like actions that map
@@ -621,38 +621,38 @@ class WorkflowEngine:
                         # Use standard automator execution
                         # Resolve special paths in params
                         resolved_params = self._resolve_paths(step.params)
-                        
+
                         parsed_command = {
                             'action': step.action,
                             'category': step.category,
                             'params': resolved_params
                         }
                         result = self.automator._execute_parsed_command(parsed_command)
-                
+
                 step_exec.end_time = time.time()
                 step_exec.result = result
                 step_exec.status = StepStatus.COMPLETED
-                
+
                 execution_time = step_exec.end_time - step_exec.start_time
-                
+
                 return {
                     'success': True,
                     'result': result,
                     'execution_time': execution_time,
                     'step_action': step.action
                 }
-                
+
             except Exception as e:
                 step_exec.error = str(e)
                 self.logger.error(f"Step execution failed (attempt {attempt + 1}): {e}")
-                
+
                 if attempt < self.max_retries:
                     self.logger.info(f"Retrying in {self.retry_delay} seconds...")
                     time.sleep(self.retry_delay)
                 else:
                     step_exec.status = StepStatus.FAILED
                     step_exec.end_time = time.time()
-                    
+
                     return {
                         'success': False,
                         'error': f'Failed to execute step after {self.max_retries} attempts: {e}',
@@ -660,7 +660,7 @@ class WorkflowEngine:
                         'step_action': step.action,
                         'retry_count': attempt + 1
                     }
-    
+
     def _execute_project_generator_step(self, step: ParsedStep) -> Any:
         """Execute project generator steps"""
         # Plugin-first dispatch: prefer plugins for project generation capabilities
@@ -692,7 +692,7 @@ class WorkflowEngine:
             'error': f'No plugin handled project_generator capability: {capability}. Install a suitable plugin.'
         }
 
-    def _dispatch_to_plugins(self, step: ParsedStep, capability: Optional[str] = None) -> Any:
+    def _dispatch_to_plugins(self, step: ParsedStep, capability: str | None = None) -> Any:
         """Generic plugin-first dispatcher for a step.
 
         Returns the plugin result if a plugin handles the capability, or None
@@ -727,15 +727,15 @@ class WorkflowEngine:
                     pass
 
         return None
-    
-    def _execute_create_folder(self, step: ParsedStep) -> Dict[str, Any]:
+
+    def _execute_create_folder(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_folder step"""
         # use module-level os
-        
+
         name = step.params.get('name', '')
         location = step.params.get('location', '.')
         parent = step.params.get('parent', '')
-        
+
         # Build the full path
         if parent:
             # If parent is specified, create under the parent folder
@@ -747,7 +747,7 @@ class WorkflowEngine:
             full_path = os.path.join(location, name)
         else:
             full_path = name
-        
+
         # Create the folder
         try:
             os.makedirs(full_path, exist_ok=True)
@@ -760,21 +760,21 @@ class WorkflowEngine:
         except Exception as e:
             self.logger.error(f"Failed to create folder {full_path}: {e}")
             raise
-    
-    def _execute_create_file(self, step: ParsedStep) -> Dict[str, Any]:
+
+    def _execute_create_file(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_file step"""
         # use module-level os
-        
+
         name = step.params.get('name', '')
         content = step.params.get('content', '')
         parent = step.params.get('parent', '')
         location = step.params.get('location', '.')
         template = step.params.get('template', '')
-        
+
         # If no content but template is specified, generate code
         if not content and template:
             content = self._generate_algorithm_code(template, name)
-        
+
         # If still no content but filename indicates an algorithm, generate it
         # Check for common programming language extensions
         if not content:
@@ -786,7 +786,7 @@ class WorkflowEngine:
                     if algo_name and algo_name not in ['test', 'debug', 'temp']:
                         content = self._generate_algorithm_code(algo_name, name)
                     break
-        
+
         # Build the full path
         if parent:
             if location and location != '.':
@@ -797,9 +797,9 @@ class WorkflowEngine:
             folder_path = location
         else:
             folder_path = '.'
-        
+
         file_path = os.path.join(folder_path, name)
-        
+
         # Create the file
         try:
             os.makedirs(folder_path, exist_ok=True)
@@ -814,16 +814,16 @@ class WorkflowEngine:
         except Exception as e:
             self.logger.error(f"Failed to create file {file_path}: {e}")
             raise
-    
+
     def _generate_even_odd_code(self, language: str = 'c') -> str:
         """Generate even/odd checking code using AI for specified language"""
         language = language.lower().strip()
-        
+
         # Use AI to generate the code dynamically
         try:
             from ..ai.openrouter_integration import OpenRouterAutomationAI
             ai = OpenRouterAutomationAI()
-            
+
             prompt = f"""Generate a complete, working {language} program that checks if a number is even or odd.
             
 Requirements:
@@ -836,7 +836,7 @@ Requirements:
 - Make it production-ready
 
 Return ONLY the code, no explanations or markdown formatting."""
-            
+
             # Use the AI to generate code
             if hasattr(ai, 'client') and ai.client:
                 try:
@@ -850,7 +850,7 @@ Return ONLY the code, no explanations or markdown formatting."""
                         max_tokens=1000
                     )
                     code = response.choices[0].message.content if response.choices else ""
-                    
+
                     # Clean up markdown code blocks if present
                     if code and code.startswith('```'):
                         lines = code.split('\n')
@@ -859,29 +859,29 @@ Return ONLY the code, no explanations or markdown formatting."""
                         if code.endswith('```'):
                             code = code[:-3]
                         code = code.strip()
-                    
+
                     return code if code else self._generate_even_odd_fallback(language)
                 except Exception as e:
                     self.logger.debug(f"OpenRouter API call failed: {e}")
                     return self._generate_even_odd_fallback(language)
             else:
                 return self._generate_even_odd_fallback(language)
-            
+
         except Exception as e:
             self.logger.warning(f"AI code generation failed, using fallback: {e}")
             return self._generate_even_odd_fallback(language)
-    
+
     def _get_complexity_level(self, algorithm: str) -> str:
         """Determine if algorithm is simple, moderate, or complex"""
         algorithm = algorithm.lower()
-        
+
         # Simple algorithms (basic logic, one function enough)
         simple = ['even', 'odd', 'prime', 'factorial', 'palindrome', 'reverse']
         # Moderate algorithms (some complexity, good for practice)
         moderate = ['fibonacci', 'bubble', 'selection', 'insertion', 'linear_search', 'binary_search']
         # Complex algorithms (optimization, advanced concepts)
         complex_algos = ['quick', 'merge', 'heap', 'dijkstra', 'bfs', 'dfs', 'dynamic']
-        
+
         for simple_algo in simple:
             if simple_algo in algorithm:
                 return 'simple'
@@ -891,17 +891,17 @@ Return ONLY the code, no explanations or markdown formatting."""
         for complex_algo in complex_algos:
             if complex_algo in algorithm:
                 return 'complex'
-        
+
         return 'moderate'  # default
-    
+
     def _generate_algorithm_code(self, algorithm: str, filename: str = '') -> str:
         """Generate code for any algorithm in any language using AI with adaptive complexity"""
         algorithm = algorithm.lower().strip()
-        
+
         # Detect language and extract class name for Java
         language = 'c'  # default
         java_class_name = None
-        
+
         if filename:
             if filename.endswith('.py'):
                 language = 'python'
@@ -915,15 +915,15 @@ Return ONLY the code, no explanations or markdown formatting."""
                 language = 'cpp'
             elif filename.endswith('.c'):
                 language = 'c'
-        
+
         # Determine complexity level
         complexity = self._get_complexity_level(algorithm)
-        
+
         # Use AI to generate code dynamically for any algorithm/problem
         try:
             from ..ai.openrouter_integration import OpenRouterAutomationAI
             ai = OpenRouterAutomationAI()
-            
+
             # Build adaptive prompt based on complexity
             # Extend supported algorithms to include more complex systems
             if algorithm in ['dijkstra', 'a_star', 'floyd_warshall']:
@@ -945,7 +945,7 @@ Return ONLY the code, no explanations or markdown formatting."""
 
             # Update the prompt to include the new algorithms
             prompt = self._build_generation_prompt(algo_desc, language, complexity, java_class_name)
-            
+
             # Use the AI to generate code
             if hasattr(ai, 'client') and ai.client:
                 try:
@@ -959,7 +959,7 @@ Return ONLY the code, no explanations or markdown formatting."""
                         max_tokens=2000 if complexity == 'complex' else 1500
                     )
                     code = response.choices[0].message.content if response.choices else ""
-                    
+
                     # Clean up markdown code blocks if present
                     if code and code.startswith('```'):
                         lines = code.split('\n')
@@ -968,25 +968,25 @@ Return ONLY the code, no explanations or markdown formatting."""
                         if code.endswith('```'):
                             code = code[:-3]
                         code = code.strip()
-                    
+
                     # Post-process code based on language
                     code = self._post_process_code(code, language, complexity)
-                    
+
                     return code if code else self._generate_algorithm_fallback(algorithm, language, complexity)
                 except Exception as e:
                     self.logger.debug(f"OpenRouter API call failed: {e}")
                     return self._generate_algorithm_fallback(algorithm, language, complexity)
             else:
                 return self._generate_algorithm_fallback(algorithm, language, complexity)
-            
+
         except Exception as e:
             self.logger.warning(f"AI code generation failed for {algorithm}, using fallback: {e}")
             return self._generate_algorithm_fallback(algorithm, language, complexity)
-    
+
     def _build_generation_prompt(self, algorithm: str, language: str, complexity: str, java_class_name: str = None) -> str:
         """Build adaptive prompt based on complexity level"""
         algo_desc = algorithm.replace('_', ' ')
-        
+
         if complexity == 'simple':
             prompt = f"""Write a simple, clean {language} program to {algo_desc}.
 
@@ -999,7 +999,7 @@ Requirements:
 - ENSURE CODE IS 100% COMPLETE WITH ALL CLOSING BRACES/BLOCKS
 
 Return ONLY the complete, valid {language} code. No markdown formatting."""
-        
+
         elif complexity == 'moderate':
             prompt = f"""Write a {language} program to implement {algo_desc}.
 
@@ -1014,7 +1014,7 @@ Requirements:
 - Use ONLY ASCII characters (no unicode superscripts or special symbols)
 
 Return ONLY the complete, valid {language} code. No markdown formatting."""
-        
+
         else:  # complex
             prompt = f"""Write an optimized, production-ready {language} implementation of {algo_desc}.
 
@@ -1031,13 +1031,13 @@ Requirements:
 - Wrap main method/function logic in proper closing blocks
 
 Return ONLY the complete, valid {language} code. No markdown formatting."""
-        
+
         # Special instruction for Java
         if language == 'java' and java_class_name:
             prompt += f"\n\nIMPORTANT: \n1. The public class name MUST be exactly '{java_class_name}'\n2. Include complete main method with all closing braces\n3. Use ASCII complexity notation: O(n log n) not O(n log n) with superscripts"
-        
+
         return prompt
-    
+
     def _get_system_prompt(self, language: str, complexity: str) -> str:
         """Get language and complexity-appropriate system prompt"""
         complexity_text = {
@@ -1045,59 +1045,59 @@ Return ONLY the complete, valid {language} code. No markdown formatting."""
             'moderate': 'for well-structured, balanced code',
             'complex': 'for optimized, production-quality code'
         }
-        
+
         return f"You are an expert {language} programmer specializing in {complexity_text.get(complexity, 'general')}. Generate only executable, working code."
-    
+
     def _post_process_code(self, code: str, language: str, complexity: str) -> str:
         """Post-process generated code for language-specific requirements"""
         if not code:
             return code
-        
+
         # Remove Python shebang for simple/moderate complexity
         if language == 'python' and complexity in ['simple', 'moderate']:
             lines = code.split('\n')
             if lines and lines[0].startswith('#!'):
                 code = '\n'.join(lines[1:]).lstrip()
-        
+
         # Validate and fix Java code
         if language == 'java':
             code = self._validate_and_fix_java_code(code)
-        
+
         # Validate and fix C code
         if language == 'c':
             code = self._validate_and_fix_c_code(code)
-        
+
         return code.strip()
-    
+
     def _validate_and_fix_java_code(self, code: str) -> str:
         """Validate and fix Java code - ensure all braces are matched and ASCII only"""
         # Count opening and closing braces
         open_braces = code.count('{')
         close_braces = code.count('}')
-        
+
         # If there are unmatched braces, add closing ones
         if open_braces > close_braces:
             code += '\n' + '}\n' * (open_braces - close_braces)
-        
+
         # Replace common Unicode issues with ASCII equivalents
         # Replace superscript 2 with ^2 in comments
         code = code.replace('O(n²)', 'O(n^2)').replace('n²', 'n^2').replace('Θ(n²)', 'O(n^2)')
         code = code.replace('O(n²log n)', 'O(n^2 log n)').replace('Θ(n log n)', 'O(n log n)')
-        
+
         return code
-    
+
     def _validate_and_fix_c_code(self, code: str) -> str:
         """Validate and fix C code - ensure all braces are matched"""
         # Count opening and closing braces
         open_braces = code.count('{')
         close_braces = code.count('}')
-        
+
         # If there are unmatched braces, add closing ones
         if open_braces > close_braces:
             code += '\n' + '}\n' * (open_braces - close_braces)
-        
+
         return code
-    
+
     def _generate_algorithm_fallback(self, algorithm: str, language: str, complexity: str = 'moderate') -> str:
         """Fallback code generation when AI is unavailable"""
         # Basic fallback templates for common algorithms
@@ -1123,7 +1123,7 @@ def main():
 if __name__ == "__main__":
     main()
 '''
-        
+
         elif language == 'java':
             # Extract class name from algorithm, ensuring it matches Java naming conventions
             class_name = algorithm.replace('_', '')
@@ -1131,7 +1131,7 @@ if __name__ == "__main__":
                 class_name = 'Algorithm' + class_name
             if not class_name:
                 class_name = 'Main'
-            
+
             if complexity == 'simple':
                 return f'''public class {class_name} {{
     public static void main(String[] args) {{
@@ -1154,7 +1154,7 @@ public class {class_name} {{
     }}
 }}
 '''
-        
+
         elif language == 'javascript':
             if complexity == 'simple':
                 return f'''// {algorithm}
@@ -1177,7 +1177,7 @@ function main() {{
 
 main();
 '''
-        
+
         elif language == 'cpp':
             if complexity == 'simple':
                 return f'''#include <iostream>
@@ -1202,7 +1202,7 @@ int main() {{
     return 0;
 }}
 '''
-        
+
         else:  # C
             if complexity == 'simple':
                 return f'''#include <stdio.h>
@@ -1225,7 +1225,7 @@ int main() {{
     return 0;
 }}
 '''
-    
+
     def _generate_even_odd_fallback(self, language: str) -> str:
         """Fallback for even/odd code generation"""
         if language == 'python':
@@ -1287,31 +1287,31 @@ int main() {
     return 0;
 }
 '''
-    
-    def _execute_create_bulk_folders(self, step: ParsedStep) -> Dict[str, Any]:
+
+    def _execute_create_bulk_folders(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_bulk_folders step - creates multiple folders with naming pattern"""
         # use module-level os
-        
+
         # Support both old and new parameter formats
         base_name = step.params.get('base_name', '')
         start = step.params.get('start', 1)
         end = step.params.get('end', step.params.get('count', 10))
         location = step.params.get('location', '.')
         parent_folder = step.params.get('parent_folder', '')
-        
+
         # Build base path
         if parent_folder:
             base_path = os.path.join(location, parent_folder)
         else:
             base_path = location
-        
+
         created = []
-        
+
         try:
             # Create base directory if needed
             if not os.path.exists(base_path):
                 os.makedirs(base_path, exist_ok=True)
-            
+
             # Create numbered folders
             for i in range(start, end + 1):
                 if base_name:
@@ -1321,7 +1321,7 @@ int main() {
                 full_path = os.path.join(base_path, folder_name)
                 os.makedirs(full_path, exist_ok=True)
                 created.append(full_path)
-            
+
             self.logger.info(f"Created {len(created)} bulk folders")
             return {
                 'success': True,
@@ -1333,39 +1333,39 @@ int main() {
         except Exception as e:
             self.logger.error(f"Failed to create bulk folders: {e}")
             raise
-    
-    def _execute_create_nested_folders(self, step: ParsedStep) -> Dict[str, Any]:
+
+    def _execute_create_nested_folders(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_nested_folders step - creates subfolders inside each parent folder"""
         # use module-level os
-        
+
         # Support both old and new parameter formats
         parent_name = step.params.get('parent_name', '')
         parent_folder = step.params.get('parent_folder', parent_name)
         subfolders = step.params.get('subfolders', [])
         location = step.params.get('location', '.')
-        
+
         # New format parameters
         count = step.params.get('count', len(subfolders) if isinstance(subfolders, list) else 0)
         start = step.params.get('start', 1)
         end = step.params.get('end', start + count - 1 if count > 0 else start)
         nested_in_each = step.params.get('nested_in_each', False)
         level = step.params.get('level', 1)
-        
+
         created = []
-        
+
         try:
             # Build base path
             base_path = os.path.join(location, parent_folder) if parent_folder else location
-            
+
             if nested_in_each:
                 # Create subfolders inside EACH existing folder at the parent level
                 if os.path.exists(base_path):
-                    parent_dirs = sorted([d for d in os.listdir(base_path) 
+                    parent_dirs = sorted([d for d in os.listdir(base_path)
                                    if os.path.isdir(os.path.join(base_path, d))])
-                    
+
                     for parent_dir in parent_dirs:
                         parent_path = os.path.join(base_path, parent_dir)
-                        
+
                         # Create numbered subfolders inside each parent
                         for i in range(start, end + 1):
                             subfolder_name = str(i)
@@ -1377,11 +1377,11 @@ int main() {
             else:
                 # Old format: Create parent folder with nested subfolders
                 parent_path = base_path
-                
+
                 if not os.path.exists(parent_path):
                     os.makedirs(parent_path, exist_ok=True)
                     created.append(parent_path)
-                
+
                 # Handle subfolders based on type
                 if isinstance(subfolders, dict):
                     # Complex nested structure with test_range pattern
@@ -1390,7 +1390,7 @@ int main() {
                         test_base = test_range.get('base', 'test')
                         test_start = test_range.get('start', 2)
                         test_end = test_range.get('end', 100)
-                        
+
                         for i in range(test_start, test_end + 1):
                             subfolder_name = f"{test_base}{i}"
                             subfolder_path = os.path.join(parent_path, subfolder_name)
@@ -1409,7 +1409,7 @@ int main() {
                         subfolder_path = os.path.join(parent_path, subfolder_name)
                         os.makedirs(subfolder_path, exist_ok=True)
                         created.append(subfolder_path)
-            
+
             self.logger.info(f"Created nested folder structure with {len(created)} folders total")
             return {
                 'success': True,
@@ -1420,24 +1420,24 @@ int main() {
         except Exception as e:
             self.logger.error(f"Failed to create nested folders: {e}")
             raise
-    
-    def _execute_create_nested_files(self, step: ParsedStep) -> Dict[str, Any]:
+
+    def _execute_create_nested_files(self, step: ParsedStep) -> dict[str, Any]:
         """Execute create_nested_files step - creates files inside each folder at a nesting level"""
         # use module-level os
-        
+
         filename = step.params.get('filename', 'README.md')
         content = step.params.get('content', '')
         parent_folder = step.params.get('parent_folder', '')
         location = step.params.get('location', '.')
         nested_in_each = step.params.get('nested_in_each', False)
         level = step.params.get('level', 1)
-        
+
         created = []
-        
+
         try:
             # Build base path
             base_path = os.path.join(location, parent_folder) if parent_folder else location
-            
+
             if nested_in_each:
                 # Recursively find ALL leaf directories (deepest level) and create file in each
                 def find_leaf_dirs(path):
@@ -1452,9 +1452,9 @@ int main() {
                         for subdir in subdirs:
                             result.extend(find_leaf_dirs(os.path.join(path, subdir)))
                     return result
-                
+
                 leaf_dirs = find_leaf_dirs(base_path)
-                
+
                 for leaf_dir in leaf_dirs:
                     file_path = os.path.join(leaf_dir, filename)
                     with open(file_path, 'w') as f:
@@ -1464,12 +1464,12 @@ int main() {
                 # Create file in specific location
                 if not os.path.exists(base_path):
                     os.makedirs(base_path, exist_ok=True)
-                
+
                 file_path = os.path.join(base_path, filename)
                 with open(file_path, 'w') as f:
                     f.write(content)
                 created.append(file_path)
-            
+
             self.logger.info(f"Created {len(created)} nested files")
             return {
                 'success': True,
@@ -1480,10 +1480,11 @@ int main() {
         except Exception as e:
             self.logger.error(f"Failed to create nested files: {e}")
             raise
-    
+
     def _execute_package_manager_step(self, step: ParsedStep) -> Any:
         """Execute package manager steps via OS adapter or universal_automation plugin"""
-        import subprocess, shutil
+        import shutil
+        import subprocess
 
         action = step.action
         params = step.params or {}
@@ -1537,11 +1538,11 @@ int main() {
             return {'success': True, 'message': 'Check not implemented in fallback; use universal_automation plugin'}
 
         return {'success': False, 'error': f'Unhandled package_manager action: {action}'}
-    
+
     def _execute_installer_step(self, step: ParsedStep) -> Any:
         """Execute installer steps - delegate to package manager"""
         return self._execute_package_manager_step(step)
-    
+
     def _execute_code_generator_step(self, step: ParsedStep) -> Any:
         """Execute code generator steps"""
         action = step.action
@@ -1570,10 +1571,11 @@ int main() {
         return self._execute_create_file(type(step)(
             action='create_file', category='filesystem',
             params={'name': name, 'location': location, 'content': content}))
-    
+
     def _execute_editor_step(self, step: ParsedStep) -> Any:
         """Execute editor steps by launching the real editor"""
-        import subprocess, shutil
+        import shutil
+        import subprocess
         action = step.action
         params = step.params or {}
         path = params.get('path', '.')
@@ -1597,7 +1599,7 @@ int main() {
             return {'success': True, 'message': f'Opened {path}'}
 
         return {'success': False, 'error': f'Unknown editor action: {action}'}
-    
+
     def _execute_git_step(self, step: ParsedStep) -> Any:
         """Execute git steps using subprocess"""
         import subprocess
@@ -1647,7 +1649,7 @@ int main() {
             return {'success': r.returncode == 0, 'output': r.stdout, 'message': r.stdout or r.stderr}
 
         return {'success': False, 'error': f'Unknown git action: {action}'}
-    
+
     def _execute_backup_step(self, step: ParsedStep) -> Any:
         """Execute backup steps using shutil"""
         import shutil
@@ -1673,10 +1675,12 @@ int main() {
                     'message': f'Backed up {source} to {destination}'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
+
     def _execute_downloader_step(self, step: ParsedStep) -> Any:
         """Execute downloader steps using urllib or wget/curl"""
-        import subprocess, shutil, urllib.request
+        import shutil
+        import subprocess
+        import urllib.request
         action = step.action
         params = step.params or {}
         url = params.get('url') or params.get('source')
@@ -1706,64 +1710,64 @@ int main() {
             return {'success': True, 'path': dest, 'message': f'Downloaded to {dest}'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
-        
-    def _group_steps_for_execution(self) -> List[List[StepExecution]]:
+
+    def _group_steps_for_execution(self) -> list[list[StepExecution]]:
         """Group steps for optimal execution order"""
         groups = []
         remaining_steps = self.step_executions.copy()
-        
+
         while remaining_steps:
             current_group = []
-            
+
             # Find steps that can be executed (no unmet dependencies)
             for step_exec in remaining_steps[:]:
                 if self._can_execute_step(step_exec, [s.step for group in groups for s in group]):
                     current_group.append(step_exec)
                     remaining_steps.remove(step_exec)
-            
+
             if not current_group:
                 # If no steps can be executed, there might be circular dependencies
                 # Add the first remaining step to break the cycle
                 current_group.append(remaining_steps.pop(0))
-            
+
             groups.append(current_group)
-        
+
         return groups
-    
-    def _can_execute_step(self, step_exec: StepExecution, completed_steps: List[ParsedStep]) -> bool:
+
+    def _can_execute_step(self, step_exec: StepExecution, completed_steps: list[ParsedStep]) -> bool:
         """Check if a step can be executed based on dependencies"""
         if not step_exec.step.dependencies:
             return True
-        
+
         completed_indices = [i for i, step in enumerate(self.current_workflow.steps) if step in completed_steps]
-        
+
         for dep_index in step_exec.step.dependencies:
             if dep_index not in completed_indices:
                 return False
-        
+
         return True
-    
-    def _execute_step_group(self, group: List[StepExecution]) -> List[Dict[str, Any]]:
+
+    def _execute_step_group(self, group: list[StepExecution]) -> list[dict[str, Any]]:
         """Execute a group of steps, potentially in parallel"""
         if len(group) == 1:
             # Single step, execute directly
             return [self._execute_step(group[0])]
-        
+
         # Multiple steps, execute in parallel if safe
         if len(group) <= self.max_parallel_steps:
             return self._execute_parallel_steps(group)
         else:
             # Too many steps, execute sequentially
             return [self._execute_step(step_exec) for step_exec in group]
-    
-    def _execute_parallel_steps(self, steps: List[StepExecution]) -> List[Dict[str, Any]]:
+
+    def _execute_parallel_steps(self, steps: list[StepExecution]) -> list[dict[str, Any]]:
         """Execute steps in parallel using ThreadPoolExecutor"""
         results = []
-        
+
         with ThreadPoolExecutor(max_workers=min(len(steps), self.max_parallel_steps)) as executor:
             # Submit all steps
             future_to_step = {executor.submit(self._execute_step, step_exec): step_exec for step_exec in steps}
-            
+
             # Collect results as they complete
             for future in as_completed(future_to_step):
                 step_exec = future_to_step[future]
@@ -1776,25 +1780,25 @@ int main() {
                         'error': str(e),
                         'step_action': step_exec.step.action
                     })
-        
+
         return results
-    
+
     def _check_dependencies(self, step_exec: StepExecution) -> bool:
         """Check if step dependencies are satisfied"""
         if not step_exec.step.dependencies:
             return True
-        
+
         for dep_index in step_exec.step.dependencies:
             if dep_index >= len(self.step_executions):
                 return False
-            
+
             dep_step = self.step_executions[dep_index]
             if dep_step.status != StepStatus.COMPLETED:
                 return False
-        
+
         return True
-    
-    def _evaluate_conditions(self, conditions: List[str]) -> bool:
+
+    def _evaluate_conditions(self, conditions: list[str]) -> bool:
         """Evaluate step conditions"""
         # Simple condition evaluation - can be enhanced
         for condition in conditions:
@@ -1806,16 +1810,16 @@ int main() {
             elif 'process running' in condition.lower():
                 # Check if process is running
                 continue
-        
+
         return True
-    
-    def _update_context(self, step_exec: StepExecution, result: Dict[str, Any]):
+
+    def _update_context(self, step_exec: StepExecution, result: dict[str, Any]):
         """Update workflow context with step results"""
         if result['success']:
             self.workflow_context[f"step_{step_exec.step.action}_result"] = result.get('result')
             self.workflow_context[f"step_{step_exec.step.action}_completed"] = True
-    
-    def _notify_progress(self, current_group: int, total_groups: int, group_results: List[Dict[str, Any]]):
+
+    def _notify_progress(self, current_group: int, total_groups: int, group_results: list[dict[str, Any]]):
         """Notify progress callbacks"""
         progress_info = {
             'current_group': current_group,
@@ -1823,46 +1827,46 @@ int main() {
             'group_results': group_results,
             'overall_progress': (current_group / total_groups) * 100
         }
-        
+
         for callback in self.progress_callbacks:
             try:
                 callback(progress_info)
             except Exception as e:
                 self.logger.error(f"Progress callback error: {e}")
-    
-    def _get_completed_steps(self) -> List[str]:
+
+    def _get_completed_steps(self) -> list[str]:
         """Get list of completed step actions"""
         return [step_exec.step.action for step_exec in self.step_executions if step_exec.status == StepStatus.COMPLETED]
-    
-    def _get_failed_step(self) -> Optional[str]:
+
+    def _get_failed_step(self) -> str | None:
         """Get the first failed step action"""
         for step_exec in self.step_executions:
             if step_exec.status == StepStatus.FAILED:
                 return step_exec.step.action
         return None
-    
-    def _generate_execution_summary(self) -> Dict[str, Any]:
+
+    def _generate_execution_summary(self) -> dict[str, Any]:
         """Generate execution summary"""
         status_counts = {}
         for status in StepStatus:
             status_counts[status.value] = sum(1 for step_exec in self.step_executions if step_exec.status == status)
-        
+
         return {
             'total_steps': len(self.step_executions),
             'status_breakdown': status_counts,
             'success_rate': (status_counts.get('completed', 0) / len(self.step_executions)) * 100 if self.step_executions else 0,
             'total_retries': sum(step_exec.retry_count for step_exec in self.step_executions)
         }
-    
+
     def add_progress_callback(self, callback: Callable):
         """Add a progress callback function"""
         self.progress_callbacks.append(callback)
-    
-    def get_workflow_status(self) -> Dict[str, Any]:
+
+    def get_workflow_status(self) -> dict[str, Any]:
         """Get current workflow status"""
         if not self.current_workflow:
             return {'status': 'idle'}
-        
+
         return {
             'status': 'running' if any(step.status == StepStatus.RUNNING for step in self.step_executions) else 'completed',
             'original_command': self.current_workflow.original_command,
@@ -1870,13 +1874,13 @@ int main() {
             'progress': self._generate_execution_summary(),
             'current_step': next((step.step.action for step in self.step_executions if step.status == StepStatus.RUNNING), None)
         }
-    
-    def _resolve_paths(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _resolve_paths(self, params: dict[str, Any]) -> dict[str, Any]:
         """Resolve special path names to actual paths"""
         import os
-        
+
         resolved_params = params.copy()
-        
+
         # Common path mappings
         path_mappings = {
             'desktop': os.path.join(os.path.expanduser('~'), 'Desktop'),
@@ -1886,7 +1890,7 @@ int main() {
             'current': os.getcwd(),
             'temp': os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'Temp') if os.name == 'nt' else '/tmp'
         }
-        
+
         # Resolve location parameter
         if 'location' in resolved_params:
             location = resolved_params['location']
@@ -1899,7 +1903,7 @@ int main() {
                     desktop_path = path_mappings['desktop']
                     relative_path = location[8:]  # Remove "Desktop/"
                     resolved_params['location'] = os.path.join(desktop_path, relative_path)
-        
+
         # Resolve path parameter
         if 'path' in resolved_params:
             path = resolved_params['path']
@@ -1907,5 +1911,5 @@ int main() {
                 path_lower = path.lower()
                 if path_lower in path_mappings:
                     resolved_params['path'] = path_mappings[path_lower]
-        
+
         return resolved_params

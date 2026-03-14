@@ -1,18 +1,18 @@
 """AI integration layer for OmniAutomator."""
 
+from .context_manager import ContextManager, Message
+from .model_manager import ModelManager, ModelProvider, ModelRoute
 from .openrouter_integration import (
+    AIProviderError,
+    AITaskPlan,
+    # Legacy
+    OpenRouterAutomationAI,
     OpenRouterClient,
     OpenRouterConfig,
     StreamChunk,
-    AIProviderError,
-    # Legacy
-    OpenRouterAutomationAI,
-    AITaskPlan,
 )
-from .model_manager import ModelManager, ModelProvider, ModelRoute
-from .context_manager import ContextManager, Message
+from .response_parser import ResponseParser, TaskPlan
 from .task_planner import TaskPlanner
-from .response_parser import TaskPlan, ResponseParser
 
 __all__ = [
     # New async client (spec-required)

@@ -5,7 +5,6 @@ from typing import Literal
 
 from loguru import logger
 
-
 PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
     "debian": {
         "web server": ["nginx"],
@@ -115,7 +114,7 @@ def resolve_packages(description: str, base: str) -> list[str]:
     return result
 
 
-def nl_to_profile(nl_command: str) -> "DistroProfile":
+def nl_to_profile(nl_command: str) -> DistroProfile:
     """
     Parse a natural language distro description into a DistroProfile.
 
@@ -138,6 +137,7 @@ def nl_to_profile(nl_command: str) -> "DistroProfile":
             -> DistroProfile(base="unix", desktop=None, ...)
     """
     import re
+
     from .models import DistroProfile, KernelConfig
 
     nl_lower = nl_command.lower()

@@ -5,8 +5,8 @@ The module under test: omni_automator.security.path_validator
 Public surface exercised here:
 
     PathValidator(allowed_roots, safe_mode=False)
-        .validate(path, allow_create=True) -> Path
-            allow_create=False  → path must already exist on disk.
+        .validate(path, must_exist=False) -> Path
+            must_exist=True  → path must already exist on disk.
         .is_safe(path) -> bool
         .add_allowed_root(root) -> None
 
@@ -154,7 +154,7 @@ class TestTraversalPrevention:
             validator.validate("/etc/shadow")
 
 
-# ─── allow_create=False (must exist) ─────────────────────────────────────────
+# ─── must_exist=True (must exist) ─────────────────────────────────────────
 
 
 class TestMustExist:
@@ -163,23 +163,23 @@ class TestMustExist:
     ) -> None:
         nonexistent = temp_dir / "does_not_exist.txt"
         with pytest.raises(PathValidationError):
-            validator.validate(str(nonexistent), allow_create=False)
+            validator.validate(str(nonexistent), must_exist=True)
 
     def test_allow_create_false_passes_for_existing(
         self, validator: PathValidator, temp_dir: Path
     ) -> None:
         existing = temp_dir / "real_file.txt"
         existing.write_text("hello")
-        result = validator.validate(str(existing), allow_create=False)
+        result = validator.validate(str(existing), must_exist=True)
         assert result.exists()
 
     def test_allow_create_true_does_not_require_existence(
         self, validator: PathValidator, temp_dir: Path
     ) -> None:
-        """Default allow_create=True must not raise for non-existent paths
+        """Default must_exist=False must not raise for non-existent paths
         within the allowed root."""
         nonexistent = temp_dir / "will_be_created_later.txt"
-        result = validator.validate(str(nonexistent), allow_create=True)
+        result = validator.validate(str(nonexistent), must_exist=False)
         assert result is not None
 
 

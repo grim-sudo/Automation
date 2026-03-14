@@ -22,7 +22,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import IO, Optional
 
 # Ensure project root is on sys.path so relative imports work regardless of
 # how this script is invoked (e.g. python omni.py vs as a console_script).
@@ -84,14 +83,14 @@ def version_callback(value: bool) -> None:
 # ---------------------------------------------------------------------------
 
 _global_debug: bool = False
-_global_log_file: Optional[str] = None
+_global_log_file: str | None = None
 _global_safe_mode: bool = False
 
 
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-V",
@@ -105,7 +104,7 @@ def main_callback(
         envvar="OMNI_DEBUG",
         help="Enable debug logging.",
     ),
-    log_file: Optional[str] = typer.Option(
+    log_file: str | None = typer.Option(
         None,
         "--log-file",
         envvar="OMNI_LOG_FILE",
@@ -234,7 +233,7 @@ def run(
         False, "--safe-mode", help="Require confirmation for destructive operations."
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging."),
-    model: Optional[str] = typer.Option(
+    model: str | None = typer.Option(
         None, "--model", "-m", help="Force a specific AI model id."
     ),
 ) -> None:
@@ -528,15 +527,15 @@ def _n8n_headers(api_key: str) -> dict:
 
 def _n8n_get(endpoint: str) -> dict:
     """Execute a GET request to the n8n REST API."""
-    import requests
+    import httpx
 
     url, api_key = _get_n8n_config()
     full_url = f"{url}{endpoint}"
     try:
-        resp = requests.get(full_url, headers=_n8n_headers(api_key), timeout=10)
+        resp = httpx.get(full_url, headers=_n8n_headers(api_key), timeout=10)
         resp.raise_for_status()
         return resp.json()
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         console.print(
             f"[bold red]Error:[/bold red] Could not connect to n8n at [cyan]{url}[/cyan].\n"
             "Is n8n running? Check n8n.url in your config.toml."
@@ -549,17 +548,17 @@ def _n8n_get(endpoint: str) -> dict:
 
 def _n8n_post(endpoint: str, body: dict) -> dict:
     """Execute a POST request to the n8n REST API."""
-    import requests
+    import httpx
 
     url, api_key = _get_n8n_config()
     full_url = f"{url}{endpoint}"
     try:
-        resp = requests.post(
+        resp = httpx.post(
             full_url, headers=_n8n_headers(api_key), json=body, timeout=30
         )
         resp.raise_for_status()
         return resp.json()
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         console.print(
             f"[bold red]Error:[/bold red] Could not connect to n8n at [cyan]{url}[/cyan]."
         )
@@ -574,8 +573,8 @@ def n8n_list() -> None:
     """List all n8n workflows registered on the configured instance."""
     # Try the dedicated bridge plugin first, then fall back to direct REST
     try:
-        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
         from omni_automator.plugins.n8n_bridge.models import N8nConfig
+        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
 
         url, api_key = _get_n8n_config()
         n8n_cfg = N8nConfig(url=url, api_key=api_key)
@@ -612,7 +611,7 @@ def n8n_list() -> None:
 @n8n_app.command("run")
 def n8n_run(
     workflow_id: str = typer.Argument(..., help="Workflow ID to trigger."),
-    payload: Optional[str] = typer.Option(
+    payload: str | None = typer.Option(
         None, "--payload", "-p", help="JSON string to send as execution body."
     ),
 ) -> None:
@@ -630,8 +629,8 @@ def n8n_run(
 
     # Try bridge plugin first
     try:
-        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
         from omni_automator.plugins.n8n_bridge.models import N8nConfig
+        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
 
         url, api_key = _get_n8n_config()
         n8n_cfg = N8nConfig(url=url, api_key=api_key)
@@ -686,12 +685,12 @@ def n8n_create(
 
     # Try the dedicated bridge plugin first
     try:
+        from omni_automator.plugins.n8n_bridge.models import N8nConfig
         from omni_automator.plugins.n8n_bridge.node_builder import (
-            parse_nl_to_steps,
             build_linear_workflow,
+            parse_nl_to_steps,
         )
         from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
-        from omni_automator.plugins.n8n_bridge.models import N8nConfig
 
         url, api_key = _get_n8n_config()
         n8n_cfg = N8nConfig(url=url, api_key=api_key)
@@ -752,9 +751,9 @@ def n8n_create(
         console.print(f"[bold red]JSON parse error:[/bold red] {exc}")
         raise typer.Exit(1)
 
-    created = _n8n_post("/api/v1/workflows", workflow_data)
-    wf_id = created.get("id", "?")
-    wf_name = created.get("name", description[:40])
+    created_raw = _n8n_post("/api/v1/workflows", workflow_data)
+    wf_id = created_raw.get("id", "?")
+    wf_name = created_raw.get("name", description[:40])
     console.print(
         Panel(
             f"Workflow [bold]{wf_name}[/bold] created.\n"
@@ -772,8 +771,8 @@ def n8n_status(
     """Get the current status of an n8n workflow."""
     # Try bridge plugin first
     try:
-        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
         from omni_automator.plugins.n8n_bridge.models import N8nConfig
+        from omni_automator.plugins.n8n_bridge.workflow_manager import WorkflowManager
 
         url, api_key = _get_n8n_config()
         n8n_cfg = N8nConfig(url=url, api_key=api_key)
@@ -823,11 +822,11 @@ def n8n_status(
 
 @distro_app.command("build")
 def distro_build(
-    description: Optional[str] = typer.Argument(
+    description: str | None = typer.Argument(
         None,
         help="Natural language description of the distro to build.",
     ),
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None, "--profile", help="Path to a .toml build profile."
     ),
     output: str = typer.Option(
@@ -922,7 +921,7 @@ def distro_build(
             if sys.version_info >= (3, 11):
                 import tomllib
             else:
-                import tomli as tomllib  # type: ignore[no-redef]
+                import tomli as tomllib
             with open(profile_path, "rb") as fh:
                 profile_data = tomllib.load(fh)
             build_config.update(profile_data)
@@ -1051,7 +1050,7 @@ def distro_profiles() -> None:
             if sys.version_info >= (3, 11):
                 import tomllib
             else:
-                import tomli as tomllib  # type: ignore[no-redef]
+                import tomli as tomllib
             with open(path, "rb") as fh:
                 data = tomllib.load(fh)
             description = data.get("description", "—")

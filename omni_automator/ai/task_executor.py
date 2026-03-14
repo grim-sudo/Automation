@@ -5,12 +5,11 @@ Provides unified execution for tasks from any AI provider (OpenRouter, Ollama, e
 """
 
 import os
-import json
 import subprocess
-from typing import Dict, List, Any, Optional, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from typing import Any
 
 from ..utils.logger import get_logger
 
@@ -20,7 +19,7 @@ class ExecutionTask:
     """Single executable task from AI plan"""
     task_id: str
     action: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     description: str
     required: bool = True
     priority: int = 0
@@ -28,23 +27,23 @@ class ExecutionTask:
 
 class AITaskExecutor:
     """Executes AI-generated task plans with full modularity"""
-    
+
     def __init__(self):
         self.logger = get_logger("AITaskExecutor")
-        self.execution_handlers: Dict[str, Callable] = {}
-        self.execution_history: List[Dict[str, Any]] = []
-        self.execution_state: Dict[str, Any] = {
+        self.execution_handlers: dict[str, Callable] = {}
+        self.execution_history: list[dict[str, Any]] = []
+        self.execution_state: dict[str, Any] = {
             'current_task': None,
             'total_tasks': 0,
             'completed_tasks': 0,
             'failed_tasks': 0,
             'created_resources': []
         }
-        
+
         # Register all available execution handlers
         self._register_handlers()
-    
-    def _resolve_file_with_disambiguation(self, file_name: str) -> Optional[str]:
+
+    def _resolve_file_with_disambiguation(self, file_name: str) -> str | None:
         """
         Resolve a file name to its full path.
         If multiple files with the same name exist, prompt user to select one.
@@ -54,12 +53,12 @@ class AITaskExecutor:
         # Check current directory first
         if os.path.exists(file_name):
             return os.path.abspath(file_name)
-        
+
         # Check Desktop
         desktop_path = os.path.expanduser('~/Desktop')
         if os.path.exists(os.path.join(desktop_path, file_name)):
             return os.path.join(desktop_path, file_name)
-        
+
         # Search for files in user project directories (limited depth, prioritize current dir)
         user_search_paths = [
             os.getcwd(),  # Current directory first
@@ -67,11 +66,11 @@ class AITaskExecutor:
             os.path.expanduser('~/Documents'),
             os.path.expanduser('~/Projects'),
         ]
-        
+
         found_files = []
         found_files_set = set()  # To avoid duplicates
         current_dir = os.getcwd()
-        
+
         # First pass: search user directories with limited depth
         for search_path in user_search_paths:
             if not os.path.exists(search_path):
@@ -84,32 +83,32 @@ class AITaskExecutor:
                 # Skip system directories
                 if any(skip in root.lower() for skip in ['appdata', 'roaming', 'site-packages', 'dist-packages']):
                     continue
-                
+
                 if file_name in files:
                     full_path = os.path.abspath(os.path.join(root, file_name))
                     if full_path not in found_files_set:
                         found_files.append(full_path)
                         found_files_set.add(full_path)
-        
+
         # If no files found, return None
         if not found_files:
             return None
-        
+
         # If only one file found, return it
         if len(found_files) == 1:
             return found_files[0]
-        
+
         # If multiple files found, prompt user to select with enhanced context
         try:
             print(f"\n⚠️  Multiple files named '{file_name}' found:")
         except:
             print(f"\nWARNING: Multiple files named '{file_name}' found:")
         print(f"    Current working directory: {current_dir}\n")
-        
+
         for idx, path in enumerate(found_files, 1):
             # Show location context
             abs_path = os.path.abspath(path)
-            
+
             # Determine folder context
             if abs_path.startswith(current_dir):
                 try:
@@ -118,15 +117,15 @@ class AITaskExecutor:
                     folder_context = f"[IN PROJECT] {os.path.dirname(os.path.relpath(abs_path, current_dir))}"
             elif abs_path.startswith(desktop_path):
                 try:
-                    folder_context = f"🖥️  [ON DESKTOP]"
+                    folder_context = "🖥️  [ON DESKTOP]"
                 except:
-                    folder_context = f"[ON DESKTOP]"
+                    folder_context = "[ON DESKTOP]"
             else:
                 try:
                     folder_context = f"📂 {os.path.dirname(abs_path)}"
                 except:
                     folder_context = f"{os.path.dirname(abs_path)}"
-            
+
             # Get file stats
             try:
                 file_stat = os.stat(abs_path)
@@ -134,28 +133,28 @@ class AITaskExecutor:
                 size_str = f"{size_kb:.1f}KB" if size_kb < 1024 else f"{size_kb/1024:.1f}MB"
             except:
                 size_str = "?"
-            
+
             print(f"   {idx}. {folder_context}")
             print(f"       Full path: {abs_path}")
             print(f"       Size: {size_str}\n")
-        
+
         try:
             # Try to get user input
             choice = input(f"Enter the number of the file to use (1-{len(found_files)}): ").strip()
             choice_idx = int(choice) - 1
-            
+
             if 0 <= choice_idx < len(found_files):
                 selected_file = found_files[choice_idx]
                 print(f"✓ Selected: {selected_file}\n")
                 return selected_file
             else:
-                print(f"❌ Invalid choice. Using first option.\n")
+                print("❌ Invalid choice. Using first option.\n")
                 return found_files[0]
         except (ValueError, KeyboardInterrupt):
             print(f"✓ Using first option: {found_files[0]}\n")
             return found_files[0]
-    
-    def execute_task_plan(self, task_plan: Dict[str, Any]) -> Dict[str, Any]:
+
+    def execute_task_plan(self, task_plan: dict[str, Any]) -> dict[str, Any]:
         """
         Execute an AI-generated task plan
         
@@ -166,11 +165,11 @@ class AITaskExecutor:
             Execution result with status and created resources
         """
         self.logger.info(f"Executing task plan: {task_plan.get('interpreted_intent', 'Unknown')}")
-        
+
         if 'execution_steps' not in task_plan or not task_plan['execution_steps']:
             self.logger.warning("Task plan has no execution steps")
             return {'success': False, 'error': 'No execution steps provided'}
-        
+
         execution_result = {
             'original_request': task_plan.get('original_request', ''),
             'interpreted_intent': task_plan.get('interpreted_intent', ''),
@@ -183,7 +182,7 @@ class AITaskExecutor:
             'start_time': datetime.now().isoformat(),
             'success': True
         }
-        
+
         # Reset state for this execution
         self.execution_state = {
             'current_task': None,
@@ -192,14 +191,14 @@ class AITaskExecutor:
             'failed_tasks': 0,
             'created_resources': []
         }
-        
+
         # Execute each step
         for i, step in enumerate(task_plan['execution_steps']):
             self.logger.info(f"Executing step {i+1}/{len(task_plan['execution_steps'])}: {step.get('action', 'unknown')}")
-            
+
             try:
                 step_result = self._execute_single_step(step)
-                
+
                 if step_result['success']:
                     self.execution_state['completed_tasks'] += 1
                     execution_result['created_resources'].extend(
@@ -217,10 +216,10 @@ class AITaskExecutor:
                         break  # Stop on required step failure
                     else:
                         self.logger.warning(f"Optional step failed: {step.get('action')}")
-                
+
                 execution_result['execution_steps'].append(step_result)
                 execution_result['completed_steps'] += 1
-                
+
             except Exception as e:
                 self.logger.error(f"Error executing step {i+1}: {str(e)}")
                 execution_result['failed_operations'].append({
@@ -231,21 +230,21 @@ class AITaskExecutor:
                 if step.get('required', True):
                     execution_result['success'] = False
                     break
-        
+
         execution_result['end_time'] = datetime.now().isoformat()
-        
+
         # Save execution record
         self.execution_history.append(execution_result)
-        
+
         return execution_result
-    
-    def _execute_single_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _execute_single_step(self, step: dict[str, Any]) -> dict[str, Any]:
         """Execute a single task step"""
         action = step.get('action', '').lower().replace(' ', '_').replace('-', '_')
-        
+
         # Support both 'parameters' and 'params' keys (for compatibility with different AI providers)
         parameters = step.get('parameters') or step.get('params') or {}
-        
+
         # Get the handler for this action
         if action not in self.execution_handlers:
             return {
@@ -254,19 +253,19 @@ class AITaskExecutor:
                 'error': f"No handler registered for action: {action}",
                 'parameters': parameters
             }
-        
+
         try:
             handler = self.execution_handlers[action]
             result = handler(**parameters)
-            
+
             if not isinstance(result, dict):
                 result = {'success': True, 'result': result}
-            
+
             result['action'] = action
             result['parameters'] = parameters
-            
+
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Handler error for action {action}: {str(e)}")
             return {
@@ -275,7 +274,7 @@ class AITaskExecutor:
                 'error': str(e),
                 'parameters': parameters
             }
-    
+
     def _register_handlers(self):
         """Register all execution handlers"""
         # Folder and File Operations
@@ -290,18 +289,18 @@ class AITaskExecutor:
         self.execution_handlers['verify_existence'] = self._handle_verify_folder_exists
         self.execution_handlers['create_file'] = self._handle_create_file
         self.execution_handlers['create_directory_structure'] = self._handle_create_directory_structure
-        
+
         # Code Modification Operations
         self.execution_handlers['read_file'] = self._handle_read_file
         self.execution_handlers['write_file'] = self._handle_write_file
         self.execution_handlers['modify_file'] = self._handle_modify_file
-        
+
         # Project Setup
         self.execution_handlers['setup_project'] = self._handle_setup_project
         self.execution_handlers['initialize_project'] = self._handle_setup_project  # Alias
         self.execution_handlers['create_ml_pipeline'] = self._handle_create_ml_pipeline
         self.execution_handlers['create_web_app'] = self._handle_create_web_app
-        
+
         # Development Operations
         self.execution_handlers['setup_git'] = self._handle_setup_git
         self.execution_handlers['install_dependencies'] = self._handle_install_dependencies
@@ -312,12 +311,12 @@ class AITaskExecutor:
         # Natural language filesystem parser/executor
         self.execution_handlers['parse_and_execute_nl'] = self.parse_and_execute_nl
         self.execution_handlers['execute_nl'] = self.parse_and_execute_nl
-        
+
         # DevOps Operations
         self.execution_handlers['setup_docker'] = self._handle_setup_docker
         self.execution_handlers['create_pipeline'] = self._handle_create_pipeline
         self.execution_handlers['configure_deployment'] = self._handle_configure_deployment
-        
+
         # Windows System Operations (Bare-Metal Automation)
         self.execution_handlers['run_powershell'] = self._handle_run_powershell
         self.execution_handlers['run_command'] = self._handle_run_command
@@ -329,23 +328,23 @@ class AITaskExecutor:
         self.execution_handlers['create_task'] = self._handle_create_task
         self.execution_handlers['enable_feature'] = self._handle_enable_feature
         self.execution_handlers['restart_system'] = self._handle_restart_system
-        
+
         # Control Flow Operations
         self.execution_handlers['control:loop'] = self._handle_control_loop
         self.execution_handlers['control:end_loop'] = self._handle_control_end_loop
         self.execution_handlers['control:condition'] = self._handle_control_condition
         self.execution_handlers['control:end_condition'] = self._handle_control_end_condition
-        
+
         self.logger.info(f"Registered {len(self.execution_handlers)} execution handlers")
 
         # Register namespaced action aliases used by some AI planners
         self.execution_handlers.setdefault('filesystem:resolve_path', self._handle_resolve_path)
         self.execution_handlers.setdefault('gui:open_file', self._handle_open_file)
         self.execution_handlers.setdefault('system:display_results', self._handle_display_results)
-    
+
     # ===== Folder and File Handlers =====
-    
-    def _handle_create_folder(self, name: str, location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_folder(self, name: str, location: str = None, **kwargs) -> dict[str, Any]:
         """Create a single folder"""
         try:
             # Default to home directory
@@ -353,13 +352,13 @@ class AITaskExecutor:
                 path = os.path.expanduser('~')
             else:
                 path = location
-            
+
             # Build full path - handle nested paths like 'machine_learning_project/data'
             full_path = os.path.join(path, name)
             os.makedirs(full_path, exist_ok=True)
-            
+
             self.logger.info(f"Created folder: {full_path}")
-            
+
             return {
                 'success': True,
                 'path': full_path,
@@ -368,13 +367,13 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create folder {name}: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_folders(self, folders: List[Dict[str, str]], base_location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_folders(self, folders: list[dict[str, str]], base_location: str = None, **kwargs) -> dict[str, Any]:
         """Create multiple folders with hierarchy"""
         try:
             created = []
             base = base_location if base_location else os.path.expanduser('~')
-            
+
             for folder in folders:
                 if isinstance(folder, str):
                     name = folder
@@ -384,15 +383,15 @@ class AITaskExecutor:
                     path = folder.get('path', base)
                 else:
                     continue
-                
+
                 if not name:
                     continue
-                
+
                 full_path = os.path.join(path, name)
                 os.makedirs(full_path, exist_ok=True)
                 created.append(full_path)
                 self.logger.info(f"Created folder: {full_path}")
-            
+
             return {
                 'success': True,
                 'count': len(created),
@@ -402,31 +401,31 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create folders: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_bulk_folders(self, base_path: str = None, folder_prefix: str = "", start: int = 1, end: int = 10, separator: str = "", **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_bulk_folders(self, base_path: str = None, folder_prefix: str = "", start: int = 1, end: int = 10, separator: str = "", **kwargs) -> dict[str, Any]:
         """Create multiple folders with naming pattern (bulk operation)"""
         try:
             if not base_path:
                 return {'success': False, 'error': 'base_path is required'}
-            
+
             base_path = os.path.abspath(base_path)
             if not os.path.exists(base_path):
                 return {'success': False, 'error': f'Base path not found: {base_path}'}
-            
+
             created = []
             failed = []
-            
+
             for i in range(start, end + 1):
                 folder_name = f"{folder_prefix}{separator}{i}"
                 folder_path = os.path.join(base_path, folder_name)
-                
+
                 try:
                     os.makedirs(folder_path, exist_ok=True)
                     created.append(folder_path)
                     self.logger.info(f"Created folder: {folder_path}")
                 except Exception as e:
                     failed.append({'name': folder_name, 'error': str(e)})
-            
+
             return {
                 'success': True,
                 'created_count': len(created),
@@ -438,23 +437,23 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create bulk folders: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_nested_folders(self, base_path: str = None, main_folder: str = "", sub_folders: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_nested_folders(self, base_path: str = None, main_folder: str = "", sub_folders: dict[str, Any] = None, **kwargs) -> dict[str, Any]:
         """Create a main folder with nested subfolders"""
         try:
             if not base_path or not main_folder:
                 return {'success': False, 'error': 'base_path and main_folder are required'}
-            
+
             base_path = os.path.abspath(base_path)
             if not os.path.exists(base_path):
                 return {'success': False, 'error': f'Base path not found: {base_path}'}
-            
+
             # Create main folder
             main_path = os.path.join(base_path, main_folder)
             os.makedirs(main_path, exist_ok=True)
             created = [main_path]
             failed = []
-            
+
             # Create subfolders if specified
             if sub_folders:
                 if isinstance(sub_folders, dict):
@@ -463,11 +462,11 @@ class AITaskExecutor:
                     start = int(sub_folders.get('start', 1))
                     end = int(sub_folders.get('end', 10))
                     separator = sub_folders.get('separator', '')
-                    
+
                     for i in range(start, end + 1):
                         subfolder_name = f"{prefix}{separator}{i}"
                         subfolder_path = os.path.join(main_path, subfolder_name)
-                        
+
                         try:
                             os.makedirs(subfolder_path, exist_ok=True)
                             created.append(subfolder_path)
@@ -478,14 +477,14 @@ class AITaskExecutor:
                     # Direct list of subfolder names
                     for subfolder_name in sub_folders:
                         subfolder_path = os.path.join(main_path, subfolder_name)
-                        
+
                         try:
                             os.makedirs(subfolder_path, exist_ok=True)
                             created.append(subfolder_path)
                             self.logger.info(f"Created subfolder: {subfolder_path}")
                         except Exception as e:
                             failed.append({'name': subfolder_name, 'error': str(e)})
-            
+
             return {
                 'success': True,
                 'main_folder': main_path,
@@ -498,8 +497,8 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create nested folders: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_delete_folder(self, path: str = None, name: str = None, location: str = None, permanent: bool = False, **kwargs) -> Dict[str, Any]:
+
+    def _handle_delete_folder(self, path: str = None, name: str = None, location: str = None, permanent: bool = False, **kwargs) -> dict[str, Any]:
         """
         Delete a folder and all its contents.
         By default, moves to recycle bin (safe deletion).
@@ -520,16 +519,16 @@ class AITaskExecutor:
                     return {'success': False, 'error': f'Folder not found: {name}'}
             else:
                 return {'success': False, 'error': 'No folder path or name provided'}
-            
+
             # Normalize path
             folder_path = os.path.abspath(folder_path)
-            
+
             if not os.path.exists(folder_path):
                 return {'success': False, 'error': f'Folder not found: {folder_path}'}
-            
+
             if not os.path.isdir(folder_path):
                 return {'success': False, 'error': f'Path is not a directory: {folder_path}'}
-            
+
             # Safe deletion - move to recycle bin by default
             if not permanent:
                 try:
@@ -540,12 +539,12 @@ class AITaskExecutor:
                         'success': True,
                         'deleted_path': folder_path,
                         'method': 'recycle_bin',
-                        'message': f'Successfully moved folder to recycle bin'
+                        'message': 'Successfully moved folder to recycle bin'
                     }
                 except ImportError:
                     self.logger.warning("send2trash not available, falling back to permanent deletion")
                     permanent = True  # Fall back to permanent if send2trash unavailable
-            
+
             # Permanent deletion (requires explicit intent)
             if permanent:
                 # Require confirmation for permanent deletion
@@ -556,7 +555,7 @@ class AITaskExecutor:
                         'requires_confirmation': True,
                         'message': 'Use confirm_permanent_deletion=True to permanently delete without recycle bin'
                     }
-                
+
                 import shutil
                 shutil.rmtree(folder_path)
                 self.logger.warning(f"PERMANENTLY deleted folder: {folder_path}")
@@ -564,13 +563,13 @@ class AITaskExecutor:
                     'success': True,
                     'deleted_path': folder_path,
                     'method': 'permanent',
-                    'message': f'Permanently deleted folder and all contents (bypassed recycle bin)'
+                    'message': 'Permanently deleted folder and all contents (bypassed recycle bin)'
                 }
         except Exception as e:
             self.logger.error(f"Failed to delete folder: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_verify_deletion(self, path: str = None, name: str = None, location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_verify_deletion(self, path: str = None, name: str = None, location: str = None, **kwargs) -> dict[str, Any]:
         """Verify that a folder has been deleted"""
         try:
             # Determine the full path to check
@@ -582,10 +581,10 @@ class AITaskExecutor:
                 folder_path = name
             else:
                 return {'success': False, 'error': 'No folder path or name provided'}
-            
+
             # Normalize path
             folder_path = os.path.abspath(folder_path)
-            
+
             # Check if folder exists
             if os.path.exists(folder_path):
                 return {
@@ -604,8 +603,8 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to verify deletion: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_verify_folder_exists(self, path: str = None, name: str = None, location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_verify_folder_exists(self, path: str = None, name: str = None, location: str = None, **kwargs) -> dict[str, Any]:
         """Verify that a folder exists"""
         try:
             # Determine the full path to check
@@ -617,10 +616,10 @@ class AITaskExecutor:
                 folder_path = name
             else:
                 return {'success': False, 'error': 'No folder path or name provided'}
-            
+
             # Normalize path
             folder_path = os.path.abspath(folder_path)
-            
+
             # Check if folder exists
             if os.path.exists(folder_path) and os.path.isdir(folder_path):
                 return {
@@ -639,21 +638,21 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to verify folder existence: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_file(self, name: str, location: str = None, content: str = "", **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_file(self, name: str, location: str = None, content: str = "", **kwargs) -> dict[str, Any]:
         """Create a file with optional content"""
         try:
             path = location if location else os.path.expanduser('~')
             full_path = os.path.join(path, name)
-            
+
             # Ensure directory exists
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            
+
             with open(full_path, 'w') as f:
                 f.write(content)
-            
+
             self.logger.info(f"Created file: {full_path}")
-            
+
             return {
                 'success': True,
                 'path': full_path,
@@ -663,19 +662,19 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create file {name}: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_directory_structure(self, structure: Dict[str, Any], base_location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_directory_structure(self, structure: dict[str, Any], base_location: str = None, **kwargs) -> dict[str, Any]:
         """Create complete directory structure with files"""
         try:
             base = base_location if base_location else os.path.expanduser('~')
             created = []
-            
-            def create_structure(current_path: str, struct: Dict[str, Any]):
+
+            def create_structure(current_path: str, struct: dict[str, Any]):
                 """Recursively create directory structure"""
                 if isinstance(struct, dict):
                     for key, value in struct.items():
                         item_path = os.path.join(current_path, key)
-                        
+
                         if isinstance(value, dict) and value.get('type') == 'file':
                             # Create file
                             os.makedirs(os.path.dirname(item_path), exist_ok=True)
@@ -689,12 +688,12 @@ class AITaskExecutor:
                             os.makedirs(item_path, exist_ok=True)
                             created.append(item_path)
                             self.logger.info(f"Created directory: {item_path}")
-                            
+
                             if isinstance(value, dict):
                                 create_structure(item_path, value)
-            
+
             create_structure(base, structure)
-            
+
             return {
                 'success': True,
                 'count': len(created),
@@ -703,17 +702,17 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to create directory structure: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
+
     # ===== Code Modification Handlers =====
-    
-    def _handle_read_file(self, file_path: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_read_file(self, file_path: str = None, **kwargs) -> dict[str, Any]:
         """Read file contents"""
         try:
             # Support both file_path and path parameters
             path = file_path or kwargs.get('path')
             if not path:
                 return {'success': False, 'error': "file_path parameter required"}
-            
+
             # Resolve relative paths with duplicate detection
             if not os.path.isabs(path):
                 resolved_path = self._resolve_file_with_disambiguation(path)
@@ -728,12 +727,12 @@ class AITaskExecutor:
                     path = resolved_path
                 else:
                     return {'success': False, 'error': f"File not found: {path}"}
-            
-            with open(path, 'r', encoding='utf-8') as f:
+
+            with open(path, encoding='utf-8') as f:
                 content = f.read()
-            
+
             self.logger.info(f"Read file: {path}")
-            
+
             return {
                 'success': True,
                 'file_path': path,
@@ -744,15 +743,15 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to read file {file_path}: {str(e)}")
             return {'success': False, 'error': str(e), 'file_path': file_path}
-    
-    def _handle_write_file(self, file_path: str = None, content: str = "", **kwargs) -> Dict[str, Any]:
+
+    def _handle_write_file(self, file_path: str = None, content: str = "", **kwargs) -> dict[str, Any]:
         """Write content to file"""
         try:
             # Support both file_path and path parameters
             path = file_path or kwargs.get('path')
             if not path:
                 return {'success': False, 'error': "file_path parameter required"}
-            
+
             # Resolve relative paths with duplicate detection
             if not os.path.isabs(path):
                 resolved_path = self._resolve_file_with_disambiguation(path)
@@ -767,12 +766,12 @@ class AITaskExecutor:
                 resolved_path = self._resolve_file_with_disambiguation(file_name)
                 if resolved_path:
                     path = resolved_path
-            
+
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
+
             self.logger.info(f"Wrote file: {path}")
-            
+
             return {
                 'success': True,
                 'file_path': path,
@@ -782,15 +781,15 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to write file {file_path}: {str(e)}")
             return {'success': False, 'error': str(e), 'file_path': file_path}
-    
-    def _handle_modify_file(self, file_path: str = None, intent: str = "", old_code: str = None, new_code: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_modify_file(self, file_path: str = None, intent: str = "", old_code: str = None, new_code: str = None, **kwargs) -> dict[str, Any]:
         """Modify file by replacing code based on intent"""
         try:
             # Support both file_path and path parameters
             path = file_path or kwargs.get('path')
             if not path:
                 return {'success': False, 'error': "file_path parameter required"}
-            
+
             # Resolve relative paths with duplicate detection
             if not os.path.isabs(path):
                 resolved_path = self._resolve_file_with_disambiguation(path)
@@ -805,11 +804,11 @@ class AITaskExecutor:
                     path = resolved_path
                 else:
                     return {'success': False, 'error': f"File not found: {path}"}
-            
+
             # Read the file
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 content = f.read()
-            
+
             # If specific old/new code provided, do direct replacement
             if old_code and new_code:
                 if old_code not in content:
@@ -818,13 +817,13 @@ class AITaskExecutor:
             else:
                 # Auto-generate replacement based on intent
                 modified_content = self._generate_code_replacement_ai(content, intent)
-            
+
             # Write back
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(modified_content)
-            
+
             self.logger.info(f"Modified file: {path} with intent: {intent}")
-            
+
             return {
                 'success': True,
                 'file_path': path,
@@ -834,22 +833,22 @@ class AITaskExecutor:
         except Exception as e:
             self.logger.error(f"Failed to modify file {file_path}: {str(e)}")
             return {'success': False, 'error': str(e), 'file_path': file_path}
-    
+
     def _generate_code_replacement_ai(self, current_content: str, intent: str) -> str:
         """Generate code replacement based on intent"""
         intent_lower = intent.lower()
-        
+
         # Prime number detection
         if 'prime' in intent_lower and 'fibonacci' in current_content.lower():
             return self._generate_prime_number_code()
-        
+
         # Fibonacci from other code
         if 'fibonacci' in intent_lower:
             return self._generate_fibonacci_code()
-        
+
         # Default: return unchanged
         return current_content
-    
+
     def _generate_prime_number_code(self) -> str:
         """Generate prime number identifier code"""
         return '''# Prime Number Identifier
@@ -897,7 +896,7 @@ if __name__ == "__main__":
     else:
         print("Invalid choice!")
 '''
-    
+
     def _generate_fibonacci_code(self) -> str:
         """Generate fibonacci series code"""
         return '''# Fibonacci Series Implementation
@@ -915,36 +914,36 @@ if __name__ == "__main__":
     n = int(input("Enter the number of terms: "))
     print("Fibonacci Series:", fibonacci(n))
 '''
-    
+
     # ===== Project Setup Handlers =====
-    
-    def _handle_setup_project(self, project_name: str = None, project_type: str = "general", location: str = None, app_name: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_setup_project(self, project_name: str = None, project_type: str = "general", location: str = None, app_name: str = None, **kwargs) -> dict[str, Any]:
         """Setup a new project with basic structure"""
         try:
             # Handle flexible naming
             name = project_name or app_name or "my_project"
             base = location if location else os.path.expanduser('~')
             project_path = os.path.join(base, name)
-            
+
             # Create base structure
             created = [project_path]
             os.makedirs(project_path, exist_ok=True)
-            
+
             # Add type-specific folders
             folders = ['src', 'tests', 'docs', 'config']
             for folder in folders:
                 folder_path = os.path.join(project_path, folder)
                 os.makedirs(folder_path, exist_ok=True)
                 created.append(folder_path)
-            
+
             # Create README
             readme_path = os.path.join(project_path, 'README.md')
             with open(readme_path, 'w') as f:
                 f.write(f"# {name}\n\nProject type: {project_type}\n")
             created.append(readme_path)
-            
+
             self.logger.info(f"Project setup complete: {project_path}")
-            
+
             return {
                 'success': True,
                 'project_path': project_path,
@@ -954,16 +953,16 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to setup project: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_ml_pipeline(self, pipeline_name: str, features: List[str] = None, location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_ml_pipeline(self, pipeline_name: str, features: list[str] = None, location: str = None, **kwargs) -> dict[str, Any]:
         """Create ML pipeline directory structure"""
         try:
             base = location if location else os.path.expanduser('~')
             pipeline_path = os.path.join(base, pipeline_name)
-            
+
             created = [pipeline_path]
             os.makedirs(pipeline_path, exist_ok=True)
-            
+
             # ML pipeline structure
             ml_folders = [
                 'data/raw',
@@ -975,12 +974,12 @@ if __name__ == "__main__":
                 'results',
                 'configs'
             ]
-            
+
             for folder in ml_folders:
                 folder_path = os.path.join(pipeline_path, folder)
                 os.makedirs(folder_path, exist_ok=True)
                 created.append(folder_path)
-            
+
             # Create key files
             files = {
                 'requirements.txt': "# ML Pipeline Requirements\nnumpy\npandas\nscikit-learn\ntensorflow\n",
@@ -991,16 +990,16 @@ if __name__ == "__main__":
                 'notebooks/exploration.ipynb': '{}',
                 'README.md': f"# {pipeline_name}\n\nMachine Learning Pipeline\n"
             }
-            
+
             for file_name, content in files.items():
                 file_path = os.path.join(pipeline_path, file_name)
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 with open(file_path, 'w') as f:
                     f.write(content)
                 created.append(file_path)
-            
+
             self.logger.info(f"ML pipeline created: {pipeline_path}")
-            
+
             return {
                 'success': True,
                 'pipeline_path': pipeline_path,
@@ -1011,23 +1010,23 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to create ML pipeline: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_web_app(self, app_name: str, framework: str = "generic", location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_web_app(self, app_name: str, framework: str = "generic", location: str = None, **kwargs) -> dict[str, Any]:
         """Create web application structure"""
         try:
             base = location if location else os.path.expanduser('~')
             app_path = os.path.join(base, app_name)
-            
+
             created = [app_path]
             os.makedirs(app_path, exist_ok=True)
-            
+
             # Web app folders
             web_folders = ['public', 'src', 'tests', 'docs', 'config']
             for folder in web_folders:
                 folder_path = os.path.join(app_path, folder)
                 os.makedirs(folder_path, exist_ok=True)
                 created.append(folder_path)
-            
+
             # Create standard files
             files = {
                 'package.json': '{"name": "' + app_name + '", "version": "1.0.0"}',
@@ -1035,16 +1034,16 @@ if __name__ == "__main__":
                 'README.md': f"# {app_name}\n\nWeb Application\n",
                 'src/index.js': '// Application entry point\n'
             }
-            
+
             for file_name, content in files.items():
                 file_path = os.path.join(app_path, file_name)
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 with open(file_path, 'w') as f:
                     f.write(content)
                 created.append(file_path)
-            
+
             self.logger.info(f"Web app created: {app_path}")
-            
+
             return {
                 'success': True,
                 'app_path': app_path,
@@ -1055,18 +1054,18 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to create web app: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
+
     # ===== Development Operation Handlers =====
-    
-    def _handle_setup_git(self, location: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_setup_git(self, location: str = None, **kwargs) -> dict[str, Any]:
         """Initialize git repository"""
         try:
             path = location if location else os.getcwd()
-            
+
             if not os.path.exists(os.path.join(path, '.git')):
                 subprocess.run(['git', 'init'], cwd=path, check=True, capture_output=True)
                 self.logger.info(f"Git repository initialized: {path}")
-            
+
             return {
                 'success': True,
                 'path': path,
@@ -1075,13 +1074,13 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to setup git: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_install_dependencies(self, packages: List[str] = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_install_dependencies(self, packages: list[str] = None, **kwargs) -> dict[str, Any]:
         """Install dependencies"""
         try:
             # This is a placeholder - actual implementation would use pip/npm/etc
             self.logger.info(f"Would install packages: {packages}")
-            
+
             return {
                 'success': True,
                 'packages': packages or [],
@@ -1089,12 +1088,12 @@ if __name__ == "__main__":
             }
         except Exception as e:
             self.logger.error(f"Failed to install dependencies: {str(e)}")
-            return {'success': False, 'error': str(e)}    
-    def _handle_install_packages(self, packages: List[str] = None, location: str = None, **kwargs) -> Dict[str, Any]:
+            return {'success': False, 'error': str(e)}
+    def _handle_install_packages(self, packages: list[str] = None, location: str = None, **kwargs) -> dict[str, Any]:
         """Install packages (generic handler)"""
         try:
             self.logger.info(f"Would install packages: {packages}")
-            
+
             return {
                 'success': True,
                 'packages': packages or [],
@@ -1103,8 +1102,8 @@ if __name__ == "__main__":
             }
         except Exception as e:
             self.logger.error(f"Failed to install packages: {e}")
-            return {'success': False, 'error': str(e)}    
-    def _handle_generate_code(self, module_name: str = None, code_type: str = "class", location: str = None, base_path: str = None, folder_prefix: str = "x", start: int = 1, end: int = 20, table_size: int = 10, create_multiplication_tables: bool = False, **kwargs) -> Dict[str, Any]:
+            return {'success': False, 'error': str(e)}
+    def _handle_generate_code(self, module_name: str = None, code_type: str = "class", location: str = None, base_path: str = None, folder_prefix: str = "x", start: int = 1, end: int = 20, table_size: int = 10, create_multiplication_tables: bool = False, **kwargs) -> dict[str, Any]:
         """Generate code file or pattern-based filesystem artifacts.
 
         Behavior:
@@ -1204,10 +1203,10 @@ if __name__ == "__main__":
         except Exception as e:
             self.logger.error(f"Failed to generate code or artifacts: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
+
     # ===== DevOps Operation Handlers =====
-    
-    def _handle_setup_docker(self, app_name: str, base_image: str = "python:3.11", **kwargs) -> Dict[str, Any]:
+
+    def _handle_setup_docker(self, app_name: str, base_image: str = "python:3.11", **kwargs) -> dict[str, Any]:
         """Create Docker configuration"""
         try:
             dockerfile_content = f"""FROM {base_image}
@@ -1217,7 +1216,7 @@ COPY . .
 RUN pip install -r requirements.txt
 CMD ["python", "main.py"]
 """
-            
+
             docker_compose = f"""version: '3.8'
 
 services:
@@ -1229,7 +1228,7 @@ services:
     ports:
       - "8000:8000"
 """
-            
+
             return {
                 'success': True,
                 'app_name': app_name,
@@ -1240,12 +1239,12 @@ services:
         except Exception as e:
             self.logger.error(f"Failed to setup docker: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_pipeline(self, pipeline_name: str, stages: List[str] = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_pipeline(self, pipeline_name: str, stages: list[str] = None, **kwargs) -> dict[str, Any]:
         """Create CI/CD pipeline"""
         try:
             self.logger.info(f"Created pipeline: {pipeline_name}")
-            
+
             return {
                 'success': True,
                 'pipeline': pipeline_name,
@@ -1255,12 +1254,12 @@ services:
         except Exception as e:
             self.logger.error(f"Failed to create pipeline: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_configure_deployment(self, environment: str = "production", **kwargs) -> Dict[str, Any]:
+
+    def _handle_configure_deployment(self, environment: str = "production", **kwargs) -> dict[str, Any]:
         """Configure deployment"""
         try:
             self.logger.info(f"Configured deployment for: {environment}")
-            
+
             return {
                 'success': True,
                 'environment': environment,
@@ -1270,7 +1269,7 @@ services:
             self.logger.error(f"Failed to configure deployment: {str(e)}")
             return {'success': False, 'error': str(e)}
 
-    def parse_and_execute_nl(self, command: str, confirm: bool = False, **kwargs) -> Dict[str, Any]:
+    def parse_and_execute_nl(self, command: str, confirm: bool = False, **kwargs) -> dict[str, Any]:
         """Heuristic parser for common complex filesystem NL prompts.
 
         Supports patterns like:
@@ -1444,14 +1443,14 @@ services:
         except Exception as e:
             self.logger.error(f"Failed to parse_and_execute_nl: {str(e)}")
             return {'success': False, 'error': str(e)}
-    
+
     # ===== Windows System Operations (Bare-Metal Automation) =====
-    
-    def _handle_run_powershell(self, script: str, admin: bool = False, **kwargs) -> Dict[str, Any]:
+
+    def _handle_run_powershell(self, script: str, admin: bool = False, **kwargs) -> dict[str, Any]:
         """Execute PowerShell script"""
         try:
             self.logger.info(f"Executing PowerShell script (admin={admin})")
-            
+
             # For security, only run in non-admin mode by default
             if admin:
                 self.logger.warning("Admin mode requested - would require elevation")
@@ -1460,7 +1459,7 @@ services:
                     'error': 'Admin PowerShell requires elevation - not executed for safety',
                     'script_preview': script[:100]
                 }
-            
+
             # Run PowerShell command
             result = subprocess.run(
                 ['powershell', '-Command', script],
@@ -1468,7 +1467,7 @@ services:
                 text=True,
                 timeout=30
             )
-            
+
             return {
                 'success': result.returncode == 0,
                 'output': result.stdout,
@@ -1481,7 +1480,7 @@ services:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def _handle_resolve_path(self, path_hint: str = None, **kwargs) -> Dict[str, Any]:
+    def _handle_resolve_path(self, path_hint: str = None, **kwargs) -> dict[str, Any]:
         """Resolve a path hint to an absolute path using existing resolution logic."""
         try:
             if not path_hint:
@@ -1506,7 +1505,7 @@ services:
             self.logger.error(f"_handle_resolve_path error: {e}")
             return {'success': False, 'error': str(e)}
 
-    def _handle_open_file(self, path: str = None, read: bool = False, **kwargs) -> Dict[str, Any]:
+    def _handle_open_file(self, path: str = None, read: bool = False, **kwargs) -> dict[str, Any]:
         """Open a file with the system default (Windows) or return contents if requested."""
         try:
             if not path:
@@ -1524,7 +1523,7 @@ services:
             # If read requested, return text content
             if read:
                 try:
-                    with open(path, 'r', encoding='utf-8') as f:
+                    with open(path, encoding='utf-8') as f:
                         content = f.read()
                     return {'success': True, 'file_path': path, 'content': content}
                 except Exception as e:
@@ -1536,7 +1535,8 @@ services:
                     os.startfile(path)
                 else:
                     # Fallback: spawn system opener
-                    import subprocess, shutil
+                    import shutil
+                    import subprocess
                     if shutil.which('xdg-open'):
                         subprocess.Popen(['xdg-open', path])
                     elif shutil.which('open'):
@@ -1545,7 +1545,7 @@ services:
             except Exception:
                 # If open fails, return file contents as fallback
                 try:
-                    with open(path, 'r', encoding='utf-8') as f:
+                    with open(path, encoding='utf-8') as f:
                         content = f.read()
                     return {'success': True, 'file_path': path, 'content': content, 'note': 'Returned content as fallback'}
                 except Exception as e:
@@ -1555,7 +1555,7 @@ services:
             self.logger.error(f"_handle_open_file error: {e}")
             return {'success': False, 'error': str(e)}
 
-    def _handle_display_results(self, results: dict = None, **kwargs) -> Dict[str, Any]:
+    def _handle_display_results(self, results: dict = None, **kwargs) -> dict[str, Any]:
         """Display or log results returned by workflow steps. Returns success and echo of results."""
         try:
             if results is None:
@@ -1566,18 +1566,18 @@ services:
         except Exception as e:
             self.logger.error(f"_handle_display_results error: {e}")
             return {'success': False, 'error': str(e)}
-    
-    def _handle_run_command(self, command: str, args: List[str] = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_run_command(self, command: str, args: list[str] = None, **kwargs) -> dict[str, Any]:
         """Execute system command"""
         try:
             self.logger.info(f"Executing command: {command}")
-            
+
             # Security: whitelist common safe commands
-            safe_commands = ['ipconfig', 'systeminfo', 'tasklist', 'dir', 'whoami', 
+            safe_commands = ['ipconfig', 'systeminfo', 'tasklist', 'dir', 'whoami',
                            'date', 'time', 'echo', 'type', 'findstr', 'wmic']
-            
+
             cmd_name = command.split()[0].lower().replace('.exe', '')
-            
+
             if cmd_name not in safe_commands:
                 self.logger.warning(f"Command {cmd_name} not in safe list")
                 return {
@@ -1585,7 +1585,7 @@ services:
                     'error': f'Command {cmd_name} requires explicit approval',
                     'hint': 'Use run_powershell for custom commands'
                 }
-            
+
             cmd_list = [command] + (args or [])
             result = subprocess.run(
                 cmd_list,
@@ -1593,7 +1593,7 @@ services:
                 text=True,
                 timeout=30
             )
-            
+
             return {
                 'success': result.returncode == 0,
                 'output': result.stdout[:1000],  # Limit output
@@ -1602,12 +1602,12 @@ services:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_install_software(self, software: str, method: str = 'winget', **kwargs) -> Dict[str, Any]:
+
+    def _handle_install_software(self, software: str, method: str = 'winget', **kwargs) -> dict[str, Any]:
         """Install software package"""
         try:
             self.logger.info(f"Installing software: {software} via {method}")
-            
+
             if method == 'winget':
                 # Use Windows Package Manager
                 result = subprocess.run(
@@ -1630,7 +1630,7 @@ services:
                     'error': f'Unknown package manager: {method}',
                     'supported': ['winget', 'chocolatey']
                 }
-            
+
             return {
                 'success': result.returncode == 0,
                 'software': software,
@@ -1642,12 +1642,12 @@ services:
             return {'success': False, 'error': 'Installation timeout (>5 minutes)'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_manage_service(self, service: str, action: str = 'status', **kwargs) -> Dict[str, Any]:
+
+    def _handle_manage_service(self, service: str, action: str = 'status', **kwargs) -> dict[str, Any]:
         """Manage Windows service"""
         try:
             self.logger.info(f"Managing service {service}: {action}")
-            
+
             valid_actions = ['start', 'stop', 'restart', 'status', 'enable', 'disable']
             if action not in valid_actions:
                 return {
@@ -1655,7 +1655,7 @@ services:
                     'error': f'Invalid action {action}',
                     'valid_actions': valid_actions
                 }
-            
+
             if action == 'status':
                 cmd = ['Get-Service', '-Name', service]
                 result = subprocess.run(
@@ -1682,7 +1682,7 @@ services:
                     text=True,
                     timeout=10
                 )
-            
+
             return {
                 'success': result.returncode == 0,
                 'service': service,
@@ -1692,36 +1692,36 @@ services:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_system_config(self, setting: str, value: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_system_config(self, setting: str, value: str = None, **kwargs) -> dict[str, Any]:
         """Modify system configuration"""
         try:
             self.logger.info(f"System config: {setting} = {value}")
-            
+
             # Safe configuration changes
             configs = {
                 'hostname': f'Rename-Computer -NewName {value}',
                 'timezone': f'Set-TimeZone -Id "{value}"',
                 'hostname_info': 'Get-ComputerInfo -Property CsComputerName'
             }
-            
+
             if setting not in configs:
                 return {
                     'success': False,
                     'error': f'Unknown setting: {setting}',
                     'available': list(configs.keys())
                 }
-            
+
             if not value and setting != 'hostname_info':
                 return {'success': False, 'error': f'Setting {setting} requires a value'}
-            
+
             result = subprocess.run(
                 ['powershell', '-Command', configs[setting]],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
-            
+
             return {
                 'success': result.returncode == 0,
                 'setting': setting,
@@ -1730,16 +1730,16 @@ services:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_set_registry(self, path: str, key: str, value: str, value_type: str = 'String', **kwargs) -> Dict[str, Any]:
+
+    def _handle_set_registry(self, path: str, key: str, value: str, value_type: str = 'String', **kwargs) -> dict[str, Any]:
         """Modify Windows registry"""
         try:
             self.logger.warning(f"Registry modification requested: {path}\\{key}")
-            
+
             # Registry changes are sensitive - require explicit confirmation
             # This is a safety measure
             self.logger.info("Registry changes require admin privileges and manual confirmation")
-            
+
             return {
                 'success': False,
                 'error': 'Registry modifications require explicit admin confirmation',
@@ -1750,26 +1750,26 @@ services:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_create_task(self, task_name: str, script: str, trigger: str = 'daily', **kwargs) -> Dict[str, Any]:
+
+    def _handle_create_task(self, task_name: str, script: str, trigger: str = 'daily', **kwargs) -> dict[str, Any]:
         """Create scheduled task"""
         try:
             self.logger.info(f"Creating scheduled task: {task_name} ({trigger})")
-            
+
             # Generate PowerShell command to create task
             ps_cmd = f"""
 $trigger = New-ScheduledTaskTrigger -{trigger.capitalize()}
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-Command "{script}"'
 Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action -User System
 """
-            
+
             result = subprocess.run(
                 ['powershell', '-Command', ps_cmd],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
-            
+
             return {
                 'success': result.returncode == 0,
                 'task_name': task_name,
@@ -1779,12 +1779,12 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_enable_feature(self, feature: str, **kwargs) -> Dict[str, Any]:
+
+    def _handle_enable_feature(self, feature: str, **kwargs) -> dict[str, Any]:
         """Enable Windows feature"""
         try:
             self.logger.info(f"Enabling Windows feature: {feature}")
-            
+
             # Enable Windows Feature
             result = subprocess.run(
                 ['powershell', '-Command', f'Enable-WindowsOptionalFeature -Online -FeatureName {feature}'],
@@ -1792,7 +1792,7 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
                 text=True,
                 timeout=300
             )
-            
+
             return {
                 'success': result.returncode == 0,
                 'feature': feature,
@@ -1803,15 +1803,15 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             return {'success': False, 'error': 'Feature installation timeout'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_restart_system(self, delay: int = 60, reason: str = "OmniAutomator", **kwargs) -> Dict[str, Any]:
+
+    def _handle_restart_system(self, delay: int = 60, reason: str = "OmniAutomator", **kwargs) -> dict[str, Any]:
         """Schedule system restart"""
         try:
             self.logger.warning(f"System restart requested with {delay}s delay")
-            
+
             # Safety: don't actually restart, just log the request
             self.logger.info(f"Would restart system in {delay} seconds: {reason}")
-            
+
             return {
                 'success': True,
                 'action': 'restart_scheduled',
@@ -1822,10 +1822,10 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
+
     # ===== Control Flow Handlers =====
-    
-    def _handle_control_loop(self, iterations: int = None, variable: str = None, start: int = None, end: int = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_control_loop(self, iterations: int = None, variable: str = None, start: int = None, end: int = None, **kwargs) -> dict[str, Any]:
         """Begin a loop - marked for control flow tracking"""
         try:
             loop_info = {
@@ -1843,8 +1843,8 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_control_end_loop(self, **kwargs) -> Dict[str, Any]:
+
+    def _handle_control_end_loop(self, **kwargs) -> dict[str, Any]:
         """End a loop - marked for control flow tracking"""
         try:
             self.logger.info("Loop control: end")
@@ -1854,8 +1854,8 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_control_condition(self, condition: str = None, **kwargs) -> Dict[str, Any]:
+
+    def _handle_control_condition(self, condition: str = None, **kwargs) -> dict[str, Any]:
         """Begin a conditional block"""
         try:
             self.logger.info(f"Conditional control: {condition}")
@@ -1866,8 +1866,8 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def _handle_control_end_condition(self, **kwargs) -> Dict[str, Any]:
+
+    def _handle_control_end_condition(self, **kwargs) -> dict[str, Any]:
         """End a conditional block"""
         try:
             self.logger.info("Conditional control: end")
@@ -1877,12 +1877,12 @@ Register-ScheduledTask -TaskName '{task_name}' -Trigger $trigger -Action $action
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
-    def get_execution_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+
+    def get_execution_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent execution history"""
         return self.execution_history[-limit:]
-    
-    def get_execution_state(self) -> Dict[str, Any]:
+
+    def get_execution_state(self) -> dict[str, Any]:
         """Get current execution state"""
         return self.execution_state.copy()
 

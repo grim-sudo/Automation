@@ -6,7 +6,6 @@ import os
 import sys
 import urllib.parse
 from pathlib import Path
-from typing import Union
 
 from loguru import logger
 
@@ -119,20 +118,21 @@ class PathValidator:
             Resolved, validated :class:`pathlib.Path`.
 
         Raises:
-            ValueError:            On traversal or null-byte sequences.
-            PathValidationError:   If the path is in a blocked/disallowed dir
-                                   or does not exist when *must_exist* is set.
+            PathValidationError:   On traversal sequences, null bytes,
+                                   blocked/disallowed directories, or when
+                                   the path does not exist and *must_exist*
+                                   is set.
         """
         raw = str(path)
 
         # 1. Detect encoded traversal
         decoded = urllib.parse.unquote(raw)
         if ".." in decoded:
-            raise ValueError(
+            raise PathValidationError(
                 f"Path traversal sequence ('..') detected in path: {raw!r}"
             )
         if "\x00" in decoded:
-            raise ValueError(
+            raise PathValidationError(
                 f"Null byte detected in path: {raw!r}"
             )
 
@@ -330,7 +330,7 @@ def get_path_validator() -> PathValidator:
     return _validator_instance
 
 
-def validate_path(path: Union[str, Path], must_exist: bool = False) -> Path:
+def validate_path(path: str | Path, must_exist: bool = False) -> Path:
     """Convenience function: validate *path* via the global singleton.
 
     Args:

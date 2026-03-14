@@ -2,8 +2,8 @@
 Core automation engine components
 """
 
-from .engine import OmniAutomator
 from ..parsers.command_parser import AdvancedCommandParser as CommandParser
-from .plugin_manager import PluginManager, AutomationPlugin
+from .engine import OmniAutomator
+from .plugin_manager import AutomationPlugin, PluginManager
 
 __all__ = ["OmniAutomator", "CommandParser", "PluginManager", "AutomationPlugin"]

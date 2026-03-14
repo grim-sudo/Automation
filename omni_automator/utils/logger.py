@@ -6,8 +6,9 @@ import functools
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, TypeVar, Union
+from typing import Any, TypeVar
 
 from loguru import logger
 
@@ -134,7 +135,7 @@ _default_init()
 # ---------------------------------------------------------------------------
 
 
-def get_logger(name: str) -> "logger.__class__":
+def get_logger(name: str) -> logger.__class__:
     """Return a loguru logger bound with the context key ``name``.
 
     The returned object is a fully-featured loguru ``Logger`` instance — it
@@ -158,8 +159,8 @@ def get_logger(name: str) -> "logger.__class__":
 def setup_logger(
     name: str,
     log_file: str | None = None,
-    level: Union[str, int] = "INFO",
-) -> "logger.__class__":
+    level: str | int = "INFO",
+) -> logger.__class__:
     """Backward-compatible logger factory.
 
     Ensures :func:`configure_logging` has been called (optionally with the

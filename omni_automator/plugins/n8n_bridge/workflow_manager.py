@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from .models import N8nConfig, N8nExecutionResult, N8nWorkflow, N8nWorkflowList
+from .models import N8nConfig, N8nExecutionResult, N8nWorkflow
 
 __all__ = ["WorkflowManager"]
 
@@ -83,7 +83,8 @@ class WorkflowManager:
         Raises:
             httpx.HTTPError: On network or API error.
         """
-        payload = workflow.model_dump(by_alias=True, exclude_none=True)
+        # n8n API: 'active' and 'tags' are read-only at creation time
+        payload = workflow.model_dump(by_alias=True, exclude_none=True, exclude={"active", "tags"})
         async with self._client() as client:
             resp = await client.post("/workflows", json=payload)
             resp.raise_for_status()

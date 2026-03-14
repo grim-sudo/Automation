@@ -6,20 +6,24 @@ import os
 import shutil
 import subprocess
 import time
+from typing import Any
+
+import httpx
 import psutil
-import requests
-from typing import Dict, Any, List, Optional
 
 # Make pyautogui optional (may not be available on headless systems)
 try:
     import pyautogui
-except ImportError:
+except (ImportError, SystemExit, Exception):
     pyautogui = None
-from pathlib import Path
 
 from .base_adapter import (
-    BaseOSAdapter, BaseFilesystemAdapter, BaseProcessAdapter,
-    BaseGUIAdapter, BaseSystemAdapter, BaseNetworkAdapter
+    BaseFilesystemAdapter,
+    BaseGUIAdapter,
+    BaseNetworkAdapter,
+    BaseOSAdapter,
+    BaseProcessAdapter,
+    BaseSystemAdapter,
 )
 
 # Linux-specific imports
@@ -33,8 +37,8 @@ except ImportError:
 
 class LinuxFilesystemAdapter(BaseFilesystemAdapter):
     """Linux filesystem operations - inherits most from Windows but with Linux-specific paths"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'create_folder':
             return self.create_folder(params.get('name'), params.get('location'))
         elif action == 'create_file':
@@ -56,16 +60,16 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return self.list_directory(params.get('path', '.'))
         else:
             raise ValueError(f"Unknown filesystem action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['create_folder', 'create_file', 'delete', 'copy', 'move', 'rename', 'list']
-    
+
     def create_folder(self, name: str, location: str = None) -> bool:
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             os.makedirs(path, exist_ok=True)
             # Set proper permissions on Linux
@@ -73,13 +77,13 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to create folder: {e}")
-    
+
     def create_file(self, name: str, location: str = None, content: str = "") -> bool:
         if location:
             path = os.path.join(location, name)
         else:
             path = name
-        
+
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f:
@@ -88,7 +92,7 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to create file: {e}")
-    
+
     def delete(self, path: str, recursive: bool = True) -> bool:
         try:
             if os.path.isfile(path):
@@ -101,7 +105,7 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to delete: {e}")
-    
+
     def copy(self, source: str, destination: str) -> bool:
         try:
             if os.path.isfile(source):
@@ -111,15 +115,15 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to copy: {e}")
-    
+
     def move(self, source: str, destination: str) -> bool:
         try:
             shutil.move(source, destination)
             return True
         except Exception as e:
             raise Exception(f"Failed to move: {e}")
-    
-    def list_directory(self, path: str) -> List[Dict[str, Any]]:
+
+    def list_directory(self, path: str) -> list[dict[str, Any]]:
         try:
             items = []
             for item in os.listdir(path):
@@ -136,8 +140,8 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return items
         except Exception as e:
             raise Exception(f"Failed to list directory: {e}")
-    
-    def get_file_info(self, path: str) -> Dict[str, Any]:
+
+    def get_file_info(self, path: str) -> dict[str, Any]:
         try:
             stat = os.stat(path)
             return {
@@ -157,8 +161,8 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
 
 class LinuxProcessAdapter(BaseProcessAdapter):
     """Linux process management"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'start':
             return self.start_process(params.get('program'), params.get('args'))
         elif action == 'terminate':
@@ -167,11 +171,11 @@ class LinuxProcessAdapter(BaseProcessAdapter):
             return self.list_processes()
         else:
             raise ValueError(f"Unknown process action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['start', 'terminate', 'list']
-    
-    def start_process(self, program: str, args: List[str] = None) -> int:
+
+    def start_process(self, program: str, args: list[str] = None) -> int:
         try:
             cmd = [program]
             if args:
@@ -179,12 +183,12 @@ class LinuxProcessAdapter(BaseProcessAdapter):
                     cmd.extend(args.split())
                 else:
                     cmd.extend(args)
-            
+
             process = subprocess.Popen(cmd)
             return process.pid
         except Exception as e:
             raise Exception(f"Failed to start process: {e}")
-    
+
     def terminate_process(self, pid_or_name: Any) -> bool:
         try:
             if isinstance(pid_or_name, int):
@@ -196,8 +200,8 @@ class LinuxProcessAdapter(BaseProcessAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to terminate process: {e}")
-    
-    def list_processes(self) -> List[Dict[str, Any]]:
+
+    def list_processes(self) -> list[dict[str, Any]]:
         try:
             processes = []
             for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info', 'username']):
@@ -214,8 +218,8 @@ class LinuxProcessAdapter(BaseProcessAdapter):
             return processes
         except Exception as e:
             raise Exception(f"Failed to list processes: {e}")
-    
-    def get_process_info(self, pid: int) -> Dict[str, Any]:
+
+    def get_process_info(self, pid: int) -> dict[str, Any]:
         try:
             proc = psutil.Process(pid)
             return {
@@ -234,13 +238,13 @@ class LinuxProcessAdapter(BaseProcessAdapter):
 
 class LinuxGUIAdapter(BaseGUIAdapter):
     """Linux GUI automation using X11"""
-    
+
     def __init__(self):
         if pyautogui is not None:
             pyautogui.FAILSAFE = True
             pyautogui.PAUSE = 0.1
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'click':
             return self.click(params.get('x'), params.get('y'), params.get('button', 'left'))
         elif action == 'type':
@@ -254,12 +258,14 @@ class LinuxGUIAdapter(BaseGUIAdapter):
             return True
         else:
             raise ValueError(f"Unknown GUI action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         # Include GUI controls and Linux-specific headless/browser helpers
         return ['click', 'type', 'press_key', 'screenshot', 'wait', 'open_browser', 'launch_headless_browser', 'take_screenshot', 'close_browser', 'navigate_to_url']
-    
+
     def click(self, x: int = None, y: int = None, button: str = 'left') -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             if x is not None and y is not None:
                 pyautogui.click(x, y, button=button)
@@ -268,39 +274,47 @@ class LinuxGUIAdapter(BaseGUIAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to click: {e}")
-    
+
     def type_text(self, text: str) -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             pyautogui.typewrite(text)
             return True
         except Exception as e:
             raise Exception(f"Failed to type text: {e}")
-    
+
     def press_key(self, key: str) -> bool:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             pyautogui.press(key)
             return True
         except Exception as e:
             raise Exception(f"Failed to press key: {e}")
-    
+
     def take_screenshot(self, filename: str = None) -> str:
         try:
             if not filename:
                 filename = f"screenshot_{int(time.time())}.png"
-            
+
             # Use scrot for better Linux screenshot support
             try:
                 subprocess.run(['scrot', filename], check=True)
             except (subprocess.CalledProcessError, FileNotFoundError):
+                if pyautogui is None:
+                    raise RuntimeError("pyautogui not available and scrot not found")
                 # Fallback to pyautogui
                 screenshot = pyautogui.screenshot()
                 screenshot.save(filename)
-            
+
             return filename
         except Exception as e:
             raise Exception(f"Failed to take screenshot: {e}")
-    
-    def find_element(self, image_path: str) -> Dict[str, int]:
+
+    def find_element(self, image_path: str) -> dict[str, int]:
+        if pyautogui is None:
+            raise RuntimeError("pyautogui not available on this system")
         try:
             location = pyautogui.locateOnScreen(image_path)
             if location:
@@ -314,8 +328,8 @@ class LinuxGUIAdapter(BaseGUIAdapter):
 
 class LinuxSystemAdapter(BaseSystemAdapter):
     """Linux system operations"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'get_info':
             return self.get_system_info()
         elif action == 'set_volume':
@@ -324,25 +338,25 @@ class LinuxSystemAdapter(BaseSystemAdapter):
             return self.power_action(params.get('action'))
         else:
             raise ValueError(f"Unknown system action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['get_info', 'set_volume', 'power_action']
-    
-    def get_system_info(self) -> Dict[str, Any]:
+
+    def get_system_info(self) -> dict[str, Any]:
         try:
             import platform
-            
+
             # Get additional Linux-specific info
             distro_info = {}
             try:
-                with open('/etc/os-release', 'r') as f:
+                with open('/etc/os-release') as f:
                     for line in f:
                         if '=' in line:
                             key, value = line.strip().split('=', 1)
                             distro_info[key] = value.strip('"')
             except FileNotFoundError:
                 pass
-            
+
             return {
                 'platform': platform.platform(),
                 'system': platform.system(),
@@ -362,30 +376,30 @@ class LinuxSystemAdapter(BaseSystemAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to get system info: {e}")
-    
+
     def set_volume(self, level: int) -> bool:
         try:
             # Try different volume control methods
             volume_percent = max(0, min(100, level))
-            
+
             # Try pactl (PulseAudio)
             try:
                 subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%'], check=True)
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
-            
+
             # Try amixer (ALSA)
             try:
                 subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'], check=True)
                 return True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
-            
+
             raise Exception("No volume control method available")
         except Exception as e:
             raise Exception(f"Failed to set volume: {e}")
-    
+
     def power_action(self, action: str) -> bool:
         try:
             if action.lower() in ['shutdown', 'poweroff']:
@@ -399,25 +413,25 @@ class LinuxSystemAdapter(BaseSystemAdapter):
             return True
         except Exception as e:
             raise Exception(f"Failed to perform power action: {e}")
-    
-    def get_environment_variables(self) -> Dict[str, str]:
+
+    def get_environment_variables(self) -> dict[str, str]:
         return dict(os.environ)
 
 
 class LinuxNetworkAdapter(BaseNetworkAdapter):
     """Linux network operations - same as Windows"""
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         if action == 'download':
             return self.download_file(params.get('url'), params.get('filename'))
         elif action == 'http_get':
             return self.http_request('GET', params.get('url'))
         else:
             raise ValueError(f"Unknown network action: {action}")
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return ['download', 'http_get', 'http_post']
-    
+
     def download_file(self, url: str, filename: str = None) -> str:
         try:
             with httpx.Client(follow_redirects=True, timeout=60.0) as client:
@@ -433,8 +447,8 @@ class LinuxNetworkAdapter(BaseNetworkAdapter):
             return filename
         except Exception as e:
             raise Exception(f"Failed to download file: {e}")
-    
-    def http_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
+
+    def http_request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         try:
             with httpx.Client(follow_redirects=True, timeout=30.0) as client:
                 response = client.request(method, url, **kwargs)
@@ -446,11 +460,11 @@ class LinuxNetworkAdapter(BaseNetworkAdapter):
             }
         except Exception as e:
             raise Exception(f"Failed to make HTTP request: {e}")
-    
-    def get_network_info(self) -> Dict[str, Any]:
+
+    def get_network_info(self) -> dict[str, Any]:
         try:
             import socket
-            
+
             return {
                 'hostname': socket.gethostname(),
                 'ip_address': socket.gethostbyname(socket.gethostname()),
@@ -468,18 +482,18 @@ class LinuxNetworkAdapter(BaseNetworkAdapter):
 
 class LinuxAdapter(BaseOSAdapter):
     """Linux OS adapter"""
-    
+
     def _create_filesystem_adapter(self) -> BaseFilesystemAdapter:
         return LinuxFilesystemAdapter()
-    
+
     def _create_process_adapter(self) -> BaseProcessAdapter:
         return LinuxProcessAdapter()
-    
+
     def _create_gui_adapter(self) -> BaseGUIAdapter:
         return LinuxGUIAdapter()
-    
+
     def _create_system_adapter(self) -> BaseSystemAdapter:
         return LinuxSystemAdapter()
-    
+
     def _create_network_adapter(self) -> BaseNetworkAdapter:
         return LinuxNetworkAdapter()

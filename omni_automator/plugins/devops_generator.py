@@ -3,28 +3,29 @@ DevOps and Infrastructure Generator Plugin
 Handles complex DevOps tasks like Docker, Kubernetes, CI/CD pipelines
 """
 
-import os
 import json
-from typing import Dict, Any, List
+import os
+from typing import Any
+
 from omni_automator.core.plugin_manager import AutomationPlugin
 
 
 class DevOpsGeneratorPlugin(AutomationPlugin):
     """Plugin for generating DevOps infrastructure and pipelines"""
-    
+
     @property
     def name(self) -> str:
         return "devops_generator"
-    
+
     @property
     def description(self) -> str:
         return "Generate DevOps infrastructure, Docker containers, Kubernetes manifests, and CI/CD pipelines"
-    
+
     @property
     def version(self) -> str:
         return "1.0.0"
-    
-    def get_capabilities(self) -> List[str]:
+
+    def get_capabilities(self) -> list[str]:
         return [
             'create_dockerfile',
             'create_kubernetes_manifest',
@@ -35,8 +36,8 @@ class DevOpsGeneratorPlugin(AutomationPlugin):
             'setup_monitoring',
             'create_terraform_config'
         ]
-    
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute DevOps generation action"""
         try:
             if action == 'create_dockerfile':
@@ -59,12 +60,12 @@ class DevOpsGeneratorPlugin(AutomationPlugin):
                 raise ValueError(f"Unknown DevOps action: {action}")
         except Exception as e:
             raise Exception(f"DevOps generator execution failed: {e}")
-    
-    def _create_dockerfile(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _create_dockerfile(self, params: dict[str, Any]) -> dict[str, Any]:
         """Create a Dockerfile"""
         app_type = params.get('app_type', 'node')
         location = params.get('location', '.')
-        
+
         dockerfiles = {
             'node': '''FROM node:18-alpine
 
@@ -114,27 +115,27 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 '''
         }
-        
+
         content = dockerfiles.get(app_type, dockerfiles['node'])
         dockerfile_path = os.path.join(location, 'Dockerfile')
-        
+
         os.makedirs(location, exist_ok=True)
         with open(dockerfile_path, 'w') as f:
             f.write(content)
-        
+
         return {
             'file_path': dockerfile_path,
             'message': f'Dockerfile for {app_type} application created successfully'
         }
-    
-    def _create_kubernetes_manifest(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _create_kubernetes_manifest(self, params: dict[str, Any]) -> dict[str, Any]:
         """Create Kubernetes deployment and service manifests"""
         app_name = params.get('app_name', 'myapp')
         image = params.get('image', f'{app_name}:latest')
         port = params.get('port', 3000)
         replicas = params.get('replicas', 3)
         location = params.get('location', '.')
-        
+
         # Deployment manifest
         deployment = {
             'apiVersion': 'apps/v1',
@@ -162,7 +163,7 @@ CMD ["nginx", "-g", "daemon off;"]
                 }
             }
         }
-        
+
         # Service manifest
         service = {
             'apiVersion': 'v1',
@@ -181,36 +182,36 @@ CMD ["nginx", "-g", "daemon off;"]
                 'type': 'LoadBalancer'
             }
         }
-        
+
         # Write files
         os.makedirs(location, exist_ok=True)
-        
+
         deployment_path = os.path.join(location, f'{app_name}-deployment.yaml')
         service_path = os.path.join(location, f'{app_name}-service.yaml')
-        
+
         with open(deployment_path, 'w') as f:
             f.write('---\n')
             json.dump(deployment, f, indent=2)
-        
+
         with open(service_path, 'w') as f:
             f.write('---\n')
             json.dump(service, f, indent=2)
-        
+
         return {
             'files_created': [deployment_path, service_path],
             'message': f'Kubernetes manifests for {app_name} created successfully'
         }
-    
-    def _create_docker_compose(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _create_docker_compose(self, params: dict[str, Any]) -> dict[str, Any]:
         """Create Docker Compose configuration"""
         services = params.get('services', ['web', 'database'])
         location = params.get('location', '.')
-        
+
         compose_config = {
             'version': '3.8',
             'services': {}
         }
-        
+
         # Add services based on requirements
         if 'web' in services:
             compose_config['services']['web'] = {
@@ -219,7 +220,7 @@ CMD ["nginx", "-g", "daemon off;"]
                 'environment': ['NODE_ENV=production'],
                 'depends_on': ['database'] if 'database' in services else []
             }
-        
+
         if 'database' in services:
             compose_config['services']['database'] = {
                 'image': 'postgres:15',
@@ -231,42 +232,42 @@ CMD ["nginx", "-g", "daemon off;"]
                 'volumes': ['postgres_data:/var/lib/postgresql/data'],
                 'ports': ['5432:5432']
             }
-        
+
         if 'redis' in services:
             compose_config['services']['redis'] = {
                 'image': 'redis:7-alpine',
                 'ports': ['6379:6379']
             }
-        
+
         if 'nginx' in services:
             compose_config['services']['nginx'] = {
                 'image': 'nginx:alpine',
                 'ports': ['80:80'],
                 'volumes': ['./nginx.conf:/etc/nginx/nginx.conf']
             }
-        
+
         # Add volumes if needed
         if 'database' in services:
             compose_config['volumes'] = {'postgres_data': {}}
-        
+
         # Write docker-compose.yml
         os.makedirs(location, exist_ok=True)
         compose_path = os.path.join(location, 'docker-compose.yml')
-        
+
         with open(compose_path, 'w') as f:
             f.write('# Docker Compose Configuration\n')
             json.dump(compose_config, f, indent=2)
-        
+
         return {
             'file_path': compose_path,
             'message': f'Docker Compose configuration with {len(services)} services created successfully'
         }
-    
-    def _create_github_actions(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _create_github_actions(self, params: dict[str, Any]) -> dict[str, Any]:
         """Create GitHub Actions CI/CD pipeline"""
         app_type = params.get('app_type', 'node')
         location = params.get('location', '.')
-        
+
         workflow = '''name: CI/CD Pipeline
 
 on:
@@ -327,24 +328,24 @@ jobs:
         kubectl set image deployment/myapp-deployment myapp=myapp:${{ github.sha }}
         kubectl rollout status deployment/myapp-deployment
 '''
-        
+
         # Create .github/workflows directory
         workflows_dir = os.path.join(location, '.github', 'workflows')
         os.makedirs(workflows_dir, exist_ok=True)
-        
+
         workflow_path = os.path.join(workflows_dir, 'ci-cd.yml')
         with open(workflow_path, 'w') as f:
             f.write(workflow)
-        
+
         return {
             'file_path': workflow_path,
             'message': 'GitHub Actions CI/CD pipeline created successfully'
         }
-    
-    def _setup_monitoring(self, params: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _setup_monitoring(self, params: dict[str, Any]) -> dict[str, Any]:
         """Setup monitoring with Prometheus and Grafana"""
         location = params.get('location', '.')
-        
+
         # Prometheus configuration
         prometheus_config = '''global:
   scrape_interval: 15s
@@ -362,7 +363,7 @@ scrape_configs:
     static_configs:
       - targets: ['web:3000']
 '''
-        
+
         # Docker Compose for monitoring stack
         monitoring_compose = {
             'version': '3.8',
@@ -385,19 +386,19 @@ scrape_configs:
                 }
             }
         }
-        
+
         # Write files
         os.makedirs(location, exist_ok=True)
-        
+
         prometheus_path = os.path.join(location, 'prometheus.yml')
         compose_path = os.path.join(location, 'monitoring-compose.yml')
-        
+
         with open(prometheus_path, 'w') as f:
             f.write(prometheus_config)
-        
+
         with open(compose_path, 'w') as f:
             json.dump(monitoring_compose, f, indent=2)
-        
+
         return {
             'files_created': [prometheus_path, compose_path],
             'message': 'Monitoring stack with Prometheus and Grafana created successfully'

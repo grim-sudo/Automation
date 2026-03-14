@@ -14,7 +14,7 @@ from typing import Any
 
 from loguru import logger
 
-from .models import N8nConnection, N8nNode, N8nWorkflow
+from .models import N8nNode, N8nWorkflow
 from .node_registry import NODE_REGISTRY, get_node_type, is_trigger
 
 __all__ = [

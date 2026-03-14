@@ -1,8 +1,8 @@
 """Project generator plugin for creating programming projects with templates"""
 
 import os
-from typing import Dict, Any, List
 import sys
+from typing import Any
 
 # Ensure the project root is on sys.path so core imports work
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,7 +25,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
     def version(self) -> str:
         return "1.0.0"
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> list[str]:
         return [
             'create_c_project',
             'create_python_project',
@@ -41,7 +41,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
             'create_hello_world'
         ]
 
-    def execute(self, action: str, params: Dict[str, Any]) -> Any:
+    def execute(self, action: str, params: dict[str, Any]) -> Any:
         """Execute project generation action"""
         try:
             if not isinstance(action, str) or not action:
@@ -80,7 +80,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
         name = name.strip(' .')
         return name or 'unnamed_project'
 
-    def _create_c_project(self, project_name: str, location: str = None) -> Dict[str, Any]:
+    def _create_c_project(self, project_name: str, location: str = None) -> dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
             project_path = (os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name))
@@ -109,7 +109,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
         except Exception as e:
             raise Exception(f'Failed to create C project: {e}')
 
-    def _create_c_program(self, filename: str, location: str = None, program_type: str = 'addition') -> Dict[str, Any]:
+    def _create_c_program(self, filename: str, location: str = None, program_type: str = 'addition') -> dict[str, Any]:
         try:
             if not filename.endswith('.c'):
                 filename = filename + '.c'
@@ -125,7 +125,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
         except Exception as e:
             raise Exception(f'Failed to create C program: {e}')
 
-    def _create_web_project(self, project_name: str, location: str = None, template: str = 'react', params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_web_project(self, project_name: str, location: str = None, template: str = 'react', params: dict[str, Any] = None) -> dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
             project_path = os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name)
@@ -170,7 +170,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
         except Exception as e:
             raise Exception(f'Failed to create web project: {e}')
 
-    def _create_express_backend(self, project_name: str, location: str = None, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_express_backend(self, project_name: str, location: str = None, params: dict[str, Any] = None) -> dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
             project_path = os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name)
@@ -200,7 +200,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
         except Exception as e:
             raise Exception(f'Failed to create express backend: {e}')
 
-    def _create_web_scraping_project(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_web_scraping_project(self, params: dict[str, Any]) -> dict[str, Any]:
         try:
             name = params.get('name', 'WebScrapingProject')
             project_name = self._sanitize_name(name)
@@ -272,7 +272,7 @@ python main.py
         except Exception as e:
             raise Exception(f'Failed to create web scraping project: {e}')
 
-    def _create_data_analysis_project(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_data_analysis_project(self, params: dict[str, Any]) -> dict[str, Any]:
         try:
             name = params.get('name', 'DataAnalysisProject')
             project_name = self._sanitize_name(name)
@@ -379,7 +379,7 @@ if __name__ == '__main__':
         except Exception as e:
             raise Exception(f'Failed to create data analysis project: {e}')
 
-    def _create_hello_world(self, language: str, name: str, location: str = None) -> Dict[str, Any]:
+    def _create_hello_world(self, language: str, name: str, location: str = None) -> dict[str, Any]:
         try:
             if not isinstance(language, str) or not language:
                 raise ValueError('Language must be a non-empty string')
@@ -404,7 +404,7 @@ if __name__ == '__main__':
         except Exception as e:
             raise Exception(f'Failed to create hello world program: {e}')
 
-    def _create_python_project(self, project_name: str, location: str = None) -> Dict[str, Any]:
+    def _create_python_project(self, project_name: str, location: str = None) -> dict[str, Any]:
         try:
             project_name = self._sanitize_name(project_name)
             project_path = os.path.join(location, project_name) if location else os.path.join(os.getcwd(), project_name)
@@ -429,7 +429,7 @@ if __name__ == '__main__':
         except Exception as e:
             raise Exception(f'Failed to create Python project: {e}')
 
-    def _create_virtual_environment(self, project_path: str = None, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _create_virtual_environment(self, project_path: str = None, params: dict[str, Any] = None) -> dict[str, Any]:
         """Create a virtual environment inside the given project path.
 
         If `_sandbox` is True in params, do not perform filesystem changes — return a mocked success.

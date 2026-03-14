@@ -10,14 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import shutil
 import subprocess
 import tarfile
 from pathlib import Path
 
 import httpx
 from loguru import logger
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn
+from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn
 
 __all__ = [
     "fetch_latest_stable_version",

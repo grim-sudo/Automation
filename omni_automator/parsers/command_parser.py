@@ -3,10 +3,9 @@ Advanced command parser for complex, multi-step natural language commands
 """
 
 import re
-import json
-from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class CommandComplexity(Enum):
@@ -21,9 +20,9 @@ class ParsedStep:
     """A single step in a complex command"""
     action: str
     category: str
-    params: Dict[str, Any]
-    dependencies: List[int] = None  # Indices of steps this depends on
-    conditions: List[str] = None    # Conditions for execution
+    params: dict[str, Any]
+    dependencies: list[int] | None = None  # Indices of steps this depends on
+    conditions: list[str] | None = None    # Conditions for execution
     priority: int = 0               # Execution priority
 
 
@@ -32,14 +31,14 @@ class ComplexCommand:
     """A complex command broken down into executable steps"""
     original_command: str
     complexity: CommandComplexity
-    steps: List[ParsedStep]
-    context: Dict[str, Any]
+    steps: list[ParsedStep]
+    context: dict[str, Any]
     estimated_duration: int = 0  # Seconds
 
 
 class AdvancedCommandParser:
     """Advanced parser for complex natural language commands"""
-    
+
     def __init__(self):
         self.workflow_patterns = self._load_workflow_patterns()
         self.action_keywords = self._load_action_keywords()
@@ -55,19 +54,19 @@ class AdvancedCommandParser:
             'universal': 'universal_automation',
             'package_manager': 'universal_automation'
         }
-    
+
     def parse_complex_command(self, command: str) -> ComplexCommand:
         """Parse a complex natural language command into executable steps"""
-        
+
         # Clean and normalize the command
         normalized_command = self._normalize_command(command)
-        
+
         # Determine complexity
         complexity = self._determine_complexity(normalized_command)
-        
+
         # Extract context and intent
         context = self._extract_context(normalized_command)
-        
+
         # Break down into steps based on complexity
         if complexity == CommandComplexity.SIMPLE:
             steps = self._parse_simple_command(normalized_command)
@@ -77,7 +76,7 @@ class AdvancedCommandParser:
             steps = self._parse_workflow_command(normalized_command, context)
         else:  # CONDITIONAL
             steps = self._parse_conditional_command(normalized_command)
-        
+
         # Estimate duration
         duration = self._estimate_duration(steps)
 
@@ -226,12 +225,12 @@ class AdvancedCommandParser:
             context=context,
             estimated_duration=duration
         )
-    
+
     def _normalize_command(self, command: str) -> str:
         """Normalize command text for better parsing"""
         # Convert to lowercase
         normalized = command.lower().strip()
-        
+
         # Replace common variations
         replacements = {
             ' & ': ' and ',
@@ -242,10 +241,10 @@ class AdvancedCommandParser:
             'web browser': 'browser',
             'internet browser': 'browser',
         }
-        
+
         for old, new in replacements.items():
             normalized = normalized.replace(old, new)
-        
+
         # Spell correction for common mistyped action verbs (whole-word only)
         spell_corrections = {
             r'\bcrete\b': 'create',
@@ -266,27 +265,27 @@ class AdvancedCommandParser:
         }
         for pattern, replacement in spell_corrections.items():
             normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
-        
+
         return normalized
-    
+
     def _determine_complexity(self, command: str) -> CommandComplexity:
         """Determine the complexity level of the command"""
-        
+
         # Check for specific workflow patterns first
         workflow_indicators = [
-            'data analysis', 'web scraping', 'development environment', 
+            'data analysis', 'web scraping', 'development environment',
             'machine learning', 'full stack', 'complete setup'
         ]
-        
+
         if any(indicator in command for indicator in workflow_indicators):
             return CommandComplexity.WORKFLOW
-        
+
         # Check for data science stack
         data_science_tools = ['pandas', 'matplotlib', 'seaborn', 'jupyter', 'numpy']
         data_science_count = sum(1 for tool in data_science_tools if tool in command)
         if data_science_count >= 3:
             return CommandComplexity.WORKFLOW
-        
+
         # Check for bulk/nested operations (multiple folders, naming ranges, etc.)
         bulk_indicators = [
             r'\d+\s+folders?', # e.g., "100 folders"
@@ -297,7 +296,7 @@ class AdvancedCommandParser:
         bulk_count = sum(1 for pattern in bulk_indicators if re.search(pattern, command, re.IGNORECASE))
         if bulk_count >= 2:
             return CommandComplexity.WORKFLOW
-        
+
         # Single-action commands should be SIMPLE, even if they have prepositions like "to", "in", "on"
         simple_actions = ['copy', 'move', 'delete', 'create folder', 'create file', 'rename']
         if any(action in command for action in simple_actions):
@@ -308,14 +307,14 @@ class AdvancedCommandParser:
             )
             if bulk_count == 0 and not has_conjunction:
                 return CommandComplexity.SIMPLE
-        
+
         # Count conjunctions and conditional words
         conjunction_count = sum(1 for word in self.conjunction_words if re.search(r'\b' + word + r'\b', command, re.IGNORECASE))
         conditional_count = sum(1 for word in self.conditional_words if re.search(r'\b' + word + r'\b', command, re.IGNORECASE))
-        
+
         # Count distinct action verbs
         action_count = sum(1 for keyword in self.action_keywords if keyword in command)
-        
+
         # Determine complexity
         if conditional_count > 0:
             return CommandComplexity.CONDITIONAL
@@ -325,8 +324,8 @@ class AdvancedCommandParser:
             return CommandComplexity.COMPOUND
         else:
             return CommandComplexity.SIMPLE
-    
-    def _extract_context(self, command: str) -> Dict[str, Any]:
+
+    def _extract_context(self, command: str) -> dict[str, Any]:
         """Extract context information from the command"""
         context = {
             'programming_languages': [],
@@ -335,51 +334,51 @@ class AdvancedCommandParser:
             'locations': [],
             'technologies': []
         }
-        
+
         # Programming languages
         languages = ['python', 'javascript', 'java', 'c++', 'c#', 'php', 'ruby', 'go', 'rust', 'swift']
         for lang in languages:
             if lang in command:
                 context['programming_languages'].append(lang)
-        
+
         # Development tools
         tools = ['vscode', 'git', 'npm', 'pip', 'docker', 'nodejs', 'react', 'angular', 'vue']
         for tool in tools:
             if tool in command:
                 context['tools'].append(tool)
-        
+
         # File types
         file_types = ['.py', '.js', '.html', '.css', '.json', '.xml', '.csv', '.txt', '.md']
         for ft in file_types:
             if ft in command:
                 context['file_types'].append(ft)
-        
+
         # Common locations
         locations = ['desktop', 'documents', 'downloads', 'home', 'project', 'workspace']
         for loc in locations:
             if loc in command:
                 context['locations'].append(loc)
-        
+
         return context
-    
-    def _parse_workflow_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _parse_workflow_command(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Parse complex workflow commands"""
         steps = []
-        
+
         # Check for "inside/inside each" nested structures first (most specific)
         if 'inside' in command.lower() and self._has_loop_construct(command):
             inside_steps = self._parse_inside_nested_structure(command, context)
             if inside_steps:
                 return inside_steps
-        
+
         # Check for loop/iteration constructs (NEW - more versatile)
         if self._has_loop_construct(command):
             return self._parse_loop_command(command, context)
-        
+
         # Check for nested operations
         if self._has_nested_operations(command):
             return self._parse_nested_command(command, context)
-        
+
         # Check for document creation + web scraping workflows
         if ('extract' in command or 'scrape' in command) and any(doc_word in command for doc_word in ['word', 'document', 'docx', 'powerpoint', 'ppt', 'excel', 'xlsx', 'spreadsheet']):
             steps.extend(self._create_web_to_document_workflow(command, context))
@@ -397,13 +396,13 @@ class AdvancedCommandParser:
         else:
             # Generic workflow parsing
             steps.extend(self._parse_generic_workflow(command))
-        
+
         return steps
-    
-    def _create_web_to_document_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_web_to_document_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create workflow for web extraction followed by document creation"""
         steps = []
-        
+
         # Step 1: Open browser if requested
         if 'open browser' in command or 'browser' in command:
             steps.append(ParsedStep(
@@ -412,7 +411,7 @@ class AdvancedCommandParser:
                 params={'headless': False},
                 priority=1
             ))
-        
+
         # Step 2: Navigate to website/search
         if 'wikipedia' in command or 'search' in command:
             # Extract search query
@@ -447,12 +446,12 @@ class AdvancedCommandParser:
                     priority=2,
                     dependencies=[len(steps)-1] if steps else []
                 ))
-        
+
         # Step 3: Create document(s)
         doc_type = None
         filename = None
         folder = None
-        
+
         # Detect document type
         if 'word' in command or 'docx' in command or 'document' in command:
             doc_type = 'word'
@@ -475,7 +474,7 @@ class AdvancedCommandParser:
                 filename = filename_match.group(1)
                 if not filename.endswith('.xlsx'):
                     filename += '.xlsx'
-        
+
         # Extract folder/location
         # Match folder name but stop before location indicators like "on Desktop"
         folder_match = re.search(r'(?:in|to)\s+(?:folder|directory)\s+["\']?([^"\']+?)["\']?\s+(?:on|at|in)\s+(?:the\s+)?desktop', command, re.IGNORECASE)
@@ -493,7 +492,7 @@ class AdvancedCommandParser:
                     folder = folder_name
             elif 'desktop' in command.lower():
                 folder = 'Desktop'
-        
+
         # Create document step
         if doc_type:
             action_map = {
@@ -501,17 +500,17 @@ class AdvancedCommandParser:
                 'powerpoint': 'create_powerpoint',
                 'excel': 'create_excel'
             }
-            
+
             params = {}
             if filename:
                 params['filename'] = filename
             if folder:
                 params['folder'] = folder
-            
+
             # If we extracted article content, reference it
             if any(s.action in ['extract_article', 'scrape_website'] for s in steps):
                 params['content'] = '{{extracted_content}}'
-            
+
             steps.append(ParsedStep(
                 action=action_map[doc_type],
                 category='universal_automation',
@@ -519,17 +518,17 @@ class AdvancedCommandParser:
                 priority=3,
                 dependencies=[i for i in range(len(steps))]
             ))
-        
+
         return steps
-    
-    def _create_web_scraping_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_web_scraping_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create workflow for web scraping projects"""
         steps = []
-        
+
         # Extract project name
         project_match = re.search(r'(?:project|folder)\s+(?:called\s+)?[\'"]?([^\'"]+)[\'"]?', command)
         project_name = project_match.group(1) if project_match else 'WebScrapingProject'
-        
+
         # Step 1: Create project structure
         steps.append(ParsedStep(
             action='create_web_scraping_project',
@@ -537,7 +536,7 @@ class AdvancedCommandParser:
             params={'name': project_name, 'type': 'web_scraping'},
             priority=1
         ))
-        
+
         # Step 2: Install dependencies
         if 'requests' in command or 'beautifulsoup' in command:
             steps.append(ParsedStep(
@@ -547,7 +546,7 @@ class AdvancedCommandParser:
                 dependencies=[0],
                 priority=2
             ))
-        
+
         # Step 3: Create scraper file
         if 'news' in command or 'headlines' in command:
             steps.append(ParsedStep(
@@ -557,7 +556,7 @@ class AdvancedCommandParser:
                 dependencies=[0, 1],
                 priority=3
             ))
-        
+
         # Step 4: Open in editor
         if 'vscode' in command or 'vs code' in command:
             steps.append(ParsedStep(
@@ -567,13 +566,13 @@ class AdvancedCommandParser:
                 dependencies=[0, 1, 2],
                 priority=4
             ))
-        
+
         return steps
-    
-    def _create_dev_environment_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_dev_environment_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create development environment setup workflow"""
         steps = []
-        
+
         # Install Git
         if 'git' in command:
             steps.append(ParsedStep(
@@ -582,7 +581,7 @@ class AdvancedCommandParser:
                 params={'silent': True},
                 priority=1
             ))
-        
+
         # Install Node.js
         if 'nodejs' in command or 'node.js' in command or 'npm' in command:
             steps.append(ParsedStep(
@@ -591,7 +590,7 @@ class AdvancedCommandParser:
                 params={'version': 'latest'},
                 priority=2
             ))
-        
+
         # Install VS Code
         if 'vscode' in command or 'vs code' in command:
             steps.append(ParsedStep(
@@ -600,7 +599,7 @@ class AdvancedCommandParser:
                 params={'extensions': ['python', 'javascript']},
                 priority=3
             ))
-        
+
         # Clone repository
         if 'clone' in command and 'repo' in command:
             repo_match = re.search(r'github\.com/([^/]+/[^/\s]+)', command)
@@ -612,7 +611,7 @@ class AdvancedCommandParser:
                     dependencies=[0] if 'git' in command else [],
                     priority=4
                 ))
-        
+
         # Start dev server
         if 'start' in command and ('server' in command or 'dev' in command):
             steps.append(ParsedStep(
@@ -622,13 +621,13 @@ class AdvancedCommandParser:
                 dependencies=list(range(len(steps))),
                 priority=5
             ))
-        
+
         return steps
-    
-    def _create_backup_and_install_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_backup_and_install_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create backup and installation workflow"""
         steps = []
-        
+
         # Create backup
         if 'backup' in command:
             if 'documents' in command:
@@ -638,7 +637,7 @@ class AdvancedCommandParser:
                     params={'source': 'Documents', 'destination': 'Backup_Documents'},
                     priority=1
                 ))
-        
+
         # Download installer
         if 'download' in command and 'python' in command:
             steps.append(ParsedStep(
@@ -647,7 +646,7 @@ class AdvancedCommandParser:
                 params={'version': 'latest'},
                 priority=2
             ))
-        
+
         # Take screenshot when done
         if 'screenshot' in command:
             steps.append(ParsedStep(
@@ -657,13 +656,13 @@ class AdvancedCommandParser:
                 dependencies=list(range(len(steps))),
                 priority=99
             ))
-        
+
         return steps
-    
-    def _create_project_setup_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_project_setup_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create project setup workflow"""
         steps = []
-        
+
         # Determine project type from context
         if 'python' in context['programming_languages']:
             project_type = 'python'
@@ -671,11 +670,11 @@ class AdvancedCommandParser:
             project_type = 'javascript'
         else:
             project_type = 'generic'
-        
+
         # Extract project name
         project_match = re.search(r'(?:project|folder)\s+[\'"]?([^\'"]+)[\'"]?', command)
         project_name = project_match.group(1) if project_match else 'MyProject'
-        
+
         # Create project
         steps.append(ParsedStep(
             action=f'create_{project_type}_project',
@@ -683,17 +682,17 @@ class AdvancedCommandParser:
             params={'name': project_name},
             priority=1
         ))
-        
+
         return steps
-    
-    def _create_data_analysis_workflow(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _create_data_analysis_workflow(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Create workflow for data analysis projects"""
         steps = []
-        
+
         # Extract project name
         project_match = re.search(r'(?:project|analysis)\s+(?:called\s+)?[\'"]?([^\'"]+)[\'"]?', command)
         project_name = project_match.group(1) if project_match else 'DataAnalysisProject'
-        
+
         # Step 1: Create data analysis project structure
         steps.append(ParsedStep(
             action='create_data_analysis_project',
@@ -701,7 +700,7 @@ class AdvancedCommandParser:
             params={'name': project_name, 'type': 'data_analysis'},
             priority=1
         ))
-        
+
         # Step 2: Install data science packages
         packages = ['pandas', 'numpy', 'matplotlib', 'seaborn', 'jupyter']
         if 'scipy' in command:
@@ -710,7 +709,7 @@ class AdvancedCommandParser:
             packages.append('plotly')
         if 'sklearn' in command or 'scikit-learn' in command:
             packages.append('scikit-learn')
-        
+
         steps.append(ParsedStep(
             action='install_packages',
             category='package_manager',
@@ -718,7 +717,7 @@ class AdvancedCommandParser:
             dependencies=[0],
             priority=2
         ))
-        
+
         # Step 3: Generate sample data if requested
         if 'sample' in command or 'generate' in command:
             steps.append(ParsedStep(
@@ -728,7 +727,7 @@ class AdvancedCommandParser:
                 dependencies=[0],
                 priority=3
             ))
-        
+
         return steps
 
     # --- Compatibility wrappers ---
@@ -771,7 +770,7 @@ class AdvancedCommandParser:
 
         return parsed
 
-    def get_command_variations(self, command: str) -> List[str]:
+    def get_command_variations(self, command: str) -> list[str]:
         """Return simple paraphrases/variations for a given command (compatibility helper)."""
         # Very small heuristic-based variations to satisfy callers
         variations = [command]
@@ -796,7 +795,7 @@ class AdvancedCommandParser:
 
         return out
 
-    def parse(self, command: str) -> Dict[str, Any]:
+    def parse(self, command: str) -> dict[str, Any]:
         """Backward-compatible simple parse method returning a dict with action, category, params."""
         parsed = self.parse_flexible(command)
         return {
@@ -804,14 +803,14 @@ class AdvancedCommandParser:
             'category': getattr(parsed, 'category', 'filesystem'),
             'params': getattr(parsed, 'params', {})
         }
-    
-    def _parse_compound_command(self, command: str) -> List[ParsedStep]:
+
+    def _parse_compound_command(self, command: str) -> list[ParsedStep]:
         """Parse compound commands with multiple actions"""
         steps = []
-        
+
         # Split by conjunctions
         parts = re.split(r'\s+(?:and|then|also|plus)\s+', command)
-        
+
         for i, part in enumerate(parts):
             # Parse each part as a simple command
             simple_steps = self._parse_simple_command(part.strip())
@@ -820,12 +819,12 @@ class AdvancedCommandParser:
                 if i > 0:  # Add dependency on previous step
                     step.dependencies = [len(steps) - 1]
                 steps.append(step)
-        
+
         return steps
-    
-    def _parse_simple_command(self, command: str) -> List[ParsedStep]:
+
+    def _parse_simple_command(self, command: str) -> list[ParsedStep]:
         """Parse simple single-action commands with smart NLP"""
-        
+
         # Handle file modification: "modify p1.py from fibonacci to prime numbers"
         modify_match = re.search(r'modify\s+(\S+)\s+from\s+(\w+)\s+to\s+(\w+(?:\s+\w+)*)', command, re.IGNORECASE)
         if modify_match:
@@ -838,27 +837,27 @@ class AdvancedCommandParser:
                 params={'file_path': file_path, 'intent': f'convert {old_type} to {new_type}'},
                 priority=1
             )]
-        
+
         # Handle batch folder/file creation: "create 10 folders from project1 to project10"
         batch_folder_match = re.search(r'create\s+(\d+)\s+(?:folders?|directories?)\s+(?:(?:from|named)\s+)?(\w+)\s+to\s+(\w+)', command, re.IGNORECASE)
         if batch_folder_match:
             count = int(batch_folder_match.group(1))
             start_name = batch_folder_match.group(2)
             end_name = batch_folder_match.group(3)
-            
+
             # Extract location if specified
             location_match = re.search(r'(?:on|in|at)\s+(\w+)', command, re.IGNORECASE)
             location = location_match.group(1) if location_match else None
-            
+
             # Generate folder names
             start_num = self._extract_number(start_name)
             end_num = self._extract_number(end_name)
             base_start = self._extract_base_name(start_name)
             base_end = self._extract_base_name(end_name)
-            
+
             # Use the common base name
             base_name = base_start if base_start == base_end else start_name
-            
+
             steps = []
             if start_num is not None and end_num is not None:
                 for i in range(start_num, end_num + 1):
@@ -875,7 +874,7 @@ class AdvancedCommandParser:
                 params={'raw_command': command},
                 priority=1
             )]
-        
+
         # Handle simple copy/move/delete commands
         if 'copy' in command.lower():
             parts = command.lower().split(' to ')
@@ -888,7 +887,7 @@ class AdvancedCommandParser:
                     params={'source': source, 'destination': dest},
                     priority=1
                 )]
-        
+
         if 'move' in command.lower():
             parts = command.lower().split(' to ')
             if len(parts) == 2:
@@ -900,7 +899,7 @@ class AdvancedCommandParser:
                     params={'source': source, 'destination': dest},
                     priority=1
                 )]
-        
+
         # Handle folder creation
         if (('create' in command.lower() or 'make' in command.lower()) and
                 ('folder' in command.lower() or 'directory' in command.lower())):
@@ -911,17 +910,17 @@ class AdvancedCommandParser:
             folder_name = name_match.group(1).strip() if name_match else 'NewFolder'
             # Strip trailing punctuation/whitespace
             folder_name = folder_name.rstrip('.,;:').strip()
-            
+
             location_match = re.search(r'(?:on|in|at)\s+(\w+)', command, re.IGNORECASE)
             location = location_match.group(1) if location_match else None
-            
+
             return [ParsedStep(
                 action='create_folder',
                 category='filesystem',
                 params={'name': folder_name, 'location': location},
                 priority=1
             )]
-        
+
         # Handle file creation: "create a file named hello.txt with content hello world"
         if (('create' in command.lower() or 'make' in command.lower()) and 'file' in command.lower()):
             # Prefer "named X" / "called X", then fall back to word directly after "file"
@@ -939,7 +938,7 @@ class AdvancedCommandParser:
                 params={'name': file_name, 'content': content, 'location': location},
                 priority=1
             )]
-        
+
         # Handle rename: "rename folder X to Y", "rename the folder called X to Y", etc.
         if 'rename' in command.lower():
             rename_match = re.search(
@@ -954,7 +953,7 @@ class AdvancedCommandParser:
                     params={'old_name': rename_match.group(1), 'new_name': rename_match.group(2)},
                     priority=1
                 )]
-        
+
         # Handle delete/remove: "delete folder X", "delete file X", "remove the folder called X"
         if 'delete' in command.lower() or 'remove' in command.lower():
             # Try "called X" / "named X" first for natural language phrases
@@ -975,7 +974,7 @@ class AdvancedCommandParser:
                     params={'path': target},
                     priority=1
                 )]
-        
+
         # Default fallback
         return [ParsedStep(
             action='unknown',
@@ -983,24 +982,24 @@ class AdvancedCommandParser:
             params={'raw_command': command},
             priority=1
         )]
-    
-    def _extract_number(self, text: str) -> Optional[int]:
+
+    def _extract_number(self, text: str) -> int | None:
         """Extract number from text like 'project1' -> 1"""
         match = re.search(r'(\d+)', text)
         return int(match.group(1)) if match else None
-    
+
     def _extract_base_name(self, text: str) -> str:
         """Extract base name from text like 'project1' -> 'project'"""
         return re.sub(r'\d+$', '', text)
-    
-    def _parse_conditional_command(self, command: str) -> List[ParsedStep]:
+
+    def _parse_conditional_command(self, command: str) -> list[ParsedStep]:
         """Parse conditional commands with if-then logic"""
         steps = []
-        
+
         # Extract condition and action parts
         if_match = re.search(r'if\s+(.+?)\s+then\s+(.+)', command)
         when_match = re.search(r'when\s+(.+?)\s+(?:then\s+)?(.+)', command)
-        
+
         if if_match:
             condition = if_match.group(1)
             action = if_match.group(2)
@@ -1010,21 +1009,21 @@ class AdvancedCommandParser:
         else:
             # Fallback to compound parsing
             return self._parse_compound_command(command)
-        
+
         # Create conditional step
         action_steps = self._parse_simple_command(action)
         for step in action_steps:
             step.conditions = [condition]
             steps.append(step)
-        
+
         return steps
-    
-    def _parse_generic_workflow(self, command: str) -> List[ParsedStep]:
+
+    def _parse_generic_workflow(self, command: str) -> list[ParsedStep]:
         """Parse generic workflow commands"""
         # Split by conjunctions and create steps
         parts = re.split(r'\s+(?:and|then|after|next|also|plus|followed by)\s+', command)
         steps = []
-        
+
         for i, part in enumerate(parts):
             simple_steps = self._parse_simple_command(part.strip())
             for step in simple_steps:
@@ -1032,10 +1031,10 @@ class AdvancedCommandParser:
                 if i > 0:
                     step.dependencies = [len(steps) - 1]
                 steps.append(step)
-        
+
         return steps
-    
-    def _estimate_duration(self, steps: List[ParsedStep]) -> int:
+
+    def _estimate_duration(self, steps: list[ParsedStep]) -> int:
         """Estimate execution duration in seconds"""
         duration_map = {
             'create_folder': 1,
@@ -1048,14 +1047,14 @@ class AdvancedCommandParser:
             'install_nodejs': 240,
             'install_vscode': 300
         }
-        
+
         total_duration = 0
         for step in steps:
             total_duration += duration_map.get(step.action, 5)
-        
+
         return total_duration
-    
-    def _load_workflow_patterns(self) -> Dict[str, List[str]]:
+
+    def _load_workflow_patterns(self) -> dict[str, list[str]]:
         """Load common workflow patterns"""
         return {
             'web_development': ['create project', 'install dependencies', 'setup server', 'open editor'],
@@ -1063,8 +1062,8 @@ class AdvancedCommandParser:
             'mobile_development': ['create project', 'setup sdk', 'create app', 'test device'],
             'devops': ['setup environment', 'configure tools', 'deploy application', 'monitor']
         }
-    
-    def _load_action_keywords(self) -> List[str]:
+
+    def _load_action_keywords(self) -> list[str]:
         """Load action keywords for complexity detection"""
         return [
             'create', 'make', 'build', 'generate', 'setup', 'install', 'download', 'upload',
@@ -1072,8 +1071,8 @@ class AdvancedCommandParser:
             'execute', 'launch', 'kill', 'terminate', 'backup', 'restore', 'sync', 'clone',
             'commit', 'push', 'pull', 'deploy', 'test', 'debug', 'compile', 'build'
         ]
-    
-    def _load_context_keywords(self) -> Dict[str, List[str]]:
+
+    def _load_context_keywords(self) -> dict[str, list[str]]:
         """Load context keywords for better understanding"""
         return {
             'development': ['project', 'code', 'programming', 'development', 'software'],
@@ -1082,20 +1081,20 @@ class AdvancedCommandParser:
             'system': ['system', 'admin', 'configuration', 'settings', 'registry'],
             'network': ['network', 'internet', 'download', 'upload', 'sync', 'cloud']
         }
-    def _parse_inside_nested_structure(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+    def _parse_inside_nested_structure(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """
         Parse commands with 'inside/inside each' nesting patterns
         Example: "create folder1, inside 100 folders numbered 1-100, inside each 15 subfolders, inside each readme"
         """
         steps = []
-        
+
         try:
             # Split by commas to get nesting levels
             parts = [p.strip() for p in command.split(',')]
-            
+
             if not parts:
                 return []
-            
+
             # Level 0: Root folder creation
             root_part = parts[0]
             root_match = re.search(r'create\s+(?:a\s+)?(?:folder\s+)?(?:named?\s+)?([a-zA-Z_][a-zA-Z0-9_]*)', root_part, re.IGNORECASE)
@@ -1108,28 +1107,28 @@ class AdvancedCommandParser:
                     priority=1
                 ))
                 context['root_folder'] = root_name
-            
+
             # Parse remaining levels
             for level_idx, part in enumerate(parts[1:], start=1):
                 part_lower = part.lower()
-                
+
                 # Extract count and range — match "folders", "subfolders", "directories"
                 count_match = re.search(r'inside\s+(?:each\s+)?(\d+)\s+(?:sub)?folders?(?:\s|,|$)', part_lower)
                 range_match = re.search(r'(?:numbered?|naming|from)\s+(\d+)\s*(?:-|to)\s*(\d+)', part_lower)
-                
+
                 if count_match:
                     count = int(count_match.group(1))
                     start_num = 1
                     end_num = count
-                    
+
                     if range_match:
                         start_num = int(range_match.group(1))
                         end_num = int(range_match.group(2))
                         count = end_num - start_num + 1
-                    
+
                     # "inside each" = nested inside every folder from the previous level
                     is_nested = 'inside each' in part_lower or (level_idx > 1 and 'inside' in part_lower)
-                    
+
                     steps.append(ParsedStep(
                         action='create_nested_folders' if is_nested and level_idx > 1 else 'create_bulk_folders',
                         category='filesystem',
@@ -1146,7 +1145,7 @@ class AdvancedCommandParser:
                     ))
                     context[f'level_{level_idx}_count'] = count
                     context['last_folder_level'] = level_idx
-                
+
                 # Check for file creation (readme, etc.)
                 elif re.search(r'readme|\.md\b|\.txt\b|\bfile\b', part_lower):
                     # Match "readme file", "a readme file", "readme.md" etc.
@@ -1160,16 +1159,16 @@ class AdvancedCommandParser:
                             filename = name
                         else:
                             filename = name + '.md'
-                    
+
                     # Extract content if provided
                     content = ''
                     content_match = re.search(r'(?:with\s+(?:the\s+)?text|saying|containing)\s+["\']?(.+?)["\']?$', part, re.IGNORECASE)
                     if content_match:
                         content = content_match.group(1).strip()
-                    
+
                     # "inside each" = create in every deepest-level folder
                     is_nested = 'inside each' in part_lower
-                    
+
                     steps.append(ParsedStep(
                         action='create_nested_files' if is_nested else 'create_file',
                         category='filesystem',
@@ -1183,13 +1182,13 @@ class AdvancedCommandParser:
                         priority=level_idx + 1,
                         dependencies=list(range(len(steps)))
                     ))
-            
+
             return steps if steps else []
-            
+
         except Exception as e:
             self.logger.error(f"Error parsing inside nested structure: {e}")
             return []
-    
+
     def _has_loop_construct(self, command: str) -> bool:
         """Check if command contains loop/iteration constructs"""
         loop_indicators = [
@@ -1201,12 +1200,12 @@ class AdvancedCommandParser:
             r'repeat|duplicate.*\d+',  # "repeat 5 times"
             r'\d+\s+(?:times?|copies|instances)',  # "5 times", "5 copies"
         ]
-        
+
         for indicator in loop_indicators:
             if re.search(indicator, command, re.IGNORECASE):
                 return True
         return False
-    
+
     def _has_nested_operations(self, command: str) -> bool:
         """Check if command contains nested/hierarchical operations"""
         nested_indicators = [
@@ -1215,13 +1214,13 @@ class AdvancedCommandParser:
             r'and\s+in\s+(?:those|each)',  # "and in each"
             r'with\s+(?:each|every)\s+(?:file|folder)',  # "with each file"
         ]
-        
+
         for indicator in nested_indicators:
             if re.search(indicator, command, re.IGNORECASE):
                 return True
         return False
-    
-    def _parse_loop_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _parse_loop_command(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """
         Parse commands with loops/iterations - intelligently handles:
         - Sequential loops: "create folder A, then create X items in it, then create Y items in each X"
@@ -1229,18 +1228,17 @@ class AdvancedCommandParser:
         - Nested loops: "among those folders create..."
         """
         steps = []
-        import os
-        
+
         try:
             # NEW INTELLIGENT PARSING: Break down command by sequential operations
             # Pattern: "[CREATE main] AND [CREATE N folders NAMING FROM X TO Y] AND [AMONG THOSE CREATE M folders NAMING FROM A TO B]"
-            
+
             # Step 1: Extract all major operations separated by "and"
             operations = self._split_complex_operations(command)
-            
+
             for op_idx, operation in enumerate(operations):
                 op_lower = operation.lower().strip()
-                
+
                 # Operation Type 1: Create main container
                 if op_idx == 0 and re.search(r'create\s+(?:a\s+)?folder\s+(?:named?|as)\s+', op_lower):
                     folder_match = re.search(r'create\s+(?:a\s+)?folder\s+(?:named?|as)\s+([a-zA-Z_][a-zA-Z0-9_]*)', op_lower)
@@ -1248,7 +1246,7 @@ class AdvancedCommandParser:
                         folder_name = folder_match.group(1).strip()
                         # Get location from command
                         location = self._extract_location_from_command(command)
-                        
+
                         steps.append(ParsedStep(
                             action='create_folder',
                             category='filesystem',
@@ -1258,16 +1256,16 @@ class AdvancedCommandParser:
                         context['container_name'] = folder_name
                         context['container_location'] = location
                         continue
-                
+
                 # Operation Type 2: Create N folders with naming pattern
                 if re.search(r'create\s+\d+\s+folders?\s+', op_lower):
                     count_match = re.search(r'create\s+(\d+)\s+folders?', op_lower)
                     if count_match:
                         count = int(count_match.group(1))
-                        
+
                         # Extract naming pattern
                         pattern_info = self._extract_naming_pattern(operation)
-                        
+
                         if pattern_info:
                             steps.append(ParsedStep(
                                 action='create_bulk_folders',
@@ -1283,16 +1281,16 @@ class AdvancedCommandParser:
                             ))
                             context['current_parent'] = pattern_info.get('prefix', '')
                             context['last_count'] = count
-                
+
                 # Operation Type 3: Among/In those folders, create nested items
                 if re.search(r'among\s+those|in\s+each\s+(?:of\s+)?(?:those|the)', op_lower):
                     nested_count_match = re.search(r'create\s+(\d+)\s+folders?', op_lower)
                     if nested_count_match:
                         nested_count = int(nested_count_match.group(1))
-                        
+
                         # Extract nested naming pattern
                         nested_pattern = self._extract_naming_pattern(operation)
-                        
+
                         if nested_pattern:
                             steps.append(ParsedStep(
                                 action='create_nested_folders',
@@ -1307,18 +1305,18 @@ class AdvancedCommandParser:
                                 priority=3,
                                 conditions=['bulk_folders_created']
                             ))
-            
+
             return steps if steps else self._fallback_parse_simple(command, context)
-            
-        except Exception as e:
+
+        except Exception:
             return self._fallback_parse_simple(command, context)
-    
-    def _split_complex_operations(self, command: str) -> List[str]:
+
+    def _split_complex_operations(self, command: str) -> list[str]:
         """Split command into major operations by conjunctions"""
         # Split by 'and' but preserve the operation context
         parts = re.split(r'\s+and\s+', command, flags=re.IGNORECASE)
         return [part.strip() for part in parts if part.strip()]
-    
+
     def _extract_location_from_command(self, command: str) -> str:
         """Extract the location/path from command"""
         # Match Windows paths
@@ -1326,8 +1324,8 @@ class AdvancedCommandParser:
         if path_match:
             return path_match.group(1)
         return ''
-    
-    def _extract_naming_pattern(self, operation: str) -> Dict[str, Any]:
+
+    def _extract_naming_pattern(self, operation: str) -> dict[str, Any]:
         """
         Extract naming pattern from operation
         Handles: "naming from test2 to test100", "naming as 1.1 to 1.15", etc.
@@ -1337,11 +1335,11 @@ class AdvancedCommandParser:
             operation,
             re.IGNORECASE
         )
-        
+
         if pattern_match:
             start_val = pattern_match.group(1)
             end_val = pattern_match.group(2)
-            
+
             # Detect pattern type (numeric, decimal, alphanumeric)
             if re.match(r'^\d+$', start_val) and re.match(r'^\d+$', end_val):
                 # Numeric: "1 to 100"
@@ -1377,7 +1375,7 @@ class AdvancedCommandParser:
                         'start': start_num,
                         'end': end_num
                     }
-        
+
         # Also handle "named X to Y" or plain "X to Y" range without "naming" keyword
         range_match = re.search(
             r'(?:named?\s+|from\s+)?([a-zA-Z0-9_.]+)\s+to\s+([a-zA-Z0-9_.]+)',
@@ -1405,29 +1403,29 @@ class AdvancedCommandParser:
                     }
                 except (ValueError, AttributeError):
                     pass
-        
+
         return None
-    
-    def _extract_items_between_patterns(self, command: str, start_pattern: str, end_pattern: str) -> List[str]:
+
+    def _extract_items_between_patterns(self, command: str, start_pattern: str, end_pattern: str) -> list[str]:
         """Extract items between two regex patterns"""
         match = re.search(start_pattern + r'([a-zA-Z0-9_\s]+?)' + end_pattern, command, re.IGNORECASE)
         if match:
             return self._parse_item_list(match.group(1))
         return []
-    
-    def _parse_item_list(self, items_str: str) -> List[str]:
+
+    def _parse_item_list(self, items_str: str) -> list[str]:
         """Parse a comma/and-separated list of items intelligently"""
         if not items_str or not items_str.strip():
             return []
-        
+
         # Replace "and" with delimiter
         items_str = re.sub(r'\s+and\s+', '|', items_str, flags=re.IGNORECASE)
         # Split by whitespace and delimiter, remove articles
         items = re.split(r'[\s|]+', items_str)
         items = [item.strip() for item in items if item.strip() and item.lower() not in ['and', 'the', 'a', 'an']]
         return items
-    
-    def _infer_item_type(self, item: str, items: List[str], command: str) -> str:
+
+    def _infer_item_type(self, item: str, items: list[str], command: str) -> str:
         """Infer the type of item (service, test, component, etc.)"""
         # Check for common suffixes
         if item.endswith('_service'):
@@ -1441,21 +1439,21 @@ class AdvancedCommandParser:
         else:
             # Use a generic term
             return 'folder'
-    
-    def _fallback_parse_complex(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _fallback_parse_complex(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Fallback parser for commands that are too complex"""
         self.logger.warning("Command complexity exceeds supported nesting levels. Creating basic structure.")
         steps = []
-        
+
         # Extract basic container name
         container_match = re.search(r'create\s+(?:a\s+)?([a-zA-Z\s]+?)\s+folder', command, re.IGNORECASE)
         container_name = container_match.group(1).strip() if container_match else 'project'
         container_name = re.sub(r'^\s*(?:a|an|the)\s+', '', container_name, flags=re.IGNORECASE).strip()
-        
+
         # Extract location
         location_match = re.search(r'location\s+(?:of\s+the\s+main\s+folder\s+should\s+be\s+)?([A-Za-z]:\\[^\s"\']+)', command, re.IGNORECASE)
         location = location_match.group(1) if location_match else ''
-        
+
         # Create container
         steps.append(ParsedStep(
             action='create_folder',
@@ -1463,28 +1461,28 @@ class AdvancedCommandParser:
             params={'name': container_name, 'location': location if location else '.'},
             priority=1
         ))
-        
+
         return steps
-    
-    def _fallback_parse_simple(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _fallback_parse_simple(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Fallback parser for simple commands"""
         steps = []
-        
+
         container_match = re.search(r'create\s+(?:a\s+)?([a-zA-Z\s]+?)\s+folder', command, re.IGNORECASE)
         container_name = container_match.group(1).strip() if container_match else 'project'
-        
+
         location_match = re.search(r'location\s+(?:of\s+the\s+main\s+folder\s+should\s+be\s+)?([A-Za-z]:\\[^\s"\']+)', command, re.IGNORECASE)
         location = location_match.group(1) if location_match else ''
-        
+
         steps.append(ParsedStep(
             action='create_folder',
             category='filesystem',
             params={'name': container_name, 'location': location if location else '.'},
             priority=1
         ))
-        
+
         return steps
-    
+
     def _generate_test_config(self) -> str:
         """Generate test configuration file content"""
         return """{
@@ -1497,8 +1495,8 @@ class AdvancedCommandParser:
   "log_level": "INFO",
   "environment": "test"
 }"""
-    
-    def _generate_master_registry(self, container: str, items: List[str], subitems: List[str]) -> str:
+
+    def _generate_master_registry(self, container: str, items: list[str], subitems: list[str]) -> str:
         """Generate master registry file"""
         lines = [
             "=" * 70,
@@ -1510,31 +1508,31 @@ class AdvancedCommandParser:
             "TEST SUITES:",
             "-" * 70,
         ]
-        
+
         for item in items:
             lines.append(f"\n[{item.upper()}]")
             lines.append(f"Location: {container}/{item}")
             lines.append(f"Description: {item.replace('_', ' ').title()} tests")
-            
+
             if subitems:
                 lines.append("Subfolders:")
                 for subitem in subitems:
                     lines.append(f"  - {subitem}: {subitem.replace('_', ' ').title()}")
-        
+
         lines.extend([
             "",
             "=" * 70,
             "Configuration: test_config.json",
             "=" * 70,
         ])
-        
+
         return "\n".join(lines)
-    
-    def _parse_nested_command(self, command: str, context: Dict[str, Any]) -> List[ParsedStep]:
+
+    def _parse_nested_command(self, command: str, context: dict[str, Any]) -> list[ParsedStep]:
         """Parse commands with nested operations"""
         # This uses the loop parser since nested operations are usually within loops
         return self._parse_loop_command(command, context)
-    
+
     def _generate_multiplication_table(self, number: int) -> str:
         """Generate multiplication table for a number"""
         lines = [f"Multiplication Table of {number}", "=" * 40]

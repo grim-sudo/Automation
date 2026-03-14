@@ -11,9 +11,9 @@ For the new interface, use:
 """
 from __future__ import annotations
 
-import sys
-import os
 import io
+import os
+import sys
 
 # Fix encoding on Windows
 if sys.platform == "win32":
