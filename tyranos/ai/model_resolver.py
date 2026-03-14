@@ -137,6 +137,7 @@ class FreeModelResolver:
 
     def invalidate(self) -> None:
         """Force a fresh fetch on the next ``ensure_loaded()`` call."""
+        self._models = []
         self._fetched_at = 0.0
 
     # ── Internal helpers ──────────────────────────────────────────────────────

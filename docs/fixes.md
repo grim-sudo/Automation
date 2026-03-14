@@ -374,3 +374,29 @@ The 1 warning is the same `DeprecationWarning` for `asyncio.DefaultEventLoopPoli
 | No bare `print()` in tyranos/ | ✅ | All converted to loguru |
 
 ---
+
+## Fix #9 — TestCaching::test_invalidate_forces_refetch
+
+**Date:** 2026-03-14
+**File(s):** `tyranos/ai/model_resolver.py`
+**Bug:** `assert 1 == 2` — `MagicMock.call_count` was 1, expected 2 after cache invalidation.
+**Root Cause:** `invalidate()` only reset `self._fetched_at = 0.0` but left `self._models` populated.
+`_is_fresh()` is: `bool(self._models) and (time.monotonic() - self._fetched_at) < _CACHE_TTL_SECONDS`.
+With `_fetched_at = 0.0` and system uptime < 1 hour (typical for CI runners),
+`time.monotonic() - 0.0` is e.g. 200 seconds, which is < 3600 → `_is_fresh()` returned **True**.
+So the second `ensure_loaded()` short-circuited without re-fetching, leaving `call_count == 1`.
+**Fix:** `invalidate()` now also clears `self._models = []` so `bool(self._models)` is False,
+forcing `_is_fresh()` to return False unconditionally:
+```python
+def invalidate(self) -> None:
+    """Force a fresh fetch on the next ``ensure_loaded()`` call."""
+    self._models = []
+    self._fetched_at = 0.0
+```
+**Verified:**
+```
+pytest tests/test_model_resolver.py::TestCaching::test_invalidate_forces_refetch -v → PASSED
+pytest tests/ -m "not integration and not slow" → 153 passed, 0 failed
+```
+
+---
