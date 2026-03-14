@@ -2,147 +2,242 @@
 
 ## Universal Automation Framework with AI Intelligence
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)](README.md)
+[![CI](https://github.com/grim-sudo/Automation/actions/workflows/ci.yml/badge.svg)](https://github.com/grim-sudo/Automation/actions)
 
-OmniAutomator is an enterprise-grade automation framework that combines advanced natural language processing with intelligent task execution. It enables you to automate complex workflows through simple, human-readable commands across Windows, Linux, and macOS platforms.
+OmniAutomator is a cross-platform automation framework that combines advanced natural language processing with an async AI layer to execute complex workflows through plain-English commands. Version 2.0 introduces a fully dynamic free-model resolver, n8n workflow integration, and a custom Linux distro builder.
 
 ---
 
-## Overview
+## What's New in v2.0
 
-OmniAutomator is designed for DevOps engineers, system administrators, and developers who need to automate complex workflows efficiently. Whether you need to manage infrastructure, deploy applications, or execute repetitive tasks, OmniAutomator provides the tools and intelligence to get the job done with natural language commands.
-
-### Key Capabilities
-
-- **Natural Language Processing**: Execute automation tasks using plain English commands
-- **Multi-Model AI**: Integration with OpenRouter, OpenAI, Anthropic, and local models
-- **Cross-Platform Support**: Native implementations for Windows, Linux, and macOS
-- **Enterprise Automation**: DevOps, infrastructure, deployment, and system management
-- **Flexible Interface**: CLI, interactive mode, GUI, and batch processing
-- **Robust Error Handling**: Automatic recovery and intelligent fallback mechanisms
-- **Production Ready**: Fully tested and validated across 5 AI models and 4 plugin systems
+- **Dynamic free-model resolution** — fetches available free models from OpenRouter at runtime; no model names are hardcoded anywhere in the codebase
+- **n8n workflow bridge** — create, run, and manage n8n workflows from natural language or CLI commands
+- **Custom Linux distro builder** — build bootable ISOs from TOML profiles or NL descriptions (Debian, Arch, Buildroot)
+- **Async AI layer** — `httpx.AsyncClient`, SSE streaming, `tenacity` fallback chain, `tiktoken` sliding-window context
+- **Unified CLI** — single `omni` entry point replacing separate launcher scripts
+- **pydantic-settings config** — `~/.omniautomator/config.toml` with env-var override support
+- **Structured output parsing** — Pydantic v2 `TaskPlan` / `IntentResult` models with JSON-repair fallbacks
+- **Subprocess security** — all shell commands use list-form `safe_run()`; no `shell=True` anywhere
+- **Full test suite** — pytest with async support and mocked AI calls
 
 ---
 
 ## Core Features
 
-### AI-Powered Command Execution
-- **Advanced Semantic NLP**: Claude-level natural language understanding with 8 intent types
-- **Multi-Model Support**: Seamlessly switch between different AI providers
-- **Context Awareness**: Maintains understanding across multi-turn conversations
-- **Spell Correction**: Automatic typo correction (95%+ accuracy)
-- **Smart Error Recovery**: Intelligent error handling with user prompts (90%+ recovery rate)
-- **Intent Detection**: 100% accuracy on intent recognition
+### AI-Powered Execution
+- **10 NLP intent types**: FILE_OPERATION, SYSTEM_OPERATION, WEB_OPERATION, CODE_OPERATION, DATA_OPERATION, SECURITY_OPERATION, DEVELOPMENT_OPERATION, COMMUNICATION_OPERATION, N8N_WORKFLOW, BUILD_DISTRO
+- **Dynamic model selection**: best available free model is selected at runtime from OpenRouter
+- **Automatic fallback chain**: if the primary model fails, the next free model is tried automatically
+- **Sliding-window context**: conversation history trimmed by token count (default 8 000 tokens)
+- **Spell correction**: typo handling with >95% accuracy on common mistakes
+- **JSON repair**: malformed AI responses are repaired before parsing
 
-### Comprehensive Automation
-- **File & Folder Operations**: Create, copy, move, delete, and organize files
-- **System Management**: Process control, service management, configuration changes
-- **Project Generation**: Generate project structures for multiple frameworks
-- **DevOps Integration**: Docker, Kubernetes, CI/CD pipeline automation
-- **Web Automation**: Form submission, web scraping, API testing
+### Automation Capabilities
+- **File & folder operations**: create, copy, move, delete, organise
+- **System management**: process control, service management, package installation
+- **Project generation**: scaffolding for Python, Node.js, React, and more
+- **DevOps**: Docker, Kubernetes, CI/CD pipeline automation
+- **Web automation**: form submission, scraping, API testing
+- **n8n workflows**: create trigger-action pipelines, poll execution status, schedule runs
+- **Linux distro builder**: compile custom kernels, build rootfs, assemble bootable ISOs
 
-### Cross-Platform OS Support
-- **Windows**: Native PowerShell integration, registry management, service control
-- **Linux**: System package managers, systemd, native shell execution
-- **macOS**: Native system commands and framework integration
-- **Unified API**: Same commands work across all platforms
-
-### Multiple Interfaces
-- **Command-Line Interface**: Direct command execution from terminal
-- **Interactive Mode**: Real-time command execution with context and history
-- **Chatbot Mode**: Multi-turn conversational interface with special commands
-- **Graphical Interface**: Modern GUI for visual task management
-- **Python API**: Programmatic access for developers
-- **Batch Processing**: Execute multiple commands from configuration files
+### Interfaces
+- **`omni run`** — single-command CLI execution
+- **`omni chatbot`** — multi-turn conversational mode with SSE streaming
+- **`omni gui`** — graphical interface
+- **`omni batch`** — bulk execution from a file
+- **`omni n8n`** — n8n workflow sub-commands
+- **`omni distro`** — distro builder sub-commands
+- **Python API** — programmatic access via `OmniAutomator`
 
 ---
 
-## New in Version 2.0 ✨
+## Installation
 
-### Advanced Semantic NLP Engine
-- **Claude-Level NLP**: Semantic understanding matching advanced AI sophistication
-- **8 Intent Types**: CREATE, DELETE, MODIFY, QUERY, EXECUTE, CONFIGURE, ANALYZE, HELP
-- **8+ Entity Types**: FILES, FOLDERS, PROJECTS, PATHS, URLs, COMMANDS, PARAMETERS, QUANTITIES
-- **Confidence Scoring**: 0-100% confidence ratings for all interpretations
-- **Entity Extraction**: Intelligent identification of files, folders, paths, and parameters
-- **Parameter Recognition**: Automatic extraction of quantities, ranges, and named entities
-- **Ambiguity Detection**: Identifies unclear elements and suggests clarifications
-- **Multi-turn Awareness**: Maintains context across conversation turns
+### Prerequisites
+- Python 3.10 or higher
+- An [OpenRouter](https://openrouter.ai) API key (free tier available)
 
-### Enhanced Smart Features
-- **Spell Correction**: Automatic typo handling (95%+ accuracy on common mistakes)
-- **Smart Error Recovery**: 90%+ success rate in recovering from errors
-- **Interactive Chatbot**: 10+ special commands with context tracking
-- **Enhanced CLI**: Unified interface for all interaction modes
+### From Source
 
-### Performance Improvements
-- **Spell Correction**: <50ms per command
-- **Semantic Analysis**: <100ms per analysis
-- **Intent Detection**: 100% accuracy
-- **Memory Usage**: <50MB footprint
-- **Throughput**: 1000+ commands per second
+```bash
+git clone https://github.com/grim-sudo/Automation.git
+cd Automation
+
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate        # Linux/macOS
+# .venv\Scripts\activate         # Windows
+
+# Install core package
+pip install -e .
+
+# Install with all optional extras
+pip install -e ".[dev,n8n,distro,gui]"
+```
+
+### Set Your API Key
+
+```bash
+# Linux/macOS — current session
+export OPENROUTER_API_KEY="sk-or-v1-..."
+
+# Linux/macOS — permanent (add to ~/.bashrc or ~/.zshrc)
+echo 'export OPENROUTER_API_KEY="sk-or-v1-..."' >> ~/.bashrc
+
+# Windows PowerShell
+$env:OPENROUTER_API_KEY="sk-or-v1-..."
+setx OPENROUTER_API_KEY "sk-or-v1-..."
+```
+
+Or create a `.env` file in the project root:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-...
+```
 
 ---
 
-### Installation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd omni-automator
+# Run a single command
+omni run "create a python project with tests"
 
-# Install dependencies
-pip install -r requirements.txt
+# Interactive chatbot
+omni chatbot
 
-# (Optional) Install GUI dependencies
-pip install customtkinter pillow
+# Batch execution
+omni batch commands.txt
 
-# Configure AI API (get key from openrouter.ai)
-setx OPENROUTER_API_KEY "your_openrouter_api_key_here"  # Windows
-export OPENROUTER_API_KEY="your_openrouter_api_key_here"  # Linux/macOS
+# Show all commands and options
+omni --help
 ```
 
-### Quick Examples
+---
+
+## Command Examples
+
+### File & System Operations
 
 ```bash
-# Create project structure
-python main.py "create a python project with tests"
-
-# Setup infrastructure
-python main.py "setup docker container with nodejs"
-
-# Database operations
-python main.py "create postgres database with user management"
-
-# System administration
-python main.py "create folder backup and copy important documents"
+omni run "create folder backup"
+omni run "copy all pdf files to archive"
+omni run "delete temporary files older than 30 days"
+omni run "create 100 folders from test1 to test100 with 15 nested folders each"
 ```
 
-### Running in Different Modes
+### With Typos (Auto-Corrected)
 
 ```bash
-# Standard CLI mode
-python main.py "your command"
+omni run "creat a fodler named test"    # → create a folder named test
+omni run "delet all files in downloads" # → delete all files in downloads
+omni run "intall packages"              # → install packages
+```
 
-# Interactive mode with AI assistance and context
-python main.py -i
+### Project Generation
 
-# Chatbot mode (multi-turn conversation)
-python launch_chatbot.py
+```bash
+omni run "generate a python project with flask and postgresql"
+omni run "create react application with typescript and testing"
+omni run "setup nodejs express api server"
+```
 
-# Graphical user interface
-python main.py --gui
-# or
-python launch_gui.py
+### DevOps & Infrastructure
 
-# Batch processing from file
-python main.py --batch commands.txt
+```bash
+omni run "create docker container for nodejs application"
+omni run "setup kubernetes deployment with monitoring"
+omni run "configure ci/cd pipeline with github actions"
+```
 
-# With typo correction (automatic)
-python main.py "creat a fodler named test"  # Auto-corrected to: create a folder
+### n8n Workflow Integration
+
+```bash
+# List workflows
+omni n8n list
+
+# Run a workflow
+omni n8n run <workflow-id>
+
+# Create a workflow from natural language
+omni n8n create "when a file appears in S3, send a Slack notification"
+
+# Check execution status
+omni n8n status <workflow-id> <execution-id>
+```
+
+### Custom Linux Distro Builder
+
+```bash
+# Build from a TOML profile
+omni distro build --profile debian_base --output ./dist
+
+# Build from natural language
+omni distro build --nl "minimal debian iso with nginx, no GUI, headless server"
+
+# List available profiles
+omni distro profiles
+
+# Estimate build time
+omni distro estimate debian_base
+```
+
+---
+
+## Configuration
+
+OmniAutomator reads configuration from (highest to lowest priority):
+
+1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
+2. Environment variables with `OMNI__` prefix (e.g. `OMNI__AI__MAX_TOKENS=16000`)
+3. Backward-compat flat env vars (`OPENROUTER_API_KEY`, `MAX_RETRIES`, …)
+4. `~/.omniautomator/config.toml`
+5. Hardcoded defaults
+
+### Generating the Example Config
+
+```bash
+python -c "from omni_automator.config import generate_example_config; generate_example_config()"
+# Writes ~/.omniautomator/config.example.toml
+```
+
+### Key Settings
+
+```toml
+# ~/.omniautomator/config.toml
+
+[ai]
+openrouter_api_key = ""   # or set OPENROUTER_API_KEY env var
+max_tokens     = 8000      # sliding-window context size
+timeout        = 30        # per-request timeout (seconds)
+max_retries    = 3         # retry attempts per model before fallback
+
+[n8n]
+url     = "http://localhost:5678"
+api_key = ""
+
+[distro_builder]
+work_dir    = "/tmp/omni_distro_build"
+output_dir  = "./distro_output"
+debian_mirror = "http://deb.debian.org/debian"
+debian_suite  = "bookworm"
+
+# Global
+debug      = false
+safe_mode  = false         # require confirmation for destructive ops
+log_file   = ""            # write JSON logs to this path
+```
+
+### CLI Flags
+
+```bash
+omni --debug run "your command"           # verbose logging
+omni --safe-mode run "delete everything"  # prompt before destructive ops
+omni --log-file /tmp/omni.jsonl run "…"   # structured JSON log output
 ```
 
 ---
@@ -150,301 +245,162 @@ python main.py "creat a fodler named test"  # Auto-corrected to: create a folder
 ## Architecture
 
 ```
-OmniAutomator
-├── AI Engine
-│   ├── OpenRouter Integration
-│   ├── Natural Language Processing
-│   ├── Task Planning
-│   └── Context Management
-├── Core Engine
-│   ├── Command Parser
-│   ├── Workflow Orchestration
-│   ├── Task Execution
-│   └── Error Recovery
-├── OS Adapters
-│   ├── Windows Adapter
-│   ├── Linux Adapter
-│   └── macOS Adapter
-├── Plugin System
-│   ├── Universal Automation
-│   ├── Project Generator
-│   ├── DevOps Generator
-│   └── Web Automation
-├── Security
-│   ├── Permission Management
-│   ├── Audit Logging
-│   └── Safe Execution Mode
-└── Interfaces
-    ├── CLI
-    ├── Interactive Mode
-    ├── GUI
-    └── Python API
-```
-
----
-
-## Supported Commands
-
-### File & System Operations
-```bash
-python main.py "create folder backup"
-python main.py "copy all pdf files to archive"
-python main.py "delete temporary files older than 30 days"
-python main.py "create 100 folders from test1 to test100 with 15 nested folders each"
-```
-
-### With Natural Typos (Automatic Correction)
-```bash
-python main.py "creat a fodler named test"              # Auto-corrected: "create a folder"
-python main.py "delet all files in downloads"           # Auto-corrected: "delete all files"
-python main.py "cpy file to backup"                     # Auto-corrected: "copy file"
-python main.py "intall packages"                        # Auto-corrected: "install packages"
-```
-
-### Project Generation
-```bash
-python main.py "generate a python project with flask and postgresql"
-python main.py "create react application with typescript and testing"
-python main.py "setup nodejs express api server"
-```
-
-### DevOps & Deployment
-```bash
-python main.py "create docker container for nodejs application"
-python main.py "setup kubernetes deployment with monitoring"
-python main.py "configure ci/cd pipeline with github actions"
-```
-
-### System Administration
-```bash
-python main.py "check system performance and create report"
-python main.py "backup database with compression"
-python main.py "setup scheduled maintenance tasks"
-```
-
----
-
-## Configuration
-
-### API Configuration
-
-Set your AI provider API key as an environment variable:
-
-**Windows:**
-```bash
-setx OPENROUTER_API_KEY "your_key_here"
-```
-
-**Linux/macOS:**
-```bash
-export OPENROUTER_API_KEY="your_key_here"
-```
-
-### Available AI Models
-
-The system supports multiple AI models through OpenRouter:
-- GPT-4 (OpenAI)
-- Claude 3.5 (Anthropic)
-- Gemini 2.0 (Google)
-- DevStral 2512 (Mistral)
-- DeepSeek R1T2 Chimera
-- Local models via Ollama
-
-Switch models dynamically:
-```bash
-python main.py --model gpt-4 "your command"
-
-# In interactive mode:
-> switch gpt-4
+OmniAutomator v2.0
+├── omni.py                  Unified typer CLI entry point
+├── omni_automator/
+│   ├── ai/
+│   │   ├── model_resolver.py     Dynamic free-model resolution (OpenRouter)
+│   │   ├── model_manager.py      Priority-ordered fallback chain (tenacity)
+│   │   ├── openrouter_integration.py  Async httpx client + SSE streaming
+│   │   ├── context_manager.py    Sliding-window context (tiktoken)
+│   │   ├── response_parser.py    Pydantic v2 TaskPlan / IntentResult
+│   │   └── task_planner.py       High-level planning orchestration
+│   ├── config.py                 pydantic-settings (TOML + env vars)
+│   ├── core/
+│   │   ├── engine.py             Main OmniAutomator orchestrator
+│   │   └── plugin_manager.py     Plugin discovery and dispatch
+│   ├── nlp/
+│   │   └── semantic_engine.py    10-intent NLP (+ N8N_WORKFLOW, BUILD_DISTRO)
+│   ├── os_adapters/
+│   │   ├── linux_adapter.py
+│   │   ├── windows_adapter.py
+│   │   └── macos_adapter.py
+│   ├── plugins/
+│   │   ├── n8n_bridge/           n8n REST API client + workflow builder
+│   │   ├── universal_automation.py
+│   │   ├── project_generator.py
+│   │   └── devops_generator.py
+│   ├── distro_builder/           Custom Linux ISO pipeline
+│   │   ├── kernel_fetcher.py
+│   │   ├── kernel_configurator.py
+│   │   ├── rootfs_builder.py
+│   │   ├── package_selector.py
+│   │   ├── iso_assembler.py
+│   │   ├── build_pipeline.py
+│   │   └── profiles/             TOML build profiles
+│   ├── security/
+│   │   ├── subprocess_runner.py  safe_run() — no shell=True
+│   │   ├── path_validator.py     Traversal detection + safe-mode confirm
+│   │   └── permission_manager.py
+│   └── utils/
+│       └── logger.py             loguru-based logging
+└── tests/                        pytest test suite
 ```
 
 ---
 
 ## System Requirements
 
-### Minimum
-- Python 3.8 or higher
-- 512 MB RAM
-- 100 MB disk space
-- Windows 10+, Ubuntu 18.04+, or macOS 10.14+
+| Requirement | Minimum | Recommended |
+|---|---|---|
+| Python | 3.10 | 3.12 |
+| RAM | 512 MB | 4 GB |
+| Disk | 200 MB | 2 GB (more for distro builds) |
+| OS | Windows 10 / Ubuntu 20.04 / macOS 12 | Latest stable |
+| Internet | Required for AI features | High-speed |
 
-### Recommended
-- Python 3.11 or higher
-- 4 GB RAM
-- 2 GB disk space
-- High-speed internet for AI features
-- Administrator or root access for system operations
+### Distro Builder Additional Requirements (Linux only)
+
+- `debootstrap` (Debian rootfs)
+- `arch-install-scripts` / `pacstrap` (Arch rootfs)
+- `xorriso` (ISO assembly)
+- `syslinux` (bootloader)
+- Root access for rootfs operations
 
 ---
 
-## Usage Guide
-
-### Interactive Mode
-
-For the best experience, use interactive mode:
-
-```bash
-python main.py -i
-
-# Available commands:
-> create folder test              # Execute automation
-> switch gpt-4                    # Switch AI models
-> models                          # List available models
-> /help                           # Show help
-> /history                        # Show command history
-> /status                         # Show system status
-> /cd <path>                      # Change directory
-> /ls                             # List files
-> exit                            # Quit
-```
-
-### Chatbot Mode
-
-Interactive multi-turn conversation with context awareness:
-
-```bash
-python launch_chatbot.py
-
-# Features:
-# - Multi-turn conversation
-# - Command history
-# - Context tracking
-# - Special commands (/help, /status, /history, etc.)
-```
-
-### Batch Processing
-
-Execute multiple commands from a file:
-
-```bash
-# Create commands.txt with one command per line
-create folder project1
-create folder project2
-setup docker container
-
-# Execute batch
-python main.py --batch commands.txt
-```
-
-### Combining with Scripts
-
-Use OmniAutomator in your automation scripts:
+## Python API
 
 ```python
-from omni_automator.ui.enhanced_cli import EnhancedCLI
-from omni_automator.ui.enhanced_cli import InteractionMode
+from omni_automator.core.engine import OmniAutomator
 
-cli = EnhancedCLI(InteractionMode.CLI)
-result = cli.engine.execute_command("create folder test")
+engine = OmniAutomator()
+result = engine.execute_command("create folder my_project")
 print(result)
+```
+
+```python
+# Async usage
+import asyncio
+from omni_automator.ai.openrouter_integration import OpenRouterAutomationAI
+
+ai = OpenRouterAutomationAI()
+plan = asyncio.run(ai.analyze_automation_request_async("create a python project"))
+for step in plan.steps:
+    print(step.action, step.params)
+```
+
+```python
+# n8n bridge
+import asyncio
+from omni_automator.plugins.n8n_bridge import WorkflowManager, N8nConfig
+
+cfg = N8nConfig(url="http://localhost:5678", api_key="...")
+mgr = WorkflowManager(cfg)
+workflows = asyncio.run(mgr.list_workflows())
+```
+
+---
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v --asyncio-mode=auto
+
+# Lint
+ruff check omni_automator/ omni.py tests/
+
+# Type check
+mypy omni_automator/ omni.py --ignore-missing-imports
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-**Python not found**
+**AI not responding**
 ```bash
-# Ensure Python 3.8+ is installed
-python --version
-
-# On Linux/macOS, try:
-python3 --version
+echo $OPENROUTER_API_KEY   # verify the key is set
+omni --debug run "hello"   # show verbose output
 ```
 
 **Dependencies missing**
 ```bash
-# Reinstall all dependencies
-pip install -r requirements.txt --force-reinstall
-```
-
-**AI not responding**
-```bash
-# Verify API key is set
-echo $OPENROUTER_API_KEY  # Linux/macOS
-echo %OPENROUTER_API_KEY%  # Windows
-
-# Set if missing
-setx OPENROUTER_API_KEY "your_key_here"
+pip install -e . --force-reinstall
 ```
 
 **GUI not launching**
 ```bash
-# Install GUI dependencies
-pip install customtkinter pillow --force-reinstall
+pip install -e ".[gui]"
+omni gui
 ```
 
----
+**Permission denied (distro builder)**
+The distro builder requires root for `debootstrap`/`pacstrap`. Run with `sudo` or as root.
 
-## Testing & Validation
-
-The system has been comprehensively tested:
-
-- **60+ Automated Scenarios**: Across 5 AI models and 4 plugin types
-- **100% Success Rate**: All tests passed without crashes
-- **Robust Error Handling**: Automatic JSON recovery and graceful degradation
-- **Production Verified**: Ready for enterprise deployment
-
----
-
-## System Architecture
-
-### AI Task Pipeline
-1. **Command Input**: User provides natural language command
-2. **NLP Processing**: Flexible natural language parsing
-3. **Pattern Matching**: Attempt to match known patterns
-4. **AI Enhancement**: When needed, use AI for intelligent planning
-5. **Task Generation**: Create executable task steps
-6. **Execution**: Execute tasks with error recovery
-7. **Reporting**: Provide feedback and results
-
-### Error Recovery
-- Automatic JSON parsing recovery
-- Graceful degradation on missing data
-- Fallback to pattern matching when AI unavailable
-- Comprehensive error logging
-
----
-
-## Development
-
-### Project Structure
-```
-omni_automator/
-├── ai/                    # AI integration and models
-├── core/                  # Core engine and parsing
-├── os_adapters/          # Platform-specific implementations
-├── plugins/              # Automation plugins
-├── security/             # Security and permissions
-├── ui/                   # User interfaces
-└── utils/                # Utilities and logging
-```
-
-### Contributing
+**Debug logging**
 ```bash
-# Setup development environment
-python -m venv venv
-venv\Scripts\activate  # Windows
-
-# Install development dependencies
-pip install -r requirements.txt
-
-# Make changes and test
-python main.py "test command"
+omni --debug --log-file /tmp/omni.jsonl run "your command"
 ```
-
-## Support & Documentation
-
-- **Setup Guide**: See [SETUP.md](SETUP.md) for detailed instructions
-- **Issues**: Report problems using GitHub issues
-- **Features**: Request new features via discussions
 
 ---
 
-## About
+## Security
 
-OmniAutomator is built for modern DevOps, system administrators, and developers who need powerful, intelligent automation without complexity.
+- All subprocess calls use `safe_run()` (list-form args — no `shell=True`)
+- `PathValidator` blocks directory traversal and writes to system paths
+- `--safe-mode` requires explicit confirmation before destructive operations
+- API keys are never logged or included in error messages
+- All operations are logged via `loguru` (structured JSON when `--log-file` is set)
 
-**Start automating:** [SETUP.md](SETUP.md)
+---
+
+## Support
+
+- **Setup Guide**: [SETUP.md](SETUP.md)
+- **Issues**: [GitHub Issues](https://github.com/grim-sudo/Automation/issues)
+- **API key**: [openrouter.ai](https://openrouter.ai) (free tier available)

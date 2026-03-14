@@ -1,0 +1,208 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omni-automator"
+version = "2.0.0"
+description = "Universal OS Automation Framework with Natural Language Processing"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "OmniAutomator Team", email = "contact@omniautomator.com" }]
+keywords = ["automation", "nlp", "ai", "cli", "workflow"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+]
+
+# Core runtime dependencies
+dependencies = [
+    # CLI and UI
+    "typer[all]>=0.12.0",
+    "rich>=13.7.0",
+    "colorama>=0.4.6",
+    # Configuration
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.2.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "tomli-w>=1.0.0",
+    # AI / HTTP
+    "httpx[http2]>=0.27.0",
+    "tenacity>=8.2.0",
+    "tiktoken>=0.6.0",
+    "openai>=1.0.0",
+    # Logging
+    "loguru>=0.7.2",
+    # System utilities
+    "psutil>=5.9.0",
+    "pyyaml>=6.0",
+    "cryptography>=41.0.0",
+    "watchdog>=3.0.0",
+    "send2trash>=1.8.0",
+    # Web
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.11.0",
+    "lxml>=4.9.0",
+    # Document generation
+    "python-docx>=0.8.11",
+    "python-pptx>=0.6.21",
+    "openpyxl>=3.1.0",
+    "xlsxwriter>=3.0.0",
+    "reportlab>=4.0.0",
+    # Platform-specific
+    "pywin32>=306; sys_platform == 'win32'",
+    "python-xlib>=0.33; sys_platform == 'linux'",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+gui = [
+    "customtkinter>=5.2.0",
+    "pyautogui>=0.9.54",
+    "pynput>=1.7.6",
+    "pillow>=10.0.0",
+]
+web = [
+    "selenium>=4.0.0",
+    "webdriver-manager>=4.0.0",
+    "playwright>=1.40.0",
+]
+n8n = [
+    "aiohttp>=3.9.0",
+]
+distro = [
+    "kconfiglib>=14.1.0",
+]
+data = [
+    "numpy>=1.24.0",
+    "pandas>=1.5.0",
+    "matplotlib>=3.6.0",
+    "seaborn>=0.12.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "types-requests>=2.31.0",
+    "types-PyYAML>=6.0.0",
+    "respx>=0.21.0",
+]
+all = [
+    "omni-automator[gui,web,n8n,distro,data]",
+]
+
+[project.scripts]
+omni = "omni:app"
+omni-automator = "omni:app"
+
+[project.urls]
+Homepage = "https://github.com/grim-sudo/Automation"
+Repository = "https://github.com/grim-sudo/Automation"
+Issues = "https://github.com/grim-sudo/Automation/issues"
+
+# ─── Hatchling build config ────────────────────────────────────────────────────
+
+[tool.hatch.build.targets.wheel]
+packages = ["omni_automator"]
+
+# ─── Ruff (linting + formatting) ──────────────────────────────────────────────
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["omni_automator", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "ANN", # flake8-annotations (type hint enforcement)
+]
+ignore = [
+    "ANN101", # Missing self annotation
+    "ANN102", # Missing cls annotation
+    "ANN401", # Dynamically typed expressions (Any) are disallowed
+    "B008",   # Do not perform function calls in default arguments (typer uses this)
+    "E501",   # Line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ─── mypy (type checking) ─────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+exclude = ["tests/", "setup.py"]
+
+[[tool.mypy.overrides]]
+module = [
+    "pyautogui.*",
+    "pynput.*",
+    "customtkinter.*",
+    "selenium.*",
+    "playwright.*",
+    "kconfiglib.*",
+    "Xlib.*",
+    "AppKit.*",
+    "win32.*",
+    "pywintypes.*",
+]
+ignore_missing_imports = true
+
+# ─── pytest ───────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: marks tests as integration tests (require external services)",
+    "slow: marks tests as slow-running",
+]
+
+# ─── coverage ─────────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["omni_automator"]
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]

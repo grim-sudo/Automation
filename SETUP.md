@@ -1,650 +1,504 @@
-# OmniAutomator - Setup & Installation Guide
+# OmniAutomator — Setup & Installation Guide
 
 ## System Requirements
 
 ### Minimum
-- Python 3.8 or higher
+- Python 3.10 or higher
 - 512 MB available RAM
-- 100 MB disk space
-- Windows 10+, Ubuntu 18.04+, or macOS 10.14+
+- 200 MB disk space
+- Windows 10+, Ubuntu 20.04+, or macOS 12+
 
 ### Recommended
-- Python 3.11 or higher
+- Python 3.12
 - 4 GB available RAM
-- 2 GB disk space
-- OpenRouter API key (free tier available at openrouter.ai)
+- 2 GB disk space (much more for distro builds)
+- OpenRouter API key — free tier at [openrouter.ai](https://openrouter.ai)
 - Administrator or root privileges for system operations
 
 ---
 
-## Installation
-
-### Step 1: Clone and Setup
+## Step 1 — Clone the Repository
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd omni-automator
-
-# Create virtual environment (recommended)
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
-```
-
-### Step 2: Install Dependencies
-
-```bash
-# Install core dependencies
-pip install -r requirements.txt
-
-# (Optional) Install GUI dependencies
-pip install customtkinter pillow
-```
-
-### Step 3: Configure AI
-
-Get your free API key from [openrouter.ai](https://openrouter.ai) and set the environment variable.
-
-**Windows (PowerShell or Command Prompt):**
-
-```powershell
-# Option 1: PowerShell (Current session only)
-$env:OPENROUTER_API_KEY="your_openrouter_api_key_here"
-
-# Option 2: Set permanently (requires admin, new terminal window needed)
-setx OPENROUTER_API_KEY "your_openrouter_api_key_here"
-```
-
-**Windows (Command Prompt):**
-
-```cmd
-setx OPENROUTER_API_KEY "your_openrouter_api_key_here"
-```
-
-⚠️ **Important:** After using `setx`, close and reopen your terminal for changes to take effect.
-
-**Linux/macOS:**
-
-```bash
-# Current session only
-export OPENROUTER_API_KEY="your_openrouter_api_key_here"
-
-# Permanent (add to ~/.bashrc, ~/.zshrc, or ~/.bash_profile)
-echo 'export OPENROUTER_API_KEY="your_openrouter_api_key_here"' >> ~/.bashrc
-source ~/.bashrc
+git clone https://github.com/grim-sudo/Automation.git
+cd Automation
 ```
 
 ---
 
-## Quick Start
+## Step 2 — Create a Virtual Environment
 
-### Verify Installation
-
-```bash
-# Test basic functionality
-python main.py "create folder test_automation"
-
-# If successful, you should see the folder created
-```
-
-### First Command
+Using a virtual environment is strongly recommended to keep dependencies isolated.
 
 ```bash
-# Simple example - create a folder
-python main.py "create folder my_project"
+# Create the venv
+python -m venv .venv
 
-# Project generation - create with multiple files
-python main.py "create a python project"
-
-# DevOps example - setup infrastructure
-python main.py "setup docker container"
+# Activate it
+source .venv/bin/activate        # Linux / macOS
+.venv\Scripts\activate           # Windows (PowerShell)
+.venv\Scripts\activate.bat       # Windows (CMD)
 ```
 
-## Advanced Features
-
-### Versatile Natural Language Processing
-
-OmniAutomator now handles **complex, long commands** with intelligent loop and nested operation parsing:
-
-**Loop Constructs** - Automatically detects and executes repeated operations:
-```bash
-# Create 10 folders with content in each
-python main.py "create folder called tables and in that create 10 folders called table 1 to table 10 and in those tables write multiplication table of each number"
-```
-
-**Nested Operations** - Handles hierarchical folder/file creation:
-```bash
-# Create structure with nested actions
-python main.py "create folder project and in that create src, test, and docs folders and in each create an index file"
-```
-
-**Flexible Language** - Understands natural variations:
-```bash
-# All these commands work the same way:
-"create 5 folders called folder 1 to folder 5"
-"make 5 directories named dir 1 through dir 5"
-"build 5 folders numbered 1-5"
-```
-
-**Special Operations** - Generates content intelligently:
-- Multiplication tables automatically generated
-- File templates created based on context
-- Folder hierarchies built from descriptions
-
-The NLP engine achieves **94%+ flexibility score** on complex commands, meaning it maintains understanding even with casual, verbose, or non-standard phrasing.
+You should see `(.venv)` at the start of your prompt once activated.
 
 ---
+
+## Step 3 — Install Dependencies
+
+```bash
+# Core package only
+pip install -e .
+
+# Core + development tools (tests, linting, type checking)
+pip install -e ".[dev]"
+
+# Add optional feature groups as needed:
+pip install -e ".[dev,n8n]"             # + n8n workflow bridge
+pip install -e ".[dev,distro]"          # + Linux distro builder
+pip install -e ".[dev,gui]"             # + graphical interface
+pip install -e ".[dev,n8n,distro,gui]"  # everything
+```
+
+### What each group adds
+
+| Group | Extra packages |
+|---|---|
+| `dev` | pytest, ruff, mypy, pytest-asyncio, respx |
+| `n8n` | aiohttp (webhook listener) |
+| `distro` | kconfiglib (kernel config) |
+| `gui` | customtkinter, pyautogui, pynput, pillow |
+| `web` | selenium, playwright, webdriver-manager |
+| `data` | numpy, pandas, matplotlib, seaborn |
+
+---
+
+## Step 4 — Configure Your API Key
+
+OmniAutomator uses [OpenRouter](https://openrouter.ai) to resolve and call free AI models at runtime. An API key is required.
+
+### Option A — Environment Variable (Recommended)
+
+```bash
+# Linux / macOS — current session only
+export OPENROUTER_API_KEY="sk-or-v1-..."
+
+# Linux / macOS — permanent (pick whichever shell you use)
+echo 'export OPENROUTER_API_KEY="sk-or-v1-..."' >> ~/.bashrc
+echo 'export OPENROUTER_API_KEY="sk-or-v1-..."' >> ~/.zshrc
+source ~/.bashrc   # reload
+
+# Windows — PowerShell (current session)
+$env:OPENROUTER_API_KEY="sk-or-v1-..."
+
+# Windows — permanent
+setx OPENROUTER_API_KEY "sk-or-v1-..."
+# ⚠ Close and reopen your terminal after setx for the change to take effect.
+```
+
+### Option B — `.env` File
+
+Create a `.env` file in the project root:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+The framework reads `.env` automatically on startup.
+
+### Option C — Config File
+
+```bash
+# Generate an example config file
+python -c "from omni_automator.config import generate_example_config; generate_example_config()"
+```
+
+This writes `~/.omniautomator/config.example.toml`. Copy it to `~/.omniautomator/config.toml` and add your key:
+
+```toml
+[ai]
+openrouter_api_key = "sk-or-v1-..."
+```
+
+---
+
+## Step 5 — Verify the Installation
+
+```bash
+# Show CLI help
+omni --help
+
+# Run a simple test command
+omni run "create folder omni_test"
+
+# Check that the folder was created
+ls omni_test    # Linux/macOS
+dir omni_test   # Windows
+```
+
+If you see the folder, the installation is working correctly.
+
+---
+
 ## Running Modes
 
-### 1. Command-Line Interface (CLI)
+### `omni run` — Single Command
 
-Execute single commands directly from the terminal.
+Execute one natural-language command and exit.
 
 ```bash
-# Simple command
-python main.py "create folder backup"
-
-# Complex command
-python main.py "setup postgres database with user management"
-
-# Use specific AI model
-python main.py --model gpt-4 "your command"
+omni run "create a python project with tests"
+omni run "copy all pdf files to archive"
+omni run "setup docker container for nodejs"
 ```
 
-**Best for:** Scripting, automation, single commands
-
-### 2. Interactive Mode
-
-Full interactive mode with AI assistance and command suggestions.
-
+Flags:
 ```bash
-# Start interactive mode
-python main.py -i
-# or
-python main.py --interactive
-
-# Available commands in interactive mode:
-create folder test          # Execute automation
-setup database              # DevOps automation
-switch gpt-4                # Switch AI model
-models                      # List available models
-help                        # Show help
-exit                        # Quit
+omni --debug run "your command"           # verbose logging
+omni --safe-mode run "delete files"       # confirm before destructive ops
+omni --log-file /tmp/omni.jsonl run "…"   # write structured JSON log
 ```
 
-**Best for:** Exploration, learning, testing multiple commands
+### `omni chatbot` — Interactive Conversation
 
-### 3. Graphical User Interface (GUI)
-
-Beautiful, modern interface for visual task management.
+Multi-turn conversational interface with streaming responses and command history.
 
 ```bash
-# Launch GUI
-python main.py --gui
-# or
-python launch_gui.py
+omni chatbot
+
+# Special commands inside chatbot:
+/help       — show available commands
+/status     — show current model and connection status
+/history    — show command history
+/context    — show active conversation context
+/cd <path>  — change working directory
+/pwd        — print working directory
+/ls         — list files
+/clear      — clear conversation context
+exit        — quit
 ```
 
-**Best for:** Visual users, demonstrations, non-technical users
-
-### 4. Batch Processing
-
-Execute multiple commands from a configuration file.
+### `omni gui` — Graphical Interface
 
 ```bash
-# Create commands.txt with one command per line:
-# create folder project1
-# create folder project2
-# setup docker container
-
-# Execute batch
-python main.py --batch commands.txt
+# Requires [gui] extras
+pip install -e ".[gui]"
+omni gui
 ```
 
-**Best for:** Bulk operations, automation workflows
+### `omni batch` — Bulk Execution
 
----
+Create a plain-text file with one command per line:
 
-## Command Examples
-
-### File & Folder Operations
-
-```bash
-# Create directories
-python main.py "create folder my_project"
-
-# Copy files
-python main.py "copy all pdf files to archive folder"
-
-# Delete files
-python main.py "delete temporary files older than 30 days"
+```
+create folder project1
+create folder project2
+setup docker container
+install package nginx
 ```
 
-### Development Projects
+Then execute:
 
 ```bash
-# Python project
-python main.py "create a python project with flask and postgresql"
-
-# JavaScript/Node.js
-python main.py "create nodejs express api server"
-
-# React/Frontend
-python main.py "setup react application with typescript"
-```
-
-### DevOps & Infrastructure
-
-```bash
-# Docker
-python main.py "create docker container for nodejs"
-
-# Kubernetes
-python main.py "setup kubernetes deployment with monitoring"
-
-# CI/CD
-python main.py "setup github actions ci/cd pipeline"
-```
-
-### Database Operations
-
-```bash
-# PostgreSQL
-python main.py "create postgres database with backup"
-
-# Data Migration
-python main.py "migrate mysql data to mongodb"
+omni batch commands.txt
+omni --continue-on-error batch commands.txt   # don't stop on failures
 ```
 
 ---
 
-## AI Model Selection
+## n8n Workflow Integration
 
-### Available Models
-
-The system supports multiple AI providers through OpenRouter:
-- **OpenAI**: GPT-4, GPT-4o Mini
-- **Anthropic**: Claude 3.5 Sonnet
-- **Google**: Gemini 2.0 Flash
-- **Mistral**: DevStral 2512
-- **DeepSeek**: R1T2 Chimera
-- **Local**: Ollama (llama2, and other local models)
-
-### Switch Models
+Requires a running [n8n](https://n8n.io) instance and the `[n8n]` extra.
 
 ```bash
-# List all available models
-python main.py --list-models
+pip install -e ".[n8n]"
+```
 
-# Use specific model for single command
-python main.py --model gpt-4 "your command"
+Set connection details in your config or via env vars:
 
-# In interactive mode, switch at runtime:
-python main.py -i
-> switch gpt-4           # Switch to GPT-4
-> models                 # List all models
-> your command           # Execute with active model
+```bash
+export OMNI__N8N__URL="http://localhost:5678"
+export OMNI__N8N__API_KEY="your_n8n_api_key"
+```
+
+### CLI Commands
+
+```bash
+# List all workflows
+omni n8n list
+
+# Run a workflow by ID
+omni n8n run <workflow-id>
+
+# Create a workflow from a natural-language description
+omni n8n create "when a file appears in S3, post a message to Slack"
+
+# Check execution status
+omni n8n status <workflow-id> <execution-id>
 ```
 
 ---
 
-## Configuration
+## Custom Linux Distro Builder
 
-### Environment Variables
-
-Essential configuration variables:
+Requires Linux, root access, and the `[distro]` extra plus host tools.
 
 ```bash
-# AI Provider
-OPENROUTER_API_KEY         # Required for OpenRouter models
+# Install Python extra
+pip install -e ".[distro]"
 
-# Optional customization
-OMNI_LOG_LEVEL            # DEBUG, INFO, WARNING, ERROR
-OMNI_WORK_DIR             # Working directory for operations
+# Install host tools (Debian/Ubuntu)
+sudo apt-get install debootstrap xorriso syslinux-common
+
+# Install host tools (Arch)
+sudo pacman -S arch-install-scripts xorriso syslinux
 ```
 
-### Configuration File (Optional)
+### Using Built-in Profiles
 
-Create `~/.omnimator/config.json` for persistent configuration:
+```bash
+# List available profiles
+omni distro profiles
 
-```json
-{
-  "ai_model": "mistralai/devstral-2512:free",
-  "log_level": "INFO",
-  "auto_switch_on_error": true,
-  "timeout": 30,
-  "max_retries": 3
-}
+# Build from a profile
+sudo omni distro build --profile debian_base --output ./dist
+
+# Estimate build time before committing
+omni distro estimate debian_base
+```
+
+### Build from Natural Language
+
+```bash
+sudo omni distro build --nl "minimal debian iso with nginx, headless, no GUI"
+sudo omni distro build --nl "arch linux with KDE desktop and gaming packages"
+sudo omni distro build --nl "tiny buildroot image for embedded systems"
+```
+
+### Custom Profiles
+
+Create a TOML profile in `~/.omniautomator/profiles/` or copy from `omni_automator/distro_builder/profiles/`:
+
+```toml
+[meta]
+name = "my-server"
+base = "debian"  # debian | arch | unix (buildroot)
+
+[kernel]
+version = "latest-stable"
+patches = []
+
+[kernel.kconfig]
+CONFIG_KVM = "y"
+CONFIG_MODULES = "y"
+
+[packages]
+base     = ["base-files", "systemd", "openssh-server", "nginx"]
+optional = ["curl", "git", "htop"]
+
+[build]
+hostname = "my-server"
+locale   = "en_US.UTF-8"
+timezone = "UTC"
+desktop  = ""
+```
+
+---
+
+## Configuration Reference
+
+Priority order (highest wins):
+
+1. CLI flags
+2. `OMNI__SECTION__FIELD` env vars (e.g. `OMNI__AI__TIMEOUT=60`)
+3. Legacy flat env vars (`OPENROUTER_API_KEY`, `MAX_RETRIES`)
+4. `~/.omniautomator/config.toml`
+5. Built-in defaults
+
+### Full Config Reference
+
+```toml
+# ── Global ───────────────────────────────────────────────────────────────────
+debug              = false   # verbose debug logging
+safe_mode          = false   # confirm before destructive operations
+continue_on_error  = false   # don't abort batch on first failure
+log_file           = ""      # write JSON logs here (e.g. /var/log/omni.jsonl)
+
+# ── AI ───────────────────────────────────────────────────────────────────────
+[ai]
+openrouter_api_key = ""   # required — or set OPENROUTER_API_KEY
+openai_api_key     = ""   # optional direct OpenAI access
+anthropic_api_key  = ""   # optional direct Anthropic access
+
+# Model selection: leave blank to resolve automatically from free-model list
+model          = ""
+fallback_chain = []
+
+max_tokens  = 8000    # sliding-window context token budget
+timeout     = 30      # per-request timeout (seconds)
+max_retries = 3       # retries per model before advancing the fallback chain
+retry_delay = 2.0     # base delay between retries (seconds, exponential backoff)
+
+# ── n8n ──────────────────────────────────────────────────────────────────────
+[n8n]
+url                      = "http://localhost:5678"
+api_key                  = ""
+default_error_webhook    = ""
+polling_interval_seconds = 5
+
+# ── Distro Builder ───────────────────────────────────────────────────────────
+[distro_builder]
+work_dir                  = "/tmp/omni_distro_build"
+output_dir                = "./distro_output"
+default_jobs              = 0        # 0 = auto-detect from cpu_count
+debian_mirror             = "http://deb.debian.org/debian"
+debian_suite              = "bookworm"
+kernel_cache_dir          = "~/.omniautomator/kernel_cache"
+require_root_confirmation = true
+```
+
+### Environment Variable Examples
+
+```bash
+# Nested setting (use __ as delimiter)
+export OMNI__AI__MAX_TOKENS=16000
+export OMNI__AI__TIMEOUT=60
+export OMNI__N8N__URL="http://n8n.example.com"
+export OMNI__DEBUG=true
+
+# Legacy flat vars (no prefix needed)
+export OPENROUTER_API_KEY="sk-or-v1-..."
+export MAX_RETRIES=5
+```
+
+---
+
+## Running the Test Suite
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Fast (unit tests only, skip slow/integration)
+pytest tests/ -m "not slow and not integration"
+
+# With coverage report
+pytest tests/ --cov=omni_automator --cov-report=term-missing
+
+# Specific test file
+pytest tests/test_response_parser.py -v
+```
+
+---
+
+## Development Workflow
+
+```bash
+# Lint
+ruff check omni_automator/ omni.py tests/
+
+# Auto-fix lint issues
+ruff check --fix omni_automator/ omni.py tests/
+
+# Format
+ruff format omni_automator/ omni.py tests/
+
+# Type check
+mypy omni_automator/ omni.py --ignore-missing-imports
+
+# Run CI checks locally (lint + typecheck + tests)
+ruff check omni_automator/ omni.py tests/ && \
+mypy omni_automator/ omni.py --ignore-missing-imports && \
+pytest tests/ -v
 ```
 
 ---
 
 ## Troubleshooting
 
-### Issue: Python not found
+### `omni: command not found`
+
+The `omni` command is installed when you run `pip install -e .`. Make sure your virtual environment is activated:
 
 ```bash
-# Verify Python installation
-python --version
-
-# On Linux/macOS, try:
-python3 --version
-
-# Add to PATH if necessary
+source .venv/bin/activate   # Linux/macOS
+which omni                  # should print a path inside .venv/
 ```
 
-### Issue: Dependencies missing
+If using the system Python on Arch Linux (PEP 668 restriction):
 
 ```bash
-# Reinstall with cleanup
-pip install -r requirements.txt --force-reinstall --no-cache-dir
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
 ```
 
-### Issue: GUI not launching
+### AI not responding
 
 ```bash
-# Install GUI dependencies explicitly
-pip install customtkinter pillow --force-reinstall
-
-# Try launching again
-python main.py --gui
-```
-
-### Issue: AI not responding
-
-```bash
-# Verify API key is configured
-# Windows:
-echo %OPENROUTER_API_KEY%
-# Linux/macOS:
+# Verify the key is set
 echo $OPENROUTER_API_KEY
 
-# Set if missing
-setx OPENROUTER_API_KEY "your_key_here"
-
-# Verify connection with simple command
-python main.py "hello"
+# Run with debug logging to see the HTTP traffic
+omni --debug run "hello"
 ```
 
-### Issue: Permission denied (macOS/Linux)
+### Dependencies missing after install
 
 ```bash
-# Give execute permissions
-chmod +x main.py
-chmod +x launch_gui.py
-
-# Try again with python prefix
-python main.py "your command"
+pip install -e . --force-reinstall --no-cache-dir
 ```
 
-### Issue: Module not found
+### GUI not launching
 
 ```bash
-# Ensure you're in correct directory
-cd /path/to/omni-automator
-
-# Check venv is activated
-# Windows: Look for (venv) in prompt
-# Linux/macOS: Look for (venv) in prompt
-
-# Reinstall dependencies
-pip install -r requirements.txt
+pip install -e ".[gui]"
+omni gui
 ```
 
-### Debugging
+If `pyautogui` throws errors on headless Linux, set `DISPLAY` or use a virtual framebuffer.
 
-Enable debug output:
+### Permission denied (distro builder)
+
+`debootstrap` and `pacstrap` require root. Run the distro commands with `sudo`:
 
 ```bash
-# Windows
-set OMNI_LOG_LEVEL=DEBUG
-python main.py "your command"
+sudo omni distro build --profile debian_base --output ./dist
+```
 
-# Linux/macOS
-export OMNI_LOG_LEVEL=DEBUG
-python main.py "your command"
+### Module import errors
+
+```bash
+# Ensure you are in the project root with the venv active
+cd /path/to/Automation
+source .venv/bin/activate
+pip install -e .
+```
+
+### Enabling Debug Logging
+
+```bash
+# Print debug logs to terminal
+omni --debug run "your command"
+
+# Write structured JSON logs to a file
+omni --log-file /tmp/omni.jsonl run "your command"
+cat /tmp/omni.jsonl | python -m json.tool   # pretty-print
 ```
 
 ---
 
-## Smart Features Guide (v2.0+)
+## Security Notes
 
-### Spell Correction (Automatic)
-
-The system automatically corrects typos in your commands with 95%+ accuracy:
-
-```bash
-# Examples of automatic correction:
-python main.py "creat a fodler"          → "create a folder"
-python main.py "delet test directory"    → "delete test directory"
-python main.py "copу file to backup"     → "copy file to backup"
-python main.py "runn the skript"         → "run the script"
-python main.py "intall packages"         → "install packages"
-
-# Tolerance for grammar mistakes works automatically
-# No special configuration needed!
-```
-
-### Semantic NLP Engine
-
-Advanced natural language understanding with:
-
-- **Intent Recognition**: Identifies what you want to do (create, delete, modify, query, execute, configure, analyze)
-- **Entity Extraction**: Understands files, folders, paths, quantities, and ranges
-- **Confidence Scoring**: Provides confidence level (0-100%) for interpretations
-- **Ambiguity Detection**: Identifies unclear commands and suggests clarifications
-- **Parameter Recognition**: Automatically extracts quantities and ranges
-
-Example:
-```bash
-python main.py "create 100 folders from test1 to test100 with 15 nested folders"
-# Detected:
-# - Intent: CREATE (100% confidence)
-# - Quantity: 100
-# - Range: test1 to test100
-# - Nested structure: 15 folders
-# Result: 1,485 total folders created
-```
-
-### Smart Error Handling
-
-When something goes wrong, the system helps you:
-
-```bash
-# Missing file? System suggests alternatives
-python main.py "copy non-existent-file.txt to backup"
-# Response: "File not found. Options:
-#  1. Search for similar files
-#  2. Create the file first
-#  3. Specify alternative file"
-
-# Ambiguous command? System asks for clarification
-python main.py "delete test"
-# Response: "Did you mean:
-#  1. Delete 'test' folder
-#  2. Delete 'test.txt' file
-#  3. Delete 'test' directory"
-```
-
-### Interactive Mode with Context
-
-```bash
-python main.py -i
-
-# Commands maintain context across turns:
-> create 100 folders
-Intent: CREATE (100% confidence)
-Quantity: 100
-> name them from test1 to test100
-(Context preserved - system understands these are the folders from previous command)
-> with 15 nested folders each
-(System combines all context)
-Result: 1,485 folders created in hierarchy
-```
-
-### Chatbot Mode
-
-Full multi-turn conversation:
-
-```bash
-python launch_chatbot.py
-
-# Features:
-# - Multi-turn conversation with memory
-# - Special commands: /help, /status, /history, /context
-# - File system navigation: /cd, /pwd, /ls
-# - Command history tracking
-# - Smart suggestions
-```
-
-## Verification
-
-### Verify Installation
-
-After setup, verify all smart features are working:
-
-```bash
-# Run comprehensive verification
-python verify_smart_features.py
-
-# Expected output:
-# 1. Spell Correction Module - OK
-# 2. Smart Error Handler - OK
-# 3. Interactive Chatbot Mode - OK
-# 4. CLI Integration - OK
-
-# Run final validation
-python final_validation.py
-
-# Expected output:
-# All systems operational - PRODUCTION READY
-```
-
-### Test the Smart Features
-
-```bash
-# Spell correction test
-python main.py "creat a fodler named test"
-# Should be corrected and executed
-
-# Complex command test
-python main.py "create 100 folders from test1 to test100"
-# Should create 100 folders with proper naming
-
-# Interactive mode test
-python main.py -i
-> create folder test
-> delete test
-> exit
-# Commands should execute with proper spell correction and error handling
-```
-
----
-
-### Simple Automation
-
-```bash
-# One-time task
-python main.py "create folder backup && copy important files"
-```
-
-### Scheduled Automation
-
-```bash
-# Windows Task Scheduler
-# Create task to run: python main.py "backup database"
-
-# Linux/macOS Cron
-# Add to crontab:
-# 0 2 * * * cd /path/to/omni-automator && python main.py "backup database"
-```
-
-### Scripting with Python
-
-```python
-from omni_automator.ui.enhanced_cli import EnhancedCLI
-from omni_automator.ui.enhanced_cli import InteractionMode
-
-# Initialize CLI
-cli = EnhancedCLI(InteractionMode.CLI)
-
-# Execute commands
-result = cli.engine.execute_command("create folder test")
-print(f"Status: {result['step'].status}")
-print(f"Action: {result['parsed'].action}")
-```
-
----
-
-## Performance Tips
-
-1. **Reuse CLI Instance**: In scripts, create CLI once and reuse
-2. **Batch Operations**: Group related commands together
-3. **Model Selection**: Use faster models for simple tasks
-4. **Caching**: Results are cached locally when possible
-
----
-
-## Security Considerations
-
-1. **API Keys**: Never commit API keys to version control
-2. **Permissions**: Run with minimal required privileges
-3. **Audit Logging**: All operations are logged
-4. **Sandboxing**: Use interactive mode to review before execution
-
----
-
-## Support & Help
-
-### Getting Help
-
-```bash
-# Show help
-python main.py --help
-
-# In interactive mode:
-python main.py -i
-> help
-```
-
-### Common Questions
-
-**Q: Can I use without API key?**
-A: Yes, with limited functionality using local Ollama model
-
-**Q: Can I use in Docker?**
-A: Yes, install Docker image (in development)
-
-**Q: Can I integrate with CI/CD?**
-A: Yes, use batch mode or programmatic API
-
-**Q: What about data privacy?**
-A: Commands are processed, results may go to AI model
+- **Never commit your API key** to version control; use env vars or `~/.omniautomator/config.toml`
+- Use `--safe-mode` to require confirmation before destructive operations
+- The distro builder requires root — review profiles before running
+- All subprocess calls use `safe_run()` (no `shell=True`); path inputs are validated for traversal attempts
 
 ---
 
 ## Next Steps
 
-1. **Start with Interactive Mode**: `python main.py -i`
-2. **Try GUI**: `python main.py --gui`
-3. **Read Examples**: Check command examples above
-4. **Explore Models**: Try different AI models
-5. **Create Workflows**: Build automation workflows
-
----
-
-## Resources
-
-- **GitHub**: <repository-url>
-- **Documentation**: See README.md
-- **API Key**: openrouter.ai (free tier)
-- **Issues**: Report on GitHub
-
----
-
-**Ready to automate? Start with:** `python main.py -i`
+1. Run `omni chatbot` to explore capabilities interactively
+2. Check `omni --help` and `omni run --help` for all available flags
+3. Copy `~/.omniautomator/config.example.toml` to `config.toml` and customise it
+4. Read the [README](README.md) for architecture details and Python API examples

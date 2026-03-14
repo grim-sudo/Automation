@@ -1,173 +1,85 @@
 #!/usr/bin/env python3
 """
-OmniAutomator - Universal OS Automation Framework
-Main entry point for the application
-Supports flexible NLP, AI integration, and multiple interaction modes
+OmniAutomator legacy entry point — backward compatibility shim.
+Delegates to the unified omni.py entry point via the typer CLI.
+
+For the new interface, use:
+  omni run "your command"
+  omni chatbot
+  omni gui
+  omni batch commands.txt
 """
+from __future__ import annotations
 
 import sys
 import os
-import argparse
 import io
 
-# Fix encoding issues on Windows
-if sys.platform == 'win32':
-    # Use UTF-8 encoding for stdout/stderr
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+# Fix encoding on Windows
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-# Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from omni_automator.ui.cli import EnhancedCLI, InteractionMode
-from omni_automator.ai.model_manager import get_ai_manager, AIModelConfig
-from omni_automator.ai.task_executor import get_ai_task_executor
 
+def main() -> None:
+    """Translate legacy argparse arguments to omni.py typer commands and execute."""
+    import argparse
 
-def setup_default_ai_models():
-    """Setup default AI models if not already configured"""
-    ai_manager = get_ai_manager()
-    models = ai_manager.list_registered_models()
-    
-    if not models:
-        # Register default local model (no API key required)
-        try:
-            local_config = AIModelConfig(
-                name="local_default",
-                provider="local",
-                model_id="ollama/llama2",
-                is_default=True
-            )
-            ai_manager.register_model(local_config)
-        except Exception as e:
-            print(f"Note: Local AI model not available: {e}")
-
-
-def main():
-    """Main entry point with enhanced CLI"""
     parser = argparse.ArgumentParser(
-        description="OmniAutomator - Intelligent Automation with Flexible NLP",
-        epilog="""
-Examples:
-  python main.py --interactive              # Interactive mode
-  python main.py --gui                      # GUI mode
-  python main.py "create folder myapp"      # Single command
-  python main.py "create folder" "deploy app"  # Multiple commands
-  python main.py --batch commands.txt       # Batch mode
-        """
+        description="OmniAutomator — legacy entry point (use `omni` for the new interface)",
+        add_help=False,
     )
-    
-    # Mode selection
     mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
-        '-i', '--interactive',
-        action='store_true',
-        help='Run in interactive mode'
-    )
-    mode_group.add_argument(
-        '-g', '--gui',
-        action='store_true',
-        help='Run in GUI mode'
-    )
-    mode_group.add_argument(
-        '-b', '--batch',
-        type=str,
-        metavar='FILE',
-        help='Run batch commands from file'
-    )
-    mode_group.add_argument(
-        '--legacy',
-        action='store_true',
-        help='Use legacy CLI (backward compatibility)'
-    )
-    
-    # AI options
-    parser.add_argument(
-        '-m', '--model',
-        type=str,
-        help='Specify AI model to use'
-    )
-    # Note: sandbox mode removed from CLI
-    parser.add_argument(
-        '--list-models',
-        action='store_true',
-        help='List available AI models'
-    )
-    
-    # Commands
-    parser.add_argument(
-        'commands',
-        nargs='*',
-        help='Commands to execute'
-    )
-    
-    args = parser.parse_args()
-    
-    # Setup default models
-    setup_default_ai_models()
-    
-    # List models if requested
+    mode_group.add_argument("-i", "--interactive", action="store_true")
+    mode_group.add_argument("-g", "--gui", action="store_true")
+    mode_group.add_argument("-b", "--batch", type=str, metavar="FILE")
+    parser.add_argument("-m", "--model", type=str)
+    parser.add_argument("--list-models", action="store_true")
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--safe-mode", action="store_true")
+    parser.add_argument("commands", nargs="*")
+    # absorb unknown flags silently for forward-compat
+    args, _ = parser.parse_known_args()
+
+    # Build equivalent typer argv for omni.py
+    new_argv = [sys.argv[0]]
+    if args.debug:
+        new_argv += ["--debug"]
+    if args.safe_mode:
+        new_argv += ["--safe-mode"]
+
     if args.list_models:
-        ai_manager = get_ai_manager()
-        models = ai_manager.list_registered_models()
-        
-        print("Available AI Models:")
-        for name, info in models.items():
-            marker = "✓" if info['is_current'] else " "
-            print(f"  [{marker}] {name} ({info['provider']})")
-        
-        if not models:
-            print("  No models registered")
-        
-        return
-    
-    # Use legacy CLI if requested (now just uses enhanced CLI)
-    if args.legacy:
-        cli = EnhancedCLI(InteractionMode.INTERACTIVE)
-        cli.run()
-        return
-    
-    # Determine interaction mode
+        # No direct equivalent; show message
+        print("Use `omni --help` or check your config.toml for available model options.")
+        sys.exit(0)
+
     if args.gui:
-        mode = InteractionMode.GUI
+        new_argv.append("gui")
     elif args.interactive:
-        mode = InteractionMode.INTERACTIVE
+        new_argv.append("chatbot")
     elif args.batch:
-        mode = InteractionMode.BATCH
-        # Load batch file
-        if os.path.exists(args.batch):
-            with open(args.batch, 'r') as f:
-                args.commands = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-        else:
-            print(f"Error: Batch file not found: {args.batch}")
-            sys.exit(1)
+        new_argv += ["batch", args.batch]
+    elif args.commands:
+        new_argv += ["run", " ".join(args.commands)]
     else:
-        mode = InteractionMode.CLI
-    
-    # Create enhanced CLI
-    cli = EnhancedCLI(mode)
+        new_argv.append("chatbot")
 
-    # sandbox CLI option removed; sandbox handling is no-op
-    
-    # Switch AI model if specified
-    if args.model:
-        if not cli.engine.switch_ai_model(args.model):
-            print(f"Warning: AI model '{args.model}' not found")
-    
-    # Run CLI
-    if args.commands or mode != InteractionMode.CLI:
-        cli.run(args.commands if args.commands else None)
-    else:
-        # Show help if no commands
-        parser.print_help()
+    # Invoke omni app
+    sys.argv = new_argv
+    from omni import app  # type: ignore[import]
+    app()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user")
+        print("\nInterrupted by user")
         sys.exit(0)
-    except Exception as e:
-        print(f"\nError: {e}")
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"\nError: {exc}")
         sys.exit(1)

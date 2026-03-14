@@ -39,7 +39,18 @@ setup(
     install_requires=requirements,
     extras_require={
         "web": ["selenium>=4.15.0"],
-        "dev": ["pytest>=7.0.0", "black>=22.0.0", "flake8>=4.0.0"],
+        "dev": [
+            # testing
+            "pytest>=7.4.0",
+            "pytest-asyncio>=0.23.0",
+            "pytest-cov>=4.1.0",
+            # linting / formatting
+            "ruff>=0.3.0",
+            # type checking
+            "mypy>=1.8.0",
+            "types-requests",
+            "types-PyYAML",
+        ],
     },
     entry_points={
         "console_scripts": [

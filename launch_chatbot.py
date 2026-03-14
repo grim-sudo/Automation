@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
 """
-Interactive Chatbot Launcher for OmniAutomator
-Starts the smart interactive session with spell correction and error recovery
+Interactive Chatbot Launcher — backward compatibility shim.
+Delegates to `omni chatbot` via the unified omni.py entry point.
+
+Prefer using:  omni chatbot
 """
+from __future__ import annotations
 
 import sys
 import os
 
-# Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from omni_automator.ui.chatbot import get_chatbot
+
+def main() -> None:
+    """Start the OmniAutomator chatbot via the unified CLI."""
+    sys.argv = [sys.argv[0], "chatbot"]
+    from omni import app  # type: ignore[import]
+    app()
 
 
-def main():
-    """Start interactive chatbot mode"""
+if __name__ == "__main__":
     try:
-        chatbot = get_chatbot()
-        chatbot.start_interactive_session()
+        main()
     except KeyboardInterrupt:
-        print("\n\n👋 Session ended by user")
+        print("\nSession ended by user")
         sys.exit(0)
-    except Exception as e:
-        print(f"❌ Error: {e}")
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"Error: {exc}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()

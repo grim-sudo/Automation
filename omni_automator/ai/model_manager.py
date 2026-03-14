@@ -1,23 +1,398 @@
-#!/usr/bin/env python3
 """
-Modular AI System with Model Switching
-Supports multiple AI providers and models
+AI model manager with priority-ordered fallback chain and per-provider routing.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
+from __future__ import annotations
+
 import json
+import logging
 import os
-from datetime import datetime
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, AsyncIterator
+
+import httpx
+
+from .openrouter_integration import (
+    AIProviderError,
+    OpenRouterClient,
+    OpenRouterConfig,
+    StreamChunk,
+)
+
+logger = logging.getLogger(__name__)
+
+__all__ = [
+    "ModelProvider",
+    "ModelRoute",
+    "AISettings",
+    "ModelManager",
+    # Legacy names kept for backward compatibility with code that imports
+    # these symbols via omni_automator.ai.model_manager directly.
+    "AIModelConfig",
+    "AIModelManager",
+    "get_ai_manager",
+]
+
+
+# ---------------------------------------------------------------------------
+# Enums and primary dataclasses
+# ---------------------------------------------------------------------------
+
+
+class ModelProvider(Enum):
+    """Supported AI model providers."""
+
+    OPENROUTER = "openrouter"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    LOCAL_OLLAMA = "local_ollama"
 
 
 @dataclass
-class AIModelConfig:
-    """Configuration for an AI model"""
-    name: str
-    provider: str  # 'openrouter', 'openai', 'anthropic', 'local'
+class ModelRoute:
+    """A single entry in the model routing table."""
+
     model_id: str
+    provider: ModelProvider
+    priority: int = 0
+
+
+@dataclass
+class AISettings:
+    """
+    Settings consumed by :class:`ModelManager`.
+
+    Can be constructed directly, from environment variables via
+    :meth:`from_env`, or from an ``OmniConfig`` instance via
+    :meth:`from_config`.
+    """
+
+    api_key: str = ""
+    fallback_chain: list[str] = field(default_factory=list)
+    timeout: float = 60.0
+    max_retries: int = 3
+    default_model: str = ""
+
+    @classmethod
+    def from_env(cls) -> "AISettings":
+        """Build :class:`AISettings` from environment variables."""
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        default_model = os.getenv("OPENROUTER_MODEL", "")
+        raw_chain = os.getenv("OPENROUTER_FALLBACK_CHAIN", "").strip()
+
+        if raw_chain:
+            if raw_chain.startswith("["):
+                try:
+                    chain: list[str] = json.loads(raw_chain)
+                except json.JSONDecodeError:
+                    chain = [m.strip() for m in raw_chain.split(",") if m.strip()]
+            else:
+                chain = [m.strip() for m in raw_chain.split(",") if m.strip()]
+        else:
+            # Fall back to the single configured model as the entire chain.
+            chain = [default_model] if default_model else []
+
+        try:
+            timeout = float(os.getenv("OPENROUTER_TIMEOUT", "60"))
+        except ValueError:
+            timeout = 60.0
+
+        try:
+            max_retries = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+        except ValueError:
+            max_retries = 3
+
+        return cls(
+            api_key=api_key,
+            fallback_chain=chain,
+            timeout=timeout,
+            max_retries=max_retries,
+            default_model=default_model,
+        )
+
+    @classmethod
+    def from_config(cls, config: Any) -> "AISettings":
+        """
+        Build :class:`AISettings` from an ``OmniConfig`` (or any object that
+        exposes the same attribute names).
+        """
+        api_key: str = getattr(config, "openrouter_api_key", "") or ""
+        max_retries: int = int(getattr(config, "max_retries", 3))
+        # OmniConfig.retry_delay is the per-retry sleep, so use it as a hint.
+        timeout: float = float(getattr(config, "retry_delay", 2.0)) * max_retries * 5
+        return cls(
+            api_key=api_key,
+            max_retries=max_retries,
+            timeout=max(30.0, timeout),
+        )
+
+
+# ---------------------------------------------------------------------------
+# ModelManager
+# ---------------------------------------------------------------------------
+
+
+class ModelManager:
+    """
+    Async AI model manager with a priority-ordered fallback chain and
+    per-provider request routing.
+
+    Provider routing
+    ----------------
+    * ``openai/…``    — routed through OpenRouter (proxied to OpenAI).
+    * ``anthropic/…`` — routed through OpenRouter (proxied to Anthropic).
+    * ``google/…``    — routed through OpenRouter (proxied to Google).
+    * ``local/…``     — sent directly to a running Ollama instance at
+                        ``http://localhost:11434``.
+    * anything else   — routed through OpenRouter.
+    """
+
+    _OLLAMA_BASE = "http://localhost:11434"
+
+    def __init__(self, settings: AISettings | None = None) -> None:
+        self._settings: AISettings = settings or AISettings.from_env()
+        self._routes: list[ModelRoute] = self._build_routes()
+        self._openrouter_client: OpenRouterClient | None = None
+        self._local_client: httpx.AsyncClient | None = None
+
+    # ------------------------------------------------------------------
+    # Configuration helpers
+    # ------------------------------------------------------------------
+
+    def _build_routes(self) -> list[ModelRoute]:
+        """
+        Construct a priority-ordered list of :class:`ModelRoute` objects from
+        the ``fallback_chain`` in :attr:`_settings`.
+        """
+        routes: list[ModelRoute] = []
+        for priority, model_id in enumerate(self._settings.fallback_chain):
+            provider = self._detect_provider(model_id)
+            routes.append(
+                ModelRoute(model_id=model_id, provider=provider, priority=priority)
+            )
+        return routes
+
+    @staticmethod
+    def _detect_provider(model_id: str) -> ModelProvider:
+        """
+        Infer the :class:`ModelProvider` from the *model_id* string prefix.
+
+        Rules
+        -----
+        ``openai/``    → :attr:`ModelProvider.OPENAI`
+        ``anthropic/`` → :attr:`ModelProvider.ANTHROPIC`
+        ``local/``     → :attr:`ModelProvider.LOCAL_OLLAMA`
+        anything else  → :attr:`ModelProvider.OPENROUTER`
+        """
+        lower = model_id.lower()
+        if lower.startswith("openai/"):
+            return ModelProvider.OPENAI
+        if lower.startswith("anthropic/"):
+            return ModelProvider.ANTHROPIC
+        if lower.startswith("local/"):
+            return ModelProvider.LOCAL_OLLAMA
+        # google/ and all other vendor prefixes are served via OpenRouter.
+        return ModelProvider.OPENROUTER
+
+    # ------------------------------------------------------------------
+    # Lazy client accessors
+    # ------------------------------------------------------------------
+
+    def _get_openrouter_client(self) -> OpenRouterClient:
+        """Return (and lazily create) a shared :class:`OpenRouterClient`."""
+        if self._openrouter_client is None:
+            cfg = OpenRouterConfig(
+                api_key=self._settings.api_key,
+                model=self._settings.default_model,
+                timeout=self._settings.timeout,
+                max_retries=self._settings.max_retries,
+            )
+            self._openrouter_client = OpenRouterClient(cfg)
+        return self._openrouter_client
+
+    def _get_local_client(self) -> httpx.AsyncClient:
+        """Return (and lazily create) a shared httpx client for Ollama."""
+        if self._local_client is None:
+            self._local_client = httpx.AsyncClient(
+                base_url=self._OLLAMA_BASE,
+                timeout=httpx.Timeout(self._settings.timeout),
+            )
+        return self._local_client
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def complete(
+        self,
+        messages: list[dict],
+        preferred_model: str | None = None,
+    ) -> tuple[str, str]:
+        """
+        Generate a completion for *messages*.
+
+        If *preferred_model* is given it is tried first; then every model in
+        the configured fallback chain is tried in priority order until one
+        succeeds.
+
+        Returns
+        -------
+        ``(content, model_used)``
+
+        Raises
+        ------
+        :class:`~openrouter_integration.AIProviderError`
+            When every available model in the chain fails.
+        """
+        # Deduplicated candidate list: preferred first, then the route chain.
+        candidates: list[str] = []
+        if preferred_model:
+            candidates.append(preferred_model)
+        for route in self._routes:
+            if route.model_id not in candidates:
+                candidates.append(route.model_id)
+
+        if not candidates:
+            raise AIProviderError(
+                "No models configured in ModelManager and no preferred_model given.",
+                model=None,
+            )
+
+        last_exc: Exception | None = None
+
+        for model_id in candidates:
+            provider = self._detect_provider(model_id)
+            try:
+                if provider == ModelProvider.LOCAL_OLLAMA:
+                    content = await self._complete_ollama(messages, model_id)
+                else:
+                    # OPENROUTER, OPENAI, and ANTHROPIC are all proxied via
+                    # OpenRouter.
+                    client = self._get_openrouter_client()
+                    content = await client.complete(messages, model=model_id)
+                return content, model_id
+            except Exception as exc:
+                logger.warning(
+                    "Model %r (provider=%s) failed: %s — trying next.",
+                    model_id,
+                    provider.value,
+                    exc,
+                )
+                last_exc = exc
+
+        raise AIProviderError(
+            f"All {len(candidates)} model(s) failed. Last error: {last_exc}",
+            model=candidates[-1] if candidates else None,
+        )
+
+    async def stream(
+        self,
+        messages: list[dict],
+    ) -> AsyncIterator[StreamChunk]:
+        """
+        Stream a completion for *messages* using the highest-priority route.
+
+        Only models routed via OpenRouter support streaming.  ``LOCAL_OLLAMA``
+        models raise :class:`~openrouter_integration.AIProviderError`.
+
+        Yields
+        ------
+        :class:`~openrouter_integration.StreamChunk`
+        """
+        if not self._routes:
+            raise AIProviderError(
+                "No models configured in ModelManager; cannot stream.",
+                model=None,
+            )
+
+        route = self._routes[0]
+
+        if route.provider == ModelProvider.LOCAL_OLLAMA:
+            raise AIProviderError(
+                f"Streaming is not supported for LOCAL_OLLAMA provider "
+                f"(model: {route.model_id!r}). "
+                "Use ModelManager.complete() for Ollama models.",
+                model=route.model_id,
+            )
+
+        client = self._get_openrouter_client()
+        async for chunk in client.stream(messages, model=route.model_id):
+            yield chunk
+
+    async def close(self) -> None:
+        """Close all underlying HTTP clients and release connections."""
+        if self._openrouter_client is not None:
+            await self._openrouter_client.close()
+            self._openrouter_client = None
+        if self._local_client is not None:
+            await self._local_client.aclose()
+            self._local_client = None
+
+    # ------------------------------------------------------------------
+    # Async context-manager
+    # ------------------------------------------------------------------
+
+    async def __aenter__(self) -> "ModelManager":
+        return self
+
+    async def __aexit__(self, *_: Any) -> None:
+        await self.close()
+
+    # ------------------------------------------------------------------
+    # Ollama helpers
+    # ------------------------------------------------------------------
+
+    async def _complete_ollama(self, messages: list[dict], model_id: str) -> str:
+        """
+        POST to the Ollama ``/api/chat`` endpoint (non-streaming).
+
+        The ``local/`` prefix is stripped before forwarding to Ollama
+        (e.g. ``local/llama3`` → ``llama3``).
+        """
+        ollama_model = model_id.removeprefix("local/")
+        client = self._get_local_client()
+        payload = {
+            "model": ollama_model,
+            "messages": messages,
+            "stream": False,
+        }
+        response = await client.post("/api/chat", json=payload)
+        if response.status_code >= 400:
+            raise AIProviderError(
+                f"Ollama returned HTTP {response.status_code}: {response.text}",
+                status_code=response.status_code,
+                model=model_id,
+            )
+        data: dict = response.json()
+        # Ollama /api/chat response shape: {"message": {"role": "assistant", "content": "..."}}
+        content = data.get("message", {}).get("content", "")
+        if not content:
+            # Some Ollama versions use a flat "response" key.
+            content = data.get("response", "")
+        return content
+
+
+# ---------------------------------------------------------------------------
+# Legacy compatibility shim
+# ---------------------------------------------------------------------------
+# The symbols below are kept so that existing code importing
+# ``AIModelManager``, ``AIModelConfig``, or ``get_ai_manager`` from this
+# module (or through ai/__init__.py) continues to work during the migration
+# period.  New code should use ``ModelManager`` directly.
+# ---------------------------------------------------------------------------
+
+from dataclasses import dataclass as _dc  # noqa: E402
+from typing import Dict, List, Optional  # noqa: E402
+
+
+@_dc
+class AIModelConfig:
+    """Legacy model slot configuration.  Use AISettings + ModelManager instead."""
+
+    name: str
+    provider: str = "openrouter"
+    model_id: str = ""
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     max_tokens: int = 2048
@@ -25,384 +400,130 @@ class AIModelConfig:
     is_default: bool = False
 
 
-@dataclass
-class AIResponse:
-    """Response from AI model"""
-    content: str
-    model_used: str
-    tokens_used: int
-    provider: str
-    timestamp: str
-    task_plan: Optional[Dict[str, Any]] = None  # AI-generated execution plan
-
-
-class AIModelProvider(ABC):
-    """Abstract base class for AI providers"""
-    
-    @abstractmethod
-    def query(self, prompt: str, context: Dict[str, Any] = None) -> AIResponse:
-        """Query the AI model"""
-        pass
-    
-    @abstractmethod
-    def validate_config(self) -> bool:
-        """Validate that the provider is configured correctly"""
-        pass
-    
-    @abstractmethod
-    def get_available_models(self) -> List[str]:
-        """Get list of available models for this provider"""
-        pass
-
-
-class OpenRouterProvider(AIModelProvider):
-    """OpenRouter AI provider"""
-    
-    def __init__(self, config: AIModelConfig):
-        self.config = config
-        self.provider_name = "openrouter"
-    
-    def validate_config(self) -> bool:
-        """Validate OpenRouter configuration"""
-        if not self.config.api_key:
-            return False
-        
-        if not self.config.model_id:
-            return False
-        
-        return True
-    
-    def query(self, prompt: str, context: Dict[str, Any] = None) -> AIResponse:
-        """Query OpenRouter API"""
-        try:
-            import requests
-            
-            headers = {
-                "Authorization": f"Bearer {self.config.api_key}",
-                "HTTP-Referer": "https://omnimator.local",
-                "X-Title": "OmniAutomator"
-            }
-            
-            data = {
-                "model": self.config.model_id,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens
-            }
-            
-            if context:
-                data["messages"].insert(0, {
-                    "role": "system",
-                    "content": self._build_system_prompt(context)
-                })
-            
-            response = requests.post(
-                "https://openrouter.io/api/v1/chat/completions",
-                headers=headers,
-                json=data
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return AIResponse(
-                    content=result['choices'][0]['message']['content'],
-                    model_used=self.config.model_id,
-                    tokens_used=result.get('usage', {}).get('total_tokens', 0),
-                    provider=self.provider_name,
-                    timestamp=datetime.now().isoformat()
-                )
-            else:
-                return AIResponse(
-                    content=f"Error: {response.status_code}",
-                    model_used=self.config.model_id,
-                    tokens_used=0,
-                    provider=self.provider_name,
-                    timestamp=datetime.now().isoformat()
-                )
-        
-        except Exception as e:
-            return AIResponse(
-                content=f"Error querying OpenRouter: {str(e)}",
-                model_used=self.config.model_id,
-                tokens_used=0,
-                provider=self.provider_name,
-                timestamp=datetime.now().isoformat()
-            )
-    
-    def get_available_models(self) -> List[str]:
-        """Get available models from OpenRouter"""
-        return [
-            "openai/gpt-4",
-            "openai/gpt-4-turbo",
-            "openai/gpt-3.5-turbo",
-            "anthropic/claude-3-opus",
-            "anthropic/claude-3-sonnet",
-            "google/palm-2",
-            "meta-llama/llama-2-70b",
-        ]
-    
-    def _build_system_prompt(self, context: Dict[str, Any]) -> str:
-        """Build system prompt from context"""
-        prompt = "You are OmniAutomator, an intelligent automation assistant.\n\n"
-        
-        if 'task' in context:
-            prompt += f"Current Task: {context['task']}\n"
-        
-        if 'capabilities' in context:
-            prompt += f"Available Capabilities: {', '.join(context['capabilities'])}\n"
-        
-        if 'constraints' in context:
-            prompt += f"Constraints: {', '.join(context['constraints'])}\n"
-        
-        return prompt
-
-
-class LocalProvider(AIModelProvider):
-    """Local AI provider (for testing/offline)"""
-    
-    def __init__(self, config: AIModelConfig):
-        self.config = config
-        self.provider_name = "local"
-    
-    def validate_config(self) -> bool:
-        """Validate local configuration"""
-        return True  # Local provider always available
-    
-    def query(self, prompt: str, context: Dict[str, Any] = None) -> AIResponse:
-        """Simple local response (for testing)"""
-        # This would integrate with Ollama or other local LLM
-        response = self._generate_local_response(prompt, context)
-        
-        return AIResponse(
-            content=response,
-            model_used=self.config.model_id,
-            tokens_used=len(prompt.split()),
-            provider=self.provider_name,
-            timestamp=datetime.now().isoformat()
-        )
-    
-    def _generate_local_response(self, prompt: str, context: Dict[str, Any] = None) -> str:
-        """Generate response locally (stub)"""
-        # In production, this would call Ollama, LLaMA.cpp, or similar
-        return f"Local response: {prompt[:50]}..."
-    
-    def get_available_models(self) -> List[str]:
-        """Get available local models"""
-        return [
-            "ollama/llama2",
-            "ollama/mistral",
-            "ollama/neural-chat",
-        ]
-
-
 class AIModelManager:
-    """Manage multiple AI models and providers"""
-    
-    def __init__(self):
-        self.models: Dict[str, AIModelConfig] = {}
-        self.providers: Dict[str, AIModelProvider] = {}
-        self.current_model: Optional[str] = None
-        self.config_file = os.path.expanduser("~/.omnimator/ai_config.json")
-        
-        # Load from .env if available
+    """
+    Legacy synchronous model manager shim.
+
+    Wraps :class:`ModelManager` for callers that were written against the
+    old synchronous ``AIModelManager`` API.  New code should use
+    :class:`ModelManager` directly.
+    """
+
+    def __init__(self) -> None:
+        self._settings = AISettings.from_env()
+        self._slots: Dict[str, AIModelConfig] = {}
+        self._current_slot: Optional[str] = None
+        self._async_manager: Optional[ModelManager] = None
         self._load_from_env()
-        
-        # Load saved config
-        self._load_config()
-    
-    def _load_from_env(self):
-        """Load API keys and default model from .env file"""
-        try:
-            # Try to load .env from multiple locations
-            env_paths = [
-                os.path.join(os.getcwd(), '.env'),
-                os.path.expanduser('~/.omnimator/.env'),
-                '/etc/omnimator/.env'
-            ]
-            
-            env_data = {}
-            for env_path in env_paths:
-                if os.path.exists(env_path):
-                    with open(env_path, 'r') as f:
-                        for line in f:
-                            line = line.strip()
-                            if line and not line.startswith('#') and '=' in line:
-                                key, value = line.split('=', 1)
-                                env_data[key.strip()] = value.strip()
-                    break
-            
-            # Register OpenRouter model if API key is present
-            if env_data.get('OPENROUTER_API_KEY') and env_data.get('OPENROUTER_MODEL'):
-                api_key = env_data['OPENROUTER_API_KEY']
-                model_id = env_data['OPENROUTER_MODEL']
-                
-                # Don't register if already exists
-                if 'default_openrouter' not in self.models:
-                    config = AIModelConfig(
-                        name='default_openrouter',
-                        provider='openrouter',
-                        model_id=model_id,
-                        api_key=api_key,
-                        is_default=True
-                    )
-                    self.register_model(config)
-                    print(f"✅ Loaded OpenRouter model from .env: {model_id}")
-        
-        except Exception as e:
-            print(f"⚠️  Could not load .env file: {e}")
-    
-    def register_model(self, config: AIModelConfig) -> bool:
-        """Register a new AI model"""
-        if not self._validate_model_config(config):
-            return False
-        
-        self.models[config.name] = config
-        
-        # Create provider
-        provider = self._create_provider(config)
-        if provider and provider.validate_config():
-            self.providers[config.name] = provider
-        
-        # Set as default if specified
-        if config.is_default:
-            self.current_model = config.name
-        
-        # Save configuration
-        self._save_config()
-        
-        return True
-    
-    def switch_model(self, model_name: str) -> bool:
-        """Switch to a different AI model"""
-        if model_name not in self.models:
-            return False
-        
-        self.current_model = model_name
-        self._save_config()
-        
-        return True
-    
-    def query(self, prompt: str, context: Dict[str, Any] = None, model: str = None) -> AIResponse:
-        """Query AI with optional model specification"""
-        target_model = model or self.current_model
-        
-        if not target_model or target_model not in self.providers:
-            return AIResponse(
-                content="No AI model configured",
-                model_used="none",
-                tokens_used=0,
-                provider="none",
-                timestamp=datetime.now().isoformat()
+
+    def _load_from_env(self) -> None:
+        api_key = os.getenv("OPENROUTER_API_KEY", "")
+        model_id = os.getenv("OPENROUTER_MODEL", "")
+        if api_key and model_id:
+            cfg = AIModelConfig(
+                name="default_openrouter",
+                provider="openrouter",
+                model_id=model_id,
+                api_key=api_key,
+                is_default=True,
             )
-        
-        provider = self.providers[target_model]
-        return provider.query(prompt, context)
-    
-    def get_available_models(self) -> Dict[str, List[str]]:
-        """Get all available models by provider"""
-        available = {}
-        
-        for name, provider in self.providers.items():
-            provider_name = provider.provider_name
-            if provider_name not in available:
-                available[provider_name] = []
-            available[provider_name].extend(provider.get_available_models())
-        
-        return available
-    
-    def get_current_model_info(self) -> Optional[Dict[str, Any]]:
-        """Get info about current model"""
-        if not self.current_model or self.current_model not in self.models:
-            return None
-        
-        config = self.models[self.current_model]
-        
-        return {
-            'name': config.name,
-            'provider': config.provider,
-            'model_id': config.model_id,
-            'max_tokens': config.max_tokens,
-            'temperature': config.temperature
-        }
-    
-    def list_registered_models(self) -> Dict[str, Dict[str, Any]]:
-        """List all registered models"""
+            self.register_model(cfg)
+
+    def register_model(self, config: AIModelConfig) -> bool:
+        self._slots[config.name] = config
+        if config.is_default:
+            self._current_slot = config.name
+        return True
+
+    def switch_model(self, model_name: str) -> bool:
+        if model_name in self._slots:
+            self._current_slot = model_name
+            return True
+        for name, cfg in self._slots.items():
+            if cfg.model_id == model_name:
+                self._current_slot = name
+                return True
+        return False
+
+    def list_registered_models(self) -> Dict[str, Dict]:
         return {
             name: {
-                'provider': config.provider,
-                'model_id': config.model_id,
-                'is_current': name == self.current_model
+                "provider": cfg.provider,
+                "model_id": cfg.model_id,
+                "is_current": name == self._current_slot,
             }
-            for name, config in self.models.items()
+            for name, cfg in self._slots.items()
         }
-    
-    def _create_provider(self, config: AIModelConfig) -> Optional[AIModelProvider]:
-        """Create provider instance based on config"""
-        if config.provider == 'openrouter':
-            return OpenRouterProvider(config)
-        elif config.provider == 'local':
-            return LocalProvider(config)
-        else:
+
+    def get_current_model_info(self) -> Optional[Dict]:
+        if not self._current_slot or self._current_slot not in self._slots:
             return None
-    
-    def _validate_model_config(self, config: AIModelConfig) -> bool:
-        """Validate model configuration"""
-        if not config.name or not config.provider or not config.model_id:
-            return False
-        
-        if config.provider == 'openrouter' and not config.api_key:
-            return False
-        
-        return True
-    
-    def _load_config(self):
-        """Load AI configuration from file"""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, 'r') as f:
-                    data = json.load(f)
-                
-                for model_data in data.get('models', []):
-                    config = AIModelConfig(**model_data)
-                    self.register_model(config)
-                
-                self.current_model = data.get('current_model')
-            except Exception as e:
-                print(f"Error loading AI config: {e}")
-    
-    def _save_config(self):
-        """Save AI configuration to file"""
-        try:
-            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
-            
-            data = {
-                'models': [
-                    {
-                        'name': config.name,
-                        'provider': config.provider,
-                        'model_id': config.model_id,
-                        'max_tokens': config.max_tokens,
-                        'temperature': config.temperature,
-                        'is_default': config.is_default
-                    }
-                    for config in self.models.values()
-                ],
-                'current_model': self.current_model,
-                'last_updated': datetime.now().isoformat()
+        cfg = self._slots[self._current_slot]
+        return {
+            "name": cfg.name,
+            "provider": cfg.provider,
+            "model_id": cfg.model_id,
+            "max_tokens": cfg.max_tokens,
+            "temperature": cfg.temperature,
+        }
+
+    def query(
+        self,
+        prompt: str,
+        context: Optional[Dict] = None,
+        model: Optional[str] = None,
+    ) -> Dict:
+        """Synchronous query — blocks the event loop; prefer async methods."""
+        import asyncio
+
+        settings = AISettings.from_env()
+        if not settings.api_key:
+            return {
+                "content": "No OPENROUTER_API_KEY configured.",
+                "model_used": "none",
+                "tokens_used": 0,
+                "provider": "none",
             }
-            
-            with open(self.config_file, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"Error saving AI config: {e}")
+
+        messages: List[Dict] = [{"role": "user", "content": prompt}]
+        if context:
+            system_parts = [
+                f"{k}: {v}" for k, v in context.items() if v
+            ]
+            if system_parts:
+                messages.insert(0, {"role": "system", "content": "\n".join(system_parts)})
+
+        async def _run() -> tuple[str, str]:
+            async with ModelManager(settings) as mgr:
+                return await mgr.complete(messages, preferred_model=model)
+
+        try:
+            content, model_used = asyncio.run(_run())
+        except Exception as exc:
+            content = f"Error: {exc}"
+            model_used = model or settings.default_model
+
+        from datetime import datetime
+
+        return {
+            "content": content,
+            "model_used": model_used,
+            "tokens_used": len(content.split()),
+            "provider": "openrouter",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    def get_available_models(self) -> Dict[str, List[str]]:
+        return {"openrouter": list(self._slots.keys())}
 
 
-# Singleton instance
-_ai_manager = AIModelManager()
+# Process-level singleton for the legacy shim.
+_ai_manager_instance: Optional[AIModelManager] = None
 
 
 def get_ai_manager() -> AIModelManager:
-    """Get AI model manager instance"""
-    return _ai_manager
+    """Return the process-wide legacy AIModelManager singleton."""
+    global _ai_manager_instance
+    if _ai_manager_instance is None:
+        _ai_manager_instance = AIModelManager()
+    return _ai_manager_instance

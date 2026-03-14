@@ -1,0 +1,1 @@
+"""OmniAutomator test suite."""

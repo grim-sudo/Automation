@@ -1,7 +1,25 @@
 """
-Security and permission management
+Security and permission management for OmniAutomator.
+Includes permission enforcement, path validation, and safe subprocess utilities.
 """
+from __future__ import annotations
 
 from .permission_manager import PermissionManager, PermissionLevel, ActionCategory
+from .subprocess_runner import safe_run, safe_popen, build_package_cmd, SubprocessError
 
-__all__ = ["PermissionManager", "PermissionLevel", "ActionCategory"]
+__all__ = [
+    "PermissionManager",
+    "PermissionLevel",
+    "ActionCategory",
+    "safe_run",
+    "safe_popen",
+    "build_package_cmd",
+    "SubprocessError",
+]
+
+# path_validator is imported lazily to avoid circular imports
+try:
+    from .path_validator import PathValidator, get_path_validator  # type: ignore[import]
+    __all__ += ["PathValidator", "get_path_validator"]
+except ImportError:
+    pass

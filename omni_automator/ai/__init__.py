@@ -1,19 +1,37 @@
-"""
-AI integration modules for OmniAutomator
-"""
+"""AI integration layer for OmniAutomator."""
 
-from .openrouter_integration import OpenRouterAutomationAI
-from .model_manager import get_ai_manager, AIModelManager, AIModelConfig
-from .task_planner import get_ai_task_planner, AIPoweredTaskPlanner
-from .task_executor import get_ai_task_executor, AITaskExecutor
+from .openrouter_integration import (
+    OpenRouterClient,
+    OpenRouterConfig,
+    StreamChunk,
+    AIProviderError,
+    # Legacy
+    OpenRouterAutomationAI,
+    AITaskPlan,
+)
+from .model_manager import ModelManager, ModelProvider, ModelRoute
+from .context_manager import ContextManager, Message
+from .task_planner import TaskPlanner
+from .response_parser import TaskPlan, ResponseParser
 
 __all__ = [
+    # New async client (spec-required)
+    "OpenRouterClient",
+    "OpenRouterConfig",
+    "StreamChunk",
+    "AIProviderError",
+    # Model manager (spec-required)
+    "ModelManager",
+    "ModelProvider",
+    "ModelRoute",
+    # Context manager (spec-required)
+    "ContextManager",
+    "Message",
+    # Task planner (spec-required)
+    "TaskPlanner",
+    "TaskPlan",
+    "ResponseParser",
+    # Legacy compatibility — used by parsers/ai_parser.py and task_executor.py
     "OpenRouterAutomationAI",
-    "get_ai_manager",
-    "AIModelManager",
-    "AIModelConfig",
-    "get_ai_task_planner",
-    "AIPoweredTaskPlanner",
-    "get_ai_task_executor",
-    "AITaskExecutor",
+    "AITaskPlan",
 ]

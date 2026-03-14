@@ -1,0 +1,43 @@
+[meta]
+name = "arch-minimal"
+base = "arch"
+
+[kernel]
+version = "latest-stable"
+patches = []
+
+[kernel.kconfig]
+"CONFIG_KVM" = "y"
+"CONFIG_KVM_INTEL" = "y"
+"CONFIG_KVM_AMD" = "y"
+"CONFIG_MODULES" = "y"
+"CONFIG_IKCONFIG" = "y"
+"CONFIG_IKCONFIG_PROC" = "y"
+
+[packages]
+base = [
+  "base",
+  "linux",
+  "linux-firmware",
+  "systemd",
+  "networkmanager",
+  "openssh",
+  "sudo",
+  "bash",
+  "vim",
+  "git",
+]
+optional = [
+  "htop",
+  "tmux",
+  "rsync",
+  "wget",
+  "curl",
+  "base-devel",
+]
+
+[build]
+locale = "en_US.UTF-8"
+timezone = "UTC"
+hostname = "arch-custom"
+desktop = ""

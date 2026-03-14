@@ -22,6 +22,8 @@ class IntentType(Enum):
     CONFIGURE = "configure"
     ANALYZE = "analyze"
     HELP = "help"
+    N8N_WORKFLOW = "n8n_workflow"
+    BUILD_DISTRO = "build_distro"
     UNKNOWN = "unknown"
 
 
@@ -108,7 +110,22 @@ class SemanticNLPEngine:
             IntentType.ANALYZE: [
                 r'\b(analyze|examine|inspect|review|audit)\b',
                 r'\b(evaluate|assess|measure)\b'
-            ]
+            ],
+            IntentType.N8N_WORKFLOW: [
+                r'\bn8n\b',
+                r'\b(create|trigger|list|run|status)\s+(?:n8n\s+)?workflow\b',
+                r'\bworkflow\s+(?:create|trigger|list|run|status)\b',
+                r'trigger\s+workflow',
+                r'list\s+workflows',
+                r'n8n\s*:',
+            ],
+            IntentType.BUILD_DISTRO: [
+                r'\b(build|create|compile|make)\s+(?:custom\s+)?(?:distro|linux|iso|distribution)\b',
+                r'\bcompile\s+kernel\b',
+                r'\bbuild\s+(?:custom\s+)?(?:debian|arch|ubuntu)\b',
+                r'\bcreate\s+iso\b',
+                r'\bmake\s+(?:custom\s+)?distro\b',
+            ],
         }
         
         # Entity patterns

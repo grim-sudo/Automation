@@ -4,6 +4,7 @@ From simplest tasks to most complex enterprise operations
 """
 
 import os
+import shlex
 import sys
 import json
 import subprocess
@@ -13,6 +14,7 @@ import requests
 import platform
 from typing import Dict, Any, List
 from omni_automator.core.plugin_manager import AutomationPlugin
+from omni_automator.security.subprocess_runner import safe_run, build_package_cmd
 
 
 class UniversalAutomationPlugin(AutomationPlugin):
@@ -234,12 +236,12 @@ class UniversalAutomationPlugin(AutomationPlugin):
                         'message': f'(sandbox) simulated install of {software}',
                         'method': cmd.split()[0]
                     }
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                result = safe_run(cmd)
                 if result.returncode == 0:
                     return {
                         'success': True,
                         'message': f'Successfully installed {software}',
-                        'method': cmd.split()[0],
+                        'method': shlex.split(cmd)[0] if cmd else '',
                         'output': result.stdout
                     }
                 results.append(f"{cmd}: {result.stderr}")
@@ -294,7 +296,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             return {'success': False, 'message': 'No command provided'}
 
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            proc = safe_run(cmd)
             result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr, 'cmd': cmd}
         except Exception as e:
             result = {'success': False, 'error': str(e), 'cmd': cmd}
@@ -325,24 +327,24 @@ class UniversalAutomationPlugin(AutomationPlugin):
         if not pkg:
             return {'success': False, 'message': 'No package name provided'}
 
-        cmd = ''
+        cmd_list: list = []
         if manager == 'winget':
-            cmd = f'winget search "{pkg}"'
+            cmd_list = ['winget', 'search', pkg]
         elif manager == 'choco' or manager == 'chocolatey':
-            cmd = f'choco search "{pkg}"'
+            cmd_list = ['choco', 'search', pkg]
         elif manager == 'apt':
-            cmd = f'apt-cache search "{pkg}"'
+            cmd_list = ['apt-cache', 'search', pkg]
         elif manager == 'brew':
-            cmd = f'brew search "{pkg}"'
+            cmd_list = ['brew', 'search', pkg]
         elif manager in ('pacman', 'yay', 'paru'):
-            cmd = f'{manager} -Ss "{pkg}"'
+            cmd_list = [manager, '-Ss', pkg]
         elif manager == 'dnf':
-            cmd = f'dnf search "{pkg}"'
+            cmd_list = ['dnf', 'search', pkg]
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            proc = safe_run(cmd_list)
             result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
         except Exception as e:
             result = {'success': False, 'error': str(e)}
@@ -362,35 +364,36 @@ class UniversalAutomationPlugin(AutomationPlugin):
         if not pkg:
             return {'success': False, 'message': 'No package specified'}
 
-        # Choose command based on manager
-        cmd = ''
+        # Choose command based on manager — build as list (no shell=True)
+        cmd_list: list = []
         if manager == 'winget':
-            # prefer --id if provided
             if params.get('id'):
-                cmd = f'winget install --id {params.get("id")} -e --silent --accept-package-agreements --accept-source-agreements'
+                cmd_list = ['winget', 'install', '--id', params.get('id'), '-e',
+                            '--silent', '--accept-package-agreements', '--accept-source-agreements']
             else:
-                cmd = f'winget install "{pkg}" -e --silent --accept-package-agreements --accept-source-agreements'
+                cmd_list = ['winget', 'install', pkg, '-e',
+                            '--silent', '--accept-package-agreements', '--accept-source-agreements']
         elif manager in ('choco', 'chocolatey'):
-            cmd = f'choco install {pkg} -y'
+            cmd_list = ['choco', 'install', pkg, '-y']
         elif manager == 'apt':
-            cmd = f'sudo apt-get update && sudo apt-get install -y {pkg}'
+            cmd_list = ['sudo', 'apt-get', 'install', '-y', pkg]
         elif manager == 'brew':
-            cmd = f'brew install {pkg}'
+            cmd_list = ['brew', 'install', pkg]
         elif manager == 'pacman':
-            cmd = f'sudo pacman -S --noconfirm {pkg}'
+            cmd_list = ['sudo', 'pacman', '-S', '--noconfirm', pkg]
         elif manager in ('yay', 'paru'):
-            # AUR helpers don't need sudo
-            cmd = f'{manager} -S --noconfirm {pkg}'
+            cmd_list = [manager, '-S', '--noconfirm', pkg]
         elif manager == 'dnf':
-            cmd = f'sudo dnf install -y {pkg}'
+            cmd_list = ['sudo', 'dnf', 'install', '-y', pkg]
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr, 'cmd': cmd}
+            proc = safe_run(cmd_list)
+            result = {'success': proc.returncode == 0, 'returncode': proc.returncode,
+                      'stdout': proc.stdout, 'stderr': proc.stderr, 'cmd': ' '.join(cmd_list)}
         except Exception as e:
-            result = {'success': False, 'error': str(e), 'cmd': cmd}
+            result = {'success': False, 'error': str(e), 'cmd': ' '.join(cmd_list) if 'cmd_list' in locals() else ''}
 
         try:
             with open(os.path.join(os.path.expanduser('~'), '.local', 'share', 'omni_automator', 'action.log'), 'a', encoding='utf-8') as logf:
@@ -403,24 +406,24 @@ class UniversalAutomationPlugin(AutomationPlugin):
     def _list_installed_packages(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """List installed packages for the selected package manager"""
         manager = (params.get('manager') or self._default_package_manager()).lower()
-        cmd = ''
+        cmd_list: list = []
         if manager == 'winget':
-            cmd = 'winget list'
+            cmd_list = ['winget', 'list']
         elif manager in ('choco', 'chocolatey'):
-            cmd = 'choco list --local-only'
+            cmd_list = ['choco', 'list', '--local-only']
         elif manager == 'apt':
-            cmd = 'apt list --installed'
+            cmd_list = ['apt', 'list', '--installed']
         elif manager == 'brew':
-            cmd = 'brew list'
+            cmd_list = ['brew', 'list']
         elif manager in ('pacman', 'yay', 'paru'):
-            cmd = f'{manager} -Q'
+            cmd_list = [manager, '-Q']
         elif manager == 'dnf':
-            cmd = 'dnf list installed'
+            cmd_list = ['dnf', 'list', 'installed']
         else:
             return {'success': False, 'message': f'Unsupported package manager: {manager}'}
 
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            proc = safe_run(cmd_list)
             result = {'success': proc.returncode == 0, 'stdout': proc.stdout, 'stderr': proc.stderr}
         except Exception as e:
             result = {'success': False, 'error': str(e)}
@@ -440,9 +443,12 @@ class UniversalAutomationPlugin(AutomationPlugin):
         if not installer:
             return {'success': False, 'message': 'No installer path provided'}
 
-        cmd = f'"{installer}" {args}'.strip()
+        # Build list-form command: installer path + optional args (split by shlex)
+        cmd_list = [installer]
+        if args:
+            cmd_list.extend(shlex.split(str(args), posix=True))
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            proc = safe_run(cmd_list)
             result = {'success': proc.returncode == 0, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
         except Exception as e:
             result = {'success': False, 'error': str(e)}
@@ -542,7 +548,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
         # Git configuration
         if 'git' in installed and not sandbox:
             try:
-                subprocess.run('git config --global init.defaultBranch main', shell=True)
+                subprocess.run(['git', 'config', '--global', 'init.defaultBranch', 'main'])
                 configs_created.append('git-config')
             except:
                 pass
@@ -552,7 +558,7 @@ class UniversalAutomationPlugin(AutomationPlugin):
             extensions = ['ms-python.python', 'ms-vscode.vscode-typescript-next', 'ms-azuretools.vscode-docker']
             for ext in extensions:
                 try:
-                    subprocess.run(f'code --install-extension {ext}', shell=True)
+                    subprocess.run(['code', '--install-extension', ext])
                     configs_created.append(f'vscode-{ext}')
                 except:
                     pass
@@ -592,8 +598,8 @@ CMD ["npm", "start"]'''
             
             # Build and run
             try:
-                subprocess.run(f'docker build -t {app_name} {app_path}', shell=True, check=True)
-                subprocess.run(f'docker run -d -p 3000:3000 --name {app_name} {app_name}', shell=True, check=True)
+                subprocess.run(['docker', 'build', '-t', app_name, app_path], check=True)
+                subprocess.run(['docker', 'run', '-d', '-p', '3000:3000', '--name', app_name, app_name], check=True)
                 
                 return {
                     'success': True,
@@ -616,17 +622,17 @@ CMD ["npm", "start"]'''
                     f.write('web: npm start')
                 deployment_files.append(procfile_path)
             
-            # Heroku deployment commands
-            commands = [
-                'heroku create ' + app_name,
-                'git add .',
-                'git commit -m "Deploy to Heroku"',
-                'git push heroku main'
+            # Heroku deployment commands — list form (no shell=True)
+            commands_list = [
+                ['heroku', 'create', app_name],
+                ['git', 'add', '.'],
+                ['git', 'commit', '-m', 'Deploy to Heroku'],
+                ['git', 'push', 'heroku', 'main'],
             ]
-            
-            for cmd in commands:
+
+            for cmd_parts in commands_list:
                 try:
-                    subprocess.run(cmd, shell=True, check=True, cwd=app_path)
+                    subprocess.run(cmd_parts, check=True, cwd=app_path)
                 except subprocess.CalledProcessError:
                     pass  # Continue with other commands
             
@@ -652,22 +658,22 @@ CMD ["npm", "start"]'''
         if sandbox:
             return {'success': True, 'sandbox': True, 'message': f'Simulated uninstall of {software} in sandbox'}
 
-        commands = []
+        commands_list: list[list[str]] = []
         if method in ('auto', 'winget'):
-            commands.append(f'winget uninstall --id {software} -e')
-            commands.append(f'winget uninstall {software}')
+            commands_list.append(['winget', 'uninstall', '--id', software, '-e'])
+            commands_list.append(['winget', 'uninstall', software])
         if method in ('auto', 'chocolatey'):
-            commands.append(f'choco uninstall {software} -y')
+            commands_list.append(['choco', 'uninstall', software, '-y'])
 
         attempts = []
-        for cmd in commands:
+        for cmd_parts in commands_list:
             try:
-                proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                attempts.append({'cmd': cmd, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr})
+                proc = safe_run(cmd_parts)
+                attempts.append({'cmd': ' '.join(cmd_parts), 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr})
                 if proc.returncode == 0:
-                    return {'success': True, 'message': f'Uninstalled {software} using {cmd}', 'attempts': attempts}
+                    return {'success': True, 'message': f'Uninstalled {software} using {cmd_parts[0]}', 'attempts': attempts}
             except Exception as e:
-                attempts.append({'cmd': cmd, 'error': str(e)})
+                attempts.append({'cmd': ' '.join(cmd_parts) if cmd_parts else '', 'error': str(e)})
 
         # Fallback: try removing common install directories (best-effort)
         removed = []
@@ -824,8 +830,8 @@ scrape_configs:
             if 'location' in params:
                 command += f" in {params['location']}"
 
-            # Execute as system command
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            # Execute as system command using safe_run (shlex splits the string)
+            result = safe_run(command)
 
             return {
                 'success': result.returncode == 0,

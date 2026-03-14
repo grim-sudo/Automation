@@ -1,0 +1,51 @@
+[meta]
+name = "debian-minimal"
+base = "debian"
+
+[kernel]
+version = "latest-stable"
+patches = []
+
+[kernel.kconfig]
+"CONFIG_KVM" = "y"
+"CONFIG_KVM_INTEL" = "y"
+"CONFIG_KVM_AMD" = "y"
+"CONFIG_MODULES" = "y"
+"CONFIG_IKCONFIG" = "y"
+"CONFIG_IKCONFIG_PROC" = "y"
+"CONFIG_CGROUP_SCHED" = "y"
+"CONFIG_BLK_CGROUP" = "y"
+"CONFIG_NET_CLS_CGROUP" = "y"
+"CONFIG_IPC_NS" = "y"
+"CONFIG_PID_NS" = "y"
+"CONFIG_NET_NS" = "y"
+
+[packages]
+base = [
+  "systemd",
+  "bash",
+  "coreutils",
+  "util-linux",
+  "iproute2",
+  "openssh-server",
+  "sudo",
+  "ca-certificates",
+  "apt-transport-https",
+]
+optional = [
+  "vim",
+  "curl",
+  "wget",
+  "git",
+  "htop",
+  "tmux",
+  "rsync",
+  "less",
+  "file",
+]
+
+[build]
+locale = "en_US.UTF-8"
+timezone = "UTC"
+hostname = "debian-custom"
+desktop = ""

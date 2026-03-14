@@ -320,7 +320,7 @@ class WindowsProcessAdapter(BaseProcessAdapter):
                 else:
                     cmd.extend(args)
             
-            process = subprocess.Popen(cmd, shell=True)
+            process = subprocess.Popen(cmd)
             return process.pid
         except Exception as e:
             raise Exception(f"Failed to start process: {e}")

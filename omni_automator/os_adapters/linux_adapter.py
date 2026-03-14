@@ -236,8 +236,9 @@ class LinuxGUIAdapter(BaseGUIAdapter):
     """Linux GUI automation using X11"""
     
     def __init__(self):
-        pyautogui.FAILSAFE = True
-        pyautogui.PAUSE = 0.1
+        if pyautogui is not None:
+            pyautogui.FAILSAFE = True
+            pyautogui.PAUSE = 0.1
     
     def execute(self, action: str, params: Dict[str, Any]) -> Any:
         if action == 'click':
@@ -419,23 +420,24 @@ class LinuxNetworkAdapter(BaseNetworkAdapter):
     
     def download_file(self, url: str, filename: str = None) -> str:
         try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                response = client.get(url)
+                response.raise_for_status()
+
             if not filename:
                 filename = url.split('/')[-1] or 'downloaded_file'
-            
+
             with open(filename, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
+                f.write(response.content)
+
             return filename
         except Exception as e:
             raise Exception(f"Failed to download file: {e}")
     
     def http_request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
         try:
-            response = requests.request(method, url, **kwargs)
+            with httpx.Client(follow_redirects=True, timeout=30.0) as client:
+                response = client.request(method, url, **kwargs)
             return {
                 'status_code': response.status_code,
                 'headers': dict(response.headers),
