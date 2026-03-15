@@ -495,3 +495,25 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 **Verified:** `yaml.safe_load('.github/workflows/ci.yml')` → ✓ 7 jobs, all with unique keys; `tauri` job steps show `Cache npm [continue-on-error]`.
 
 ---
+
+## Fix — Tauri backend Rust compile errors and warnings
+
+**Date:** 2026-03-15
+**Files:** `ui-tauri/src-tauri/src/commands.rs`, `ui-tauri/src-tauri/src/main.rs`, `ui-tauri/src-tauri/src/python.rs`, `ui-tauri/src-tauri/tauri.conf.json`, `ui-tauri/src-tauri/icons/` (created)
+
+**Bugs:**
+
+1. **Missing icon assets** — `ui-tauri/src-tauri/icons/` directory was empty; Tauri build pipeline fails without at least `icon.png` present. `tauri.conf.json` had `"icon": []` (empty list).
+2. **`unwrap_or_default()` on `String`** — `commands.rs` lines 165 and 167 called `.clone().unwrap_or_default()` on `AiConfig.openrouter_api_key` and `N8nConfig.api_key`. Both fields are plain `String` (not `Option<String>`), so `unwrap_or_default()` does not exist on `String` — compile error.
+3. **Unused import `tauri::Manager`** — `main.rs` line 8 imported `tauri::Manager` but it was never referenced in the file body — unused import warning.
+4. **Unused variable `config`** — `python.rs` line 43 declared `config: &Config` as a parameter of `call_python()` but never used it inside the function — unused variable warning.
+
+**Fix:**
+1. Generated 15 icon files (`icon.png`, `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, and all Windows Square/Store logos) via Pillow with Tyranos brand colours (BG_DEEP `#080810`, purple circle, cyan outline, white T). Updated `tauri.conf.json` `bundle.icon` to list the five cross-platform icons.
+2. Removed `.unwrap_or_default()` from both fields — plain `.clone()` is sufficient since the type is already `String`.
+3. Removed the `use tauri::Manager;` line from `main.rs` entirely (`.manage()` is on `Builder`, not `Manager`).
+4. Renamed parameter to `_config: &Config` in `python.rs` to suppress the unused-variable lint while keeping the public API signature stable.
+
+**Verified:** `cargo check` in `ui-tauri/src-tauri/` → `Finished dev profile … 0 errors, 0 warnings`; main workspace `cargo check --workspace` also clean.
+
+---

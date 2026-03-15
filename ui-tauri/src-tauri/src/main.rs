@@ -5,7 +5,6 @@ mod commands;
 mod python;
 
 use commands::AppState;
-use tauri::Manager;
 use tyranos_core::config::Config;
 
 fn main() {

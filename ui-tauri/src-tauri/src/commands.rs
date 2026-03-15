@@ -162,9 +162,9 @@ pub async fn get_settings(
     state: State<'_, AppState>,
 ) -> Result<Settings, String> {
     Ok(Settings {
-        openrouter_api_key: state.config.ai.openrouter_api_key.clone().unwrap_or_default(),
+        openrouter_api_key: state.config.ai.openrouter_api_key.clone(),
         n8n_url:            state.config.n8n.url.clone(),
-        n8n_api_key:        state.config.n8n.api_key.clone().unwrap_or_default(),
+        n8n_api_key:        state.config.n8n.api_key.clone(),
         debug:              state.config.debug,
         safe_mode:          state.config.safe_mode,
     })

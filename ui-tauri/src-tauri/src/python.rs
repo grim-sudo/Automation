@@ -40,7 +40,7 @@ fn which_python(name: &str) -> Option<PathBuf> {
 }
 
 /// Call Python with a JSON payload; return the stdout string.
-pub fn call_python(config: &Config, payload: &serde_json::Value) -> Result<String> {
+pub fn call_python(_config: &Config, payload: &serde_json::Value) -> Result<String> {
     let project_root = project_root();
     let python = find_python(&project_root);
     let tyranos_py = project_root.join("tyranos.py");
