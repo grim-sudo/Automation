@@ -4,7 +4,6 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/grim-sudo/Automation/actions/workflows/ci.yml/badge.svg)](https://github.com/grim-sudo/Automation/actions)
 
 Tyranos is a cross-platform automation framework that executes complex workflows from plain-English commands. Describe what you want — the framework maps your intent through a multi-layer NLP and AI pipeline and runs it.
@@ -19,7 +18,7 @@ Tyranos is a cross-platform automation framework that executes complex workflows
 | **n8n workflow bridge** | Create, run, and manage n8n workflows from natural language or CLI |
 | **Linux distro builder** | Build bootable ISOs from TOML profiles or NL descriptions (Debian, Arch, Buildroot) |
 | **Async AI layer** | `httpx.AsyncClient` + SSE streaming + `tenacity` fallback chain + `tiktoken` context window |
-| **Unified CLI** | Single `omni` entry point — `run`, `chatbot`, `gui`, `batch`, `n8n`, `distro` |
+| **Unified CLI** | Single `tyranos` entry point — `run`, `chatbot`, `gui`, `batch`, `n8n`, `distro` |
 | **pydantic-settings config** | `~/.tyranos/config.toml` + env-var overrides + `.env` file support |
 | **Structured output parsing** | Pydantic v2 `TaskPlan` / `IntentResult` with JSON-repair fallbacks |
 | **Subprocess security** | All shell commands use list-form `safe_run()` — zero `shell=True` |
@@ -123,7 +122,7 @@ Full instructions: [SETUP.md](SETUP.md)
 Settings are read in this priority order (highest wins):
 
 ```
-CLI flag  →  OMNI__SECTION__FIELD env var  →  .env file  →  ~/.tyranos/config.toml  →  default
+CLI flag  →  SECTION__FIELD env var  →  .env file  →  ~/.tyranos/config.toml  →  default
 ```
 
 **Minimal `.env`:**
@@ -162,60 +161,60 @@ safe_mode = false
 
 ```bash
 # --- Files & Folders ---
-python omni.py run "create a folder named reports"
-python omni.py run "create 50 folders named test1 to test50"
-python omni.py run "delete all .tmp files in ~/Downloads"
-python omni.py run "copy all PDFs from ~/Documents to ~/archive"
-python omni.py run "rename old_config.json to config.json"
-python omni.py run "list all files in ~/Projects"
+python tyranos.py run "create a folder named reports"
+python tyranos.py run "create 50 folders named test1 to test50"
+python tyranos.py run "delete all .tmp files in ~/Downloads"
+python tyranos.py run "copy all PDFs from ~/Documents to ~/archive"
+python tyranos.py run "rename old_config.json to config.json"
+python tyranos.py run "list all files in ~/Projects"
 
 # --- Projects ---
-python omni.py run "create a Python project called my-api"
-python omni.py run "scaffold a React app named dashboard"
-python omni.py run "generate an Express backend named api-server"
-python omni.py run "create a Java project named inventory-system"
+python tyranos.py run "create a Python project called my-api"
+python tyranos.py run "scaffold a React app named dashboard"
+python tyranos.py run "generate an Express backend named api-server"
+python tyranos.py run "create a Java project named inventory-system"
 
 # --- DevOps ---
-python omni.py run "create a Dockerfile for a Node.js app"
-python omni.py run "generate a docker-compose for postgres and redis"
-python omni.py run "create a GitHub Actions CI pipeline"
-python omni.py run "generate Terraform config for AWS EC2"
+python tyranos.py run "create a Dockerfile for a Node.js app"
+python tyranos.py run "generate a docker-compose for postgres and redis"
+python tyranos.py run "create a GitHub Actions CI pipeline"
+python tyranos.py run "generate Terraform config for AWS EC2"
 
 # --- Documents ---
-python omni.py run "create a Word document named quarterly-report.docx"
-python omni.py run "generate a PowerPoint presentation about AI trends"
-python omni.py run "create an Excel spreadsheet with columns for name, date, amount"
-python omni.py run "generate a PDF invoice"
+python tyranos.py run "create a Word document named quarterly-report.docx"
+python tyranos.py run "generate a PowerPoint presentation about AI trends"
+python tyranos.py run "create an Excel spreadsheet with columns for name, date, amount"
+python tyranos.py run "generate a PDF invoice"
 
 # --- Packages ---
-python omni.py run "install nginx"
-python omni.py run "uninstall apache2"
-python omni.py run "search for python packages matching http"
-python omni.py run "list all installed packages"
+python tyranos.py run "install nginx"
+python tyranos.py run "uninstall apache2"
+python tyranos.py run "search for python packages matching http"
+python tyranos.py run "list all installed packages"
 
 # --- Web ---
-python omni.py run "scrape https://example.com and extract all links"
-python omni.py run "download https://example.com/file.zip to ~/Downloads"
+python tyranos.py run "scrape https://example.com and extract all links"
+python tyranos.py run "download https://example.com/file.zip to ~/Downloads"
 
 # --- n8n ---
-python omni.py n8n list
-python omni.py n8n create "send a Slack message every morning at 9am"
-python omni.py n8n run <workflow-id>
-python omni.py n8n status <workflow-id>
+python tyranos.py n8n list
+python tyranos.py n8n create "send a Slack message every morning at 9am"
+python tyranos.py n8n run <workflow-id>
+python tyranos.py n8n status <workflow-id>
 
 # --- Distro ---
-python omni.py distro profiles
-python omni.py distro estimate --profile debian_base
-sudo python omni.py distro build --profile debian_base --output ./dist
+python tyranos.py distro profiles
+python tyranos.py distro estimate --profile debian_base
+sudo python tyranos.py distro build --profile debian_base --output ./dist
 
 # --- Typo tolerance ---
-python omni.py run "creat a fodler named test"   # auto-corrected
-python omni.py run "intall packge nginx"          # auto-corrected
+python tyranos.py run "creat a fodler named test"   # auto-corrected
+python tyranos.py run "intall packge nginx"          # auto-corrected
 
 # --- Flags ---
-python omni.py --debug run "deploy the app"
-python omni.py --safe-mode run "delete old logs"
-python omni.py --log-file ~/omni.jsonl batch tasks.txt
+python tyranos.py --debug run "deploy the app"
+python tyranos.py --safe-mode run "delete old logs"
+python tyranos.py --log-file ~/tyranos.jsonl batch tasks.txt
 ```
 
 ---
@@ -224,7 +223,7 @@ python omni.py --log-file ~/omni.jsonl batch tasks.txt
 
 ```
 Tyranos v2.0
-├── omni.py                         Unified typer CLI entry point
+├── tyranos.py                          Unified typer CLI entry point
 ├── tyranos/
 │   ├── ai/
 │   │   ├── model_resolver.py       Dynamic free-model resolution (OpenRouter)
@@ -326,10 +325,10 @@ workflows = asyncio.run(mgr.list_workflows())
 ```bash
 pip install -e ".[dev]"
 
-pytest tests/ -v                                         # run all 153 tests
-ruff check --fix tyranos/ omni.py                 # lint + auto-fix
-ruff format tyranos/ omni.py                      # format
-mypy tyranos/ omni.py --ignore-missing-imports    # type check
+pytest tests/ -v --asyncio-mode=auto -m "not integration and not slow"   # run the 153-test suite
+ruff check --fix tyranos/                # lint + auto-fix
+ruff format tyranos/                     # format
+mypy tyranos/ --ignore-missing-imports   # type check
 ```
 
 ---
@@ -348,7 +347,7 @@ mypy tyranos/ omni.py --ignore-missing-imports    # type check
 
 | Problem | Fix |
 |---------|-----|
-| `omni: command not found` | Activate venv: `source .venv/bin/activate` |
+| `tyranos: command not found` | Activate venv: `source .venv/bin/activate` |
 | AI not responding | Check `echo $OPENROUTER_API_KEY`; run `tyranos --debug run "hello"` |
 | 401 from n8n | Ensure `N8N_API_KEY` and `N8N_URL` are set in `.env` |
 | GUI not launching | `pip install -e ".[gui]"` |
@@ -362,17 +361,13 @@ mypy tyranos/ omni.py --ignore-missing-imports    # type check
 | File | Contents |
 |------|----------|
 | [SETUP.md](SETUP.md) | Full installation, configuration, development workflow |
-| [tyranos/docs/usage.md](tyranos/docs/usage.md) | Every capability with example commands |
-| [tyranos/docs/user_guide.md](tyranos/docs/user_guide.md) | Interface walkthrough and config reference |
-| [tyranos/docs/bug_report.md](tyranos/docs/bug_report.md) | Audit report — 22 bugs found and fixed |
-| [tyranos/docs/MIGRATION.md](tyranos/docs/MIGRATION.md) | Polyglot architecture migration plan (v3.0) |
-| [tyranos/docs/fixes.md](tyranos/docs/fixes.md) | Running log of bugs found and fixed |
+| [docs/usage.md](docs/usage.md) | Every capability with example commands |
+| [docs/user_guide.md](docs/user_guide.md) | Interface walkthrough and config reference |
+| [docs/bug_report.md](docs/bug_report.md) | Audit report — 22 bugs found and fixed |
+| [docs/MIGRATION.md](docs/MIGRATION.md) | Polyglot architecture migration plan (v3.0) |
+| [docs/fixes.md](docs/fixes.md) | Running log of bugs found and fixed |
 
 ---
-
-## License
-
-MIT — see [LICENSE](LICENSE).
 
 ## Support
 

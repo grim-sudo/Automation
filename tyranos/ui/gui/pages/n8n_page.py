@@ -110,9 +110,7 @@ class N8nPage(ctk.CTkFrame):
             scrollbar_button_color=T.BG_RAISED,
             scrollbar_button_hover_color=T.PURPLE,
         )
-        self._wf_scroll.grid(
-            row=1, column=0, sticky="nsew", padx=T.PAD_CARD, pady=(0, T.PAD_CARD)
-        )
+        self._wf_scroll.grid(row=1, column=0, sticky="nsew", padx=T.PAD_CARD, pady=(0, T.PAD_CARD))
         self._wf_scroll.grid_columnconfigure(0, weight=1)
 
         self._status_label = ctk.CTkLabel(
@@ -142,9 +140,7 @@ class N8nPage(ctk.CTkFrame):
             scrollbar_button_color=T.BG_RAISED,
             scrollbar_button_hover_color=T.PURPLE,
         )
-        self._log_frame.grid(
-            row=1, column=0, sticky="nsew", padx=T.PAD_CARD, pady=(0, T.PAD_CARD)
-        )
+        self._log_frame.grid(row=1, column=0, sticky="nsew", padx=T.PAD_CARD, pady=(0, T.PAD_CARD))
         self._log_frame.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             self._log_frame,
@@ -164,6 +160,7 @@ class N8nPage(ctk.CTkFrame):
         try:
             if self._engine and hasattr(self._engine, "n8n"):
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 wfs = loop.run_until_complete(self._engine.n8n.list_workflows())
                 loop.close()
@@ -224,7 +221,9 @@ class N8nPage(ctk.CTkFrame):
 
     def _on_search(self, *_args: object) -> None:
         q = self._search_var.get().lower()
-        filtered = [w for w in self._workflows if q in w.get("name", "").lower()] if q else self._workflows
+        filtered = (
+            [w for w in self._workflows if q in w.get("name", "").lower()] if q else self._workflows
+        )
         self._render_workflows(filtered)
 
     # ── Trigger / Edit ────────────────────────────────────────────────────────
@@ -236,6 +235,7 @@ class N8nPage(ctk.CTkFrame):
         try:
             if self._engine and hasattr(self._engine, "n8n"):
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 result = loop.run_until_complete(
                     self._engine.n8n.trigger_workflow(wf.get("id", ""))
@@ -243,7 +243,9 @@ class N8nPage(ctk.CTkFrame):
                 loop.close()
                 self._result_queue.put(("triggered", {"wf": wf, "result": result, "ok": True}))
             else:
-                self._result_queue.put(("triggered", {"wf": wf, "result": "Engine not connected", "ok": False}))
+                self._result_queue.put(
+                    ("triggered", {"wf": wf, "result": "Engine not connected", "ok": False})
+                )
         except Exception as exc:
             self._result_queue.put(("triggered", {"wf": wf, "result": str(exc), "ok": False}))
 
@@ -287,6 +289,7 @@ class N8nPage(ctk.CTkFrame):
             try:
                 if self._engine and hasattr(self._engine, "n8n"):
                     import asyncio
+
                     loop = asyncio.new_event_loop()
                     loop.run_until_complete(
                         self._engine.n8n.create_workflow(name=name, description=description)
@@ -344,9 +347,9 @@ class _CreateDrawer(ctk.CTkToplevel):
         ctk.CTkButton(btn_row, text="Cancel", **T.btn_ghost_kwargs(), command=self.destroy).pack(
             side="left"
         )
-        ctk.CTkButton(
-            btn_row, text="Create", **T.btn_primary_kwargs(), command=self._submit
-        ).pack(side="right")
+        ctk.CTkButton(btn_row, text="Create", **T.btn_primary_kwargs(), command=self._submit).pack(
+            side="right"
+        )
 
     def _submit(self) -> None:
         name = self._name.get().strip()

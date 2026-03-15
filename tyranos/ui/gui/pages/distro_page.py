@@ -176,9 +176,9 @@ class DistroPage(ctk.CTkFrame):
 
     def _render_step_type(self) -> None:
         frame = self._scroll_frame()
-        ctk.CTkLabel(frame, text="Select Distro Type", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            frame, text="Select Distro Type", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         grid = ctk.CTkFrame(frame, fg_color="transparent")
         grid.pack(padx=T.PAD_CARD)
@@ -204,9 +204,9 @@ class DistroPage(ctk.CTkFrame):
 
     def _render_step_apps(self) -> None:
         frame = self._scroll_frame()
-        ctk.CTkLabel(frame, text="Select App Bundles", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            frame, text="Select App Bundles", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         self._app_vars: dict[str, tk.BooleanVar] = {}
         grid = ctk.CTkFrame(frame, fg_color="transparent")
@@ -236,9 +236,9 @@ class DistroPage(ctk.CTkFrame):
 
     def _render_step_base(self) -> None:
         frame = self._scroll_frame()
-        ctk.CTkLabel(frame, text="Select Base System", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            frame, text="Select Base System", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         self._base_var = tk.StringVar(value=self._config["base"])
         for base in _BASE_SYSTEMS:
@@ -280,9 +280,9 @@ class DistroPage(ctk.CTkFrame):
 
     def _render_step_security(self) -> None:
         frame = self._scroll_frame()
-        ctk.CTkLabel(frame, text="Security Options", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            frame, text="Security Options", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         self._harden_var = tk.BooleanVar(value=self._config["hardening"])
         ctk.CTkCheckBox(
@@ -331,9 +331,9 @@ class DistroPage(ctk.CTkFrame):
 
     def _render_step_build(self) -> None:
         frame = self._scroll_frame()
-        ctk.CTkLabel(frame, text="Build Summary", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_MD)
-        )
+        ctk.CTkLabel(
+            frame, text="Build Summary", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_MD))
 
         summary = ctk.CTkFrame(frame, fg_color=T.BG_RAISED, corner_radius=T.RADIUS_SM)
         summary.pack(fill="x", padx=T.PAD_CARD, pady=(0, T.SPACE_LG))
@@ -349,8 +349,17 @@ class DistroPage(ctk.CTkFrame):
         for label, value in lines:
             row = ctk.CTkFrame(summary, fg_color="transparent")
             row.pack(fill="x", padx=T.PAD_CARD, pady=T.SPACE_XS)
-            ctk.CTkLabel(row, text=f"{label}:", font=T.FONT_SMALL, text_color=T.TEXT_MUTED, width=100, anchor="w").pack(side="left")
-            ctk.CTkLabel(row, text=value, font=T.FONT_SMALL, text_color=T.TEXT_PRIMARY, anchor="w").pack(side="left")
+            ctk.CTkLabel(
+                row,
+                text=f"{label}:",
+                font=T.FONT_SMALL,
+                text_color=T.TEXT_MUTED,
+                width=100,
+                anchor="w",
+            ).pack(side="left")
+            ctk.CTkLabel(
+                row, text=value, font=T.FONT_SMALL, text_color=T.TEXT_PRIMARY, anchor="w"
+            ).pack(side="left")
 
         self._progress_card = ProgressCard(frame, title="Build Progress", percentage=0)
         self._progress_card.pack(fill="x", padx=T.PAD_CARD, pady=(0, T.SPACE_MD))
@@ -373,9 +382,7 @@ class DistroPage(ctk.CTkFrame):
         )
         self._build_btn.pack(side="left")
 
-        self._build_label = ctk.CTkLabel(
-            frame, text="", **T.label_secondary_kwargs()
-        )
+        self._build_label = ctk.CTkLabel(frame, text="", **T.label_secondary_kwargs())
         self._build_label.pack(pady=(T.SPACE_SM, 0))
 
     def _start_build(self) -> None:
@@ -390,16 +397,16 @@ class DistroPage(ctk.CTkFrame):
         try:
             if self._engine and hasattr(self._engine, "build_distro"):
                 import asyncio
+
                 loop = asyncio.new_event_loop()
-                for pct, msg in loop.run_until_complete(
-                    self._engine.build_distro(self._config)
-                ):
+                for pct, msg in loop.run_until_complete(self._engine.build_distro(self._config)):
                     self._result_queue.put(("progress", (pct, msg)))
                 loop.close()
                 self._result_queue.put(("done", "ISO build complete!"))
             else:
                 # Simulate progress for demo
                 import time
+
                 stages = [
                     (10, "Validating config…"),
                     (25, "Bootstrapping base…"),
@@ -529,8 +536,12 @@ class _SelectCard(ctk.CTkFrame):
         inner = ctk.CTkFrame(self, fg_color="transparent")
         inner.place(relx=0.5, rely=0.5, anchor="center")
 
-        ctk.CTkLabel(inner, text=f"{icon}  {title}", font=T.FONT_BODY_BOLD, text_color=T.TEXT_PRIMARY).pack()
-        ctk.CTkLabel(inner, text=desc, **T.label_secondary_kwargs(), wraplength=160).pack(pady=(T.SPACE_XS, 0))
+        ctk.CTkLabel(
+            inner, text=f"{icon}  {title}", font=T.FONT_BODY_BOLD, text_color=T.TEXT_PRIMARY
+        ).pack()
+        ctk.CTkLabel(inner, text=desc, **T.label_secondary_kwargs(), wraplength=160).pack(
+            pady=(T.SPACE_XS, 0)
+        )
 
         self._var.trace_add("write", self._refresh)
         self._refresh()

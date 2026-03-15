@@ -28,7 +28,6 @@ The public surface under test:
 from __future__ import annotations
 
 import pytest
-
 from tyranos.nlp.spell_corrector import SpellCorrector, get_spell_corrector
 
 # ─── Fixture ──────────────────────────────────────────────────────────────────

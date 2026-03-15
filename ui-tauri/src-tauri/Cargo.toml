@@ -1,0 +1,21 @@
+[package]
+name = "tyranos-tauri"
+version = "2.0.0"
+description = "Tyranos GUI — Tauri backend"
+authors = ["Tyranos Contributors"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri                    = { version = "2", features = ["devtools"] }
+tauri-plugin-shell       = "2"
+tauri-plugin-notification = "2"
+serde                    = { version = "1", features = ["derive"] }
+serde_json               = "1"
+tokio                    = { version = "1", features = ["full"] }
+anyhow                   = "1"
+
+# Reuse tyranos-core for config + validation
+tyranos-core = { path = "../../crates/tyranos-core" }

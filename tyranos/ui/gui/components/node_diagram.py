@@ -121,17 +121,22 @@ class NodeDiagram(ctk.CTkFrame):
             bx, by = positions[b]
             # Edge line
             c.create_line(
-                ax + self.NODE_W, ay,
-                bx, by,
+                ax + self.NODE_W,
+                ay,
+                bx,
+                by,
                 fill=T.BORDER_ACCENT,
                 width=2,
                 smooth=True,
             )
             # Arrow head
             c.create_polygon(
-                bx - 8, by - 5,
-                bx, by,
-                bx - 8, by + 5,
+                bx - 8,
+                by - 5,
+                bx,
+                by,
+                bx - 8,
+                by + 5,
                 fill=T.PURPLE,
                 outline="",
             )
@@ -147,8 +152,10 @@ class NodeDiagram(ctk.CTkFrame):
 
             # Node bg
             c.create_rectangle(
-                x, y - self.NODE_H // 2,
-                x + self.NODE_W, y + self.NODE_H // 2,
+                x,
+                y - self.NODE_H // 2,
+                x + self.NODE_W,
+                y + self.NODE_H // 2,
                 fill=T.BG_SURFACE,
                 outline=T.BORDER_ACCENT,
                 width=1,
@@ -156,7 +163,8 @@ class NodeDiagram(ctk.CTkFrame):
             # Icon + label
             c.create_text(x + self.NODE_W // 2, y - 8, text=icon, fill=T.TEXT_ACCENT, font=("", 14))
             c.create_text(
-                x + self.NODE_W // 2, y + 10,
+                x + self.NODE_W // 2,
+                y + 10,
                 text=label[:10],
                 fill=T.TEXT_PRIMARY,
                 font=T.FONT_MICRO,
@@ -201,7 +209,10 @@ class NodeDiagram(ctk.CTkFrame):
             r = 4
             try:
                 c.create_oval(
-                    px - r, py - r, px + r, py + r,
+                    px - r,
+                    py - r,
+                    px + r,
+                    py + r,
                     fill=T.CYAN_LIGHT,
                     outline="",
                     tags="anim_dot",

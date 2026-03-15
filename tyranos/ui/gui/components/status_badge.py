@@ -83,6 +83,7 @@ class StatusBadge(ctk.CTkFrame):
 
     def _start_pulse(self, active: str, bg: str) -> None:
         from ..animations import interpolate_color
+
         self._anim_running = True
         self._phase = 0.0
 
@@ -90,6 +91,7 @@ class StatusBadge(ctk.CTkFrame):
             if not self._anim_running or self._canvas is None or self._dot_id is None:
                 return
             import math
+
             self._phase += 0.1
             alpha = (math.sin(self._phase) + 1) / 2
             color = interpolate_color(bg, active, alpha)

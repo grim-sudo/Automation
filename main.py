@@ -43,7 +43,7 @@ def main() -> None:
     # absorb unknown flags silently for forward-compat
     args, _ = parser.parse_known_args()
 
-    # Build equivalent typer argv for omni.py
+    # Build equivalent typer argv for tyranos.py
     new_argv = [sys.argv[0]]
     if args.debug:
         new_argv += ["--debug"]
@@ -68,7 +68,7 @@ def main() -> None:
 
     # Invoke tyranos app
     sys.argv = new_argv
-    from tyranos import app  # type: ignore[import]
+    from tyranos._cli import app  # noqa: E402
     app()
 
 

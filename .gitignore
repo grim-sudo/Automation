@@ -167,3 +167,20 @@ reports/
 *.bak
 *.backup
 *.old
+
+# Node / Tauri
+node_modules/
+ui-tauri/dist/
+ui-tauri/src-tauri/target/
+ui-tauri/package-lock.json
+
+# Test artifacts
+cap_test_*/
+final_cleanup_test/
+batch_cap_*/
+tyranos_*.txt
+batch_*.txt
+/tests_output/
+
+# Rust build artifacts (workspace-level)
+/target/

@@ -106,7 +106,7 @@ N8N_API_KEY=your-n8n-api-key
 ```
 
 > **Important:** Always use the flat variable names `N8N_URL` and `N8N_API_KEY` (not
-> `OMNI__N8N__URL`). The compat layer maps these to the correct nested config fields.
+> `N8N__URL`). The compat layer maps these to the correct nested config fields.
 
 Tyranos reads `.env` automatically on startup.
 
@@ -157,23 +157,23 @@ api_key = "your-n8n-api-key"
 
 ```bash
 # Print version
-python omni.py --version
+python tyranos.py --version
 # Tyranos v1.0.0
 
 # Show help
-python omni.py --help
+python tyranos.py --help
 
 # Run a simple test
-python omni.py run "create a folder named omni_test"
-ls omni_test       # Linux/macOS — should exist
-dir omni_test      # Windows
+python tyranos.py run "create a folder named tyranos_test"
+ls tyranos_test       # Linux/macOS — should exist
+dir tyranos_test      # Windows
 
 # Clean up
-python omni.py run "delete the folder omni_test"
+python tyranos.py run "delete the folder tyranos_test"
 ```
 
 > **Note:** If you installed with `pip install -e .` and your venv's `bin/` is on `PATH`, you can
-> use `omni` directly instead of `python omni.py`.
+> use `tyranos` directly instead of `python tyranos.py`.
 
 ---
 
@@ -184,14 +184,14 @@ python omni.py run "delete the folder omni_test"
 Execute one natural-language command and exit.
 
 ```bash
-python omni.py run "create a folder named reports"
-python omni.py run "copy all PDF files to archive"
-python omni.py run "show disk usage on /"
+python tyranos.py run "create a folder named reports"
+python tyranos.py run "copy all PDF files to archive"
+python tyranos.py run "show disk usage on /"
 
 # Per-command flags
-python omni.py run "delete all logs" --safe-mode      # confirm before destructive ops
-python omni.py run "build the project" --debug        # verbose output
-python omni.py run "summarise this" -m openai/gpt-4o  # force a specific model
+python tyranos.py run "delete all logs" --safe-mode      # confirm before destructive ops
+python tyranos.py run "build the project" --debug        # verbose output
+python tyranos.py run "summarise this" -m openai/gpt-4o  # force a specific model
 ```
 
 ### `tyranos chatbot` — Interactive Mode
@@ -199,7 +199,7 @@ python omni.py run "summarise this" -m openai/gpt-4o  # force a specific model
 Multi-turn conversational interface with context carried across turns.
 
 ```bash
-python omni.py chatbot
+python tyranos.py chatbot
 ```
 
 Special commands inside the chatbot:
@@ -238,10 +238,10 @@ take a screenshot and save to ~/screenshots/before.png
 ```
 
 ```bash
-python omni.py batch tasks.txt
-python omni.py batch tasks.txt --stop-on-error   # halt on first failure
-python omni.py batch tasks.txt --safe-mode       # confirm destructive steps
-python omni.py batch tasks.txt --debug           # verbose per-step output
+python tyranos.py batch tasks.txt
+python tyranos.py batch tasks.txt --stop-on-error   # halt on first failure
+python tyranos.py batch tasks.txt --safe-mode       # confirm destructive steps
+python tyranos.py batch tasks.txt --debug           # verbose per-step output
 ```
 
 ---
@@ -267,16 +267,16 @@ N8N_API_KEY=eyJhbGciOiJIUzI1NiIs...
 
 ```bash
 # List all workflows
-python omni.py n8n list
+python tyranos.py n8n list
 
 # Create a workflow from natural language
-python omni.py n8n create "every hour fetch weather data and post to Slack"
+python tyranos.py n8n create "every hour fetch weather data and post to Slack"
 
 # Trigger a workflow manually
-python omni.py n8n run <workflow-id>
+python tyranos.py n8n run <workflow-id>
 
 # Check execution status
-python omni.py n8n status <workflow-id>
+python tyranos.py n8n status <workflow-id>
 ```
 
 ---
@@ -305,16 +305,16 @@ pip install -e ".[distro]"
 
 ```bash
 # List available profiles
-python omni.py distro profiles
+python tyranos.py distro profiles
 
 # Estimate build time and disk usage (dry run)
-python omni.py distro estimate --profile minimal
+python tyranos.py distro estimate --profile minimal
 
 # Build from a named profile
-sudo python omni.py distro build --profile debian_base --output ~/isos/
+sudo python tyranos.py distro build --profile debian_base --output ~/isos/
 
 # Build from natural language
-sudo python omni.py distro build --nl "minimal Debian ISO with nginx, headless, no GUI"
+sudo python tyranos.py distro build --nl "minimal Debian ISO with nginx, headless, no GUI"
 ```
 
 ### Custom build profile
@@ -352,7 +352,7 @@ desktop  = ""
 ### Priority order (highest wins)
 
 1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
-2. `OMNI__SECTION__FIELD` env vars — e.g. `OMNI__AI__MAX_TOKENS=16000`
+2. `SECTION__FIELD` env vars — e.g. `AI__MAX_TOKENS=16000`
 3. Flat legacy env vars — `OPENROUTER_API_KEY`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
 4. `~/.tyranos/config.toml`
 5. Built-in defaults
@@ -390,7 +390,7 @@ polling_interval_seconds = 5
 
 # ── Distro Builder ────────────────────────────────────────────────────────────
 [distro_builder]
-work_dir                  = "/tmp/omni_distro_build"
+work_dir                  = "/tmp/tyranos_distro_build"
 output_dir                = "./distro_output"
 default_jobs              = 0       # 0 = auto from nproc
 debian_mirror             = "http://deb.debian.org/debian"
@@ -409,10 +409,10 @@ require_root_confirmation = true
 | `MAX_RETRIES` | `ai.max_retries` | Default: 3 |
 | `N8N_API_KEY` | `n8n.api_key` | Required for n8n commands |
 | `N8N_URL` | `n8n.url` | Default: `http://localhost:5678` |
-| `OMNI__AI__MAX_TOKENS` | `ai.max_tokens` | Nested override format |
-| `OMNI__AI__TIMEOUT` | `ai.timeout` | Nested override format |
-| `OMNI__DEBUG` | `debug` | `true` / `false` |
-| `OMNI_SAFE_MODE` | `safe_mode` | `true` / `false` |
+| `AI__MAX_TOKENS` | `ai.max_tokens` | Nested override format |
+| `AI__TIMEOUT` | `ai.timeout` | Nested override format |
+| `DEBUG` | `debug` | `true` / `false` |
+| `SAFE_MODE` | `safe_mode` | `true` / `false` |
 
 ---
 
@@ -442,18 +442,18 @@ pytest tests/ -m "not slow and not integration"
 
 ```bash
 # Lint
-ruff check tyranos/ omni.py tests/
+ruff check tyranos/ tests/
 
 # Auto-fix + format
-ruff check --fix tyranos/ omni.py tests/
-ruff format tyranos/ omni.py tests/
+ruff check --fix tyranos/ tests/
+ruff format tyranos/ tests/
 
 # Type check
-mypy tyranos/ omni.py --ignore-missing-imports
+mypy tyranos/ --ignore-missing-imports
 
 # Full CI check (same as GitHub Actions)
-ruff check tyranos/ omni.py tests/ && \
-mypy tyranos/ omni.py --ignore-missing-imports && \
+ruff check tyranos/ tests/ && \
+mypy tyranos/ --ignore-missing-imports && \
 pytest tests/ -v
 ```
 
@@ -461,22 +461,22 @@ pytest tests/ -v
 
 ## Troubleshooting
 
-### `omni: command not found`
+### `tyranos: command not found`
 
 Activate your venv and verify the install:
 
 ```bash
 source venv/bin/activate
-which omni       # should show path inside venv/
+which tyranos       # should show path inside venv/
 # If not found, use:
-python omni.py --help
+python tyranos.py --help
 ```
 
 ### AI not responding / empty responses
 
 ```bash
 echo $OPENROUTER_API_KEY          # check the key is set
-python omni.py --debug run "hello"   # see full HTTP traffic
+python tyranos.py --debug run "hello"   # see full HTTP traffic
 ```
 
 ### n8n returns 401 Unauthorized
@@ -505,7 +505,7 @@ pip install -e . --force-reinstall --no-cache-dir
 sudo apt-get install xvfb
 Xvfb :99 -screen 0 1024x768x24 &
 export DISPLAY=:99
-python omni.py gui
+python tyranos.py gui
 ```
 
 ### Distro builder: permission denied
@@ -513,15 +513,15 @@ python omni.py gui
 `debootstrap` and `pacstrap` require root:
 
 ```bash
-sudo python omni.py distro build --profile debian_base --output ./isos/
+sudo python tyranos.py distro build --profile debian_base --output ./isos/
 ```
 
 ### Enable debug logging
 
 ```bash
-python omni.py --debug run "your command"
-python omni.py --log-file /tmp/omni.jsonl run "your command"
-python -m json.tool < /tmp/omni.jsonl   # pretty-print JSON logs
+python tyranos.py --debug run "your command"
+python tyranos.py --log-file /tmp/tyranos.jsonl run "your command"
+python -m json.tool < /tmp/tyranos.jsonl   # pretty-print JSON logs
 ```
 
 ---
@@ -538,7 +538,7 @@ python -m json.tool < /tmp/omni.jsonl   # pretty-print JSON logs
 
 ## Next Steps
 
-1. Run `python omni.py chatbot` to explore capabilities interactively
+1. Run `python tyranos.py chatbot` to explore capabilities interactively
 2. Read [usage.md](usage.md) for per-task command examples for every capability
 3. Read [user_guide.md](user_guide.md) for the full CLI and Python API reference
 4. Copy `~/.tyranos/config.example.toml` to `config.toml` and customise it

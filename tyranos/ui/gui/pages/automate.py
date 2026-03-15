@@ -112,9 +112,7 @@ class AutomatePage(ctk.CTkFrame):
             corner_radius=T.RADIUS_INPUT,
             wrap="word",
         )
-        self._cmd_input.grid(
-            row=1, column=0, sticky="ew", padx=T.PAD_CARD, pady=(0, T.SPACE_SM)
-        )
+        self._cmd_input.grid(row=1, column=0, sticky="ew", padx=T.PAD_CARD, pady=(0, T.SPACE_SM))
         self._cmd_input.insert("1.0", "")
 
         # Placeholder
@@ -240,7 +238,9 @@ class AutomatePage(ctk.CTkFrame):
             except Exception as exc:
                 self._append_output_step(f"Parse error: {exc}", "error")
         else:
-            self._append_output_step("Engine not connected — attach Tyranos engine to preview.", "warn")
+            self._append_output_step(
+                "Engine not connected — attach Tyranos engine to preview.", "warn"
+            )
 
     def _execute(self) -> None:
         if self._running:
@@ -272,7 +272,9 @@ class AutomatePage(ctk.CTkFrame):
                 output = str(result.get("result", result.get("error", "Done.")))
                 self._result_queue.put(("ok", output))
             else:
-                self._result_queue.put(("warn", "Engine not attached. Connect Tyranos engine in Settings."))
+                self._result_queue.put(
+                    ("warn", "Engine not attached. Connect Tyranos engine in Settings.")
+                )
         except Exception as exc:
             self._result_queue.put(("error", f"Error: {exc}"))
 

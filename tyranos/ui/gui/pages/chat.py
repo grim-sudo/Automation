@@ -159,9 +159,7 @@ class ChatPage(ctk.CTkFrame):
         welcome = ctk.CTkFrame(self._conv_frame, fg_color="transparent")
         welcome.pack(fill="both", expand=True, pady=T.SPACE_2XL)
 
-        ctk.CTkLabel(
-            welcome, text="💬", font=(T.FONT_FAMILY, 48), text_color=T.TEXT_MUTED
-        ).pack()
+        ctk.CTkLabel(welcome, text="💬", font=(T.FONT_FAMILY, 48), text_color=T.TEXT_MUTED).pack()
         ctk.CTkLabel(
             welcome,
             text="What can I help you with?",
@@ -343,9 +341,9 @@ class _SuggestionCard(ctk.CTkFrame):
         ctk.CTkLabel(inner, text=f"{icon}  {title}", **T.label_body_kwargs(), anchor="w").pack(
             anchor="w"
         )
-        ctk.CTkLabel(inner, text=desc, **T.label_secondary_kwargs(), wraplength=190, justify="left").pack(
-            anchor="w", pady=(2, 0)
-        )
+        ctk.CTkLabel(
+            inner, text=desc, **T.label_secondary_kwargs(), wraplength=190, justify="left"
+        ).pack(anchor="w", pady=(2, 0))
 
         for w in [self, inner, *inner.winfo_children()]:
             w.bind("<Button-1>", self._clicked, add="+")

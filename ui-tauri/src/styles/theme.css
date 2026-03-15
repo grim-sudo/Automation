@@ -1,0 +1,81 @@
+/* Tyranos Design System — mirrors tyranos/ui/gui/theme.py */
+
+:root {
+  /* ── Backgrounds ──────────────────────────────────────────────────────── */
+  --bg-deep: #080810;
+  --bg-surface: #0f0f1a;
+  --bg-raised: #1a1a2e;
+
+  /* ── Brand ────────────────────────────────────────────────────────────── */
+  --purple: #7c3aed;
+  --purple-light: #a78bfa;
+  --purple-dim: #1e1247;
+  --cyan: #06b6d4;
+  --cyan-dim: #061e24;
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-accent: #a78bfa;
+  --text-muted: #475569;
+
+  /* ── Semantic ─────────────────────────────────────────────────────────── */
+  --success: #10b981;
+  --success-dim: #0a2e20;
+  --error: #ef4444;
+  --error-dim: #3d1010;
+  --warning: #f59e0b;
+
+  /* ── Borders ──────────────────────────────────────────────────────────── */
+  --border-subtle: #1e293b;
+  --border-accent: #2d1b69;
+  --border-cyan: #083d4a;
+
+  /* ── Spacing ──────────────────────────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 32px;
+
+  /* ── Radius ───────────────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-input: 8px;
+
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --font-family: "Inter", "JetBrains Mono", system-ui, monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-body: 13px;
+  --font-size-subheading: 15px;
+  --font-size-heading: 18px;
+
+  /* ── Sidebar ──────────────────────────────────────────────────────────── */
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 64px;
+  --topbar-height: 52px;
+
+  /* ── Transitions ──────────────────────────────────────────────────────── */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  -webkit-font-smoothing: antialiased;
+}

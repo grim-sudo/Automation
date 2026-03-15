@@ -133,9 +133,9 @@ class SettingsPage(ctk.CTkFrame):
     def _render_ai(self) -> None:
         scroll = self._make_scroll()
 
-        ctk.CTkLabel(scroll, text="AI Configuration", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            scroll, text="AI Configuration", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         cfg = self._load_config()
 
@@ -170,6 +170,7 @@ class SettingsPage(ctk.CTkFrame):
     def _save_ai(self) -> None:
         try:
             from tyranos.config import get_config
+
             cfg = get_config()
             cfg.ai.openrouter_api_key = self._ai_key.get().strip()  # type: ignore[union-attr]
             cfg.ai.openrouter_base_url = self._ai_base.get().strip()  # type: ignore[union-attr]
@@ -186,11 +187,12 @@ class SettingsPage(ctk.CTkFrame):
     def _render_n8n(self) -> None:
         scroll = self._make_scroll()
 
-        ctk.CTkLabel(scroll, text="n8n Connection", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            scroll, text="n8n Connection", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         import os
+
         self._n8n_url = self._field(
             scroll,
             "n8n URL",
@@ -215,9 +217,7 @@ class SettingsPage(ctk.CTkFrame):
             **T.btn_outline_kwargs(),
             command=self._test_n8n,
         ).pack(side="left")
-        self._n8n_test_label = ctk.CTkLabel(
-            test_row, text="", **T.label_secondary_kwargs()
-        )
+        self._n8n_test_label = ctk.CTkLabel(test_row, text="", **T.label_secondary_kwargs())
         self._n8n_test_label.pack(side="left", padx=T.SPACE_SM)
 
         self._save_btn(scroll, self._save_n8n)
@@ -229,6 +229,7 @@ class SettingsPage(ctk.CTkFrame):
             result_q: queue.Queue = queue.Queue()
             try:
                 import httpx
+
                 url = self._n8n_url.get().strip().rstrip("/")
                 key = self._n8n_key.get().strip()
                 with httpx.Client(timeout=5) as c:
@@ -246,6 +247,7 @@ class SettingsPage(ctk.CTkFrame):
 
     def _save_n8n(self) -> None:
         import os
+
         os.environ["N8N_URL"] = self._n8n_url.get().strip()
         os.environ["N8N_API_KEY"] = self._n8n_key.get().strip()
         self._show_saved()
@@ -255,9 +257,9 @@ class SettingsPage(ctk.CTkFrame):
     def _render_distro(self) -> None:
         scroll = self._make_scroll()
 
-        ctk.CTkLabel(scroll, text="Distro Builder", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            scroll, text="Distro Builder", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         self._iso_out = self._field(
             scroll,
@@ -288,9 +290,9 @@ class SettingsPage(ctk.CTkFrame):
     def _render_appearance(self) -> None:
         scroll = self._make_scroll()
 
-        ctk.CTkLabel(scroll, text="Appearance", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            scroll, text="Appearance", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         ctk.CTkLabel(scroll, text="Color Mode", **T.label_secondary_kwargs()).pack(
             anchor="w", padx=T.PAD_CARD
@@ -332,6 +334,7 @@ class SettingsPage(ctk.CTkFrame):
 
     def _on_color_mode(self, value: str) -> None:
         import customtkinter as ctk2
+
         mode_map = {"Dark": "dark", "Light": "light", "System": "system"}
         try:
             ctk2.set_appearance_mode(mode_map.get(value, "dark"))
@@ -342,6 +345,7 @@ class SettingsPage(ctk.CTkFrame):
         self._scale_label.configure(text=f"Scale: {value:.1f}×")
         try:
             import customtkinter as ctk2
+
             ctk2.set_widget_scaling(value)
         except Exception:
             pass
@@ -351,9 +355,9 @@ class SettingsPage(ctk.CTkFrame):
     def _render_safety(self) -> None:
         scroll = self._make_scroll()
 
-        ctk.CTkLabel(scroll, text="Safety & Permissions", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY).pack(
-            anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            scroll, text="Safety & Permissions", font=T.FONT_HEADING, text_color=T.TEXT_PRIMARY
+        ).pack(anchor="w", padx=T.PAD_CARD, pady=(T.PAD_CARD, T.SPACE_LG))
 
         toggles = [
             ("Safe Mode Default", "Enable safe mode for all new commands", True),
@@ -409,9 +413,9 @@ class SettingsPage(ctk.CTkFrame):
         logo_canvas.create_text(32, 32, text="T", font=("Inter", 28, "bold"), fill=T.TEXT_WHITE)
 
         ctk.CTkLabel(frame, text="Tyranos", font=T.FONT_DISPLAY, text_color=T.TEXT_PRIMARY).pack()
-        ctk.CTkLabel(frame, text="v2.0.0  ·  Universal OS Automation Framework", **T.label_secondary_kwargs()).pack(
-            pady=(T.SPACE_XS, T.SPACE_LG)
-        )
+        ctk.CTkLabel(
+            frame, text="v2.0.0  ·  Universal OS Automation Framework", **T.label_secondary_kwargs()
+        ).pack(pady=(T.SPACE_XS, T.SPACE_LG))
 
         info_card = ctk.CTkFrame(frame, fg_color=T.BG_RAISED, corner_radius=T.RADIUS_SM)
         info_card.pack(fill="x", padx=T.PAD_CARD)
@@ -425,8 +429,12 @@ class SettingsPage(ctk.CTkFrame):
         for label, value in rows:
             r = ctk.CTkFrame(info_card, fg_color="transparent")
             r.pack(fill="x", padx=T.PAD_CARD, pady=T.SPACE_XS)
-            ctk.CTkLabel(r, text=label, font=T.FONT_SMALL, text_color=T.TEXT_MUTED, width=100, anchor="w").pack(side="left")
-            ctk.CTkLabel(r, text=value, font=T.FONT_SMALL, text_color=T.TEXT_PRIMARY, anchor="w").pack(side="left")
+            ctk.CTkLabel(
+                r, text=label, font=T.FONT_SMALL, text_color=T.TEXT_MUTED, width=100, anchor="w"
+            ).pack(side="left")
+            ctk.CTkLabel(
+                r, text=value, font=T.FONT_SMALL, text_color=T.TEXT_PRIMARY, anchor="w"
+            ).pack(side="left")
 
         ctk.CTkLabel(
             frame,
@@ -493,6 +501,7 @@ class SettingsPage(ctk.CTkFrame):
     def _load_config(self) -> dict:
         try:
             from tyranos.config import get_config
+
             cfg = get_config()
             return {
                 "openrouter_api_key": cfg.ai.openrouter_api_key or "",

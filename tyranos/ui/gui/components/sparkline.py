@@ -127,7 +127,10 @@ class Sparkline(ctk.CTkFrame):
         lx, ly = pts[-1]
         r = 3
         self._canvas.create_oval(
-            lx - r, ly - r, lx + r, ly + r,
+            lx - r,
+            ly - r,
+            lx + r,
+            ly + r,
             fill=self._line_color,
             outline="",
         )

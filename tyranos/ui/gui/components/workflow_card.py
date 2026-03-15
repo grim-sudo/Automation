@@ -60,9 +60,7 @@ class WorkflowCard(ctk.CTkFrame):
         self._build(name, active, trigger, last_run, exec_count)
         self._bind_hover()
 
-    def _build(
-        self, name: str, active: bool, trigger: str, last_run: str, exec_count: int
-    ) -> None:
+    def _build(self, name: str, active: bool, trigger: str, last_run: str, exec_count: int) -> None:
         pad = T.PAD_CARD
 
         # ── Header: name + status ─────────────────────────────────────────────

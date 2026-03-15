@@ -46,7 +46,7 @@ pip install -e ".[gui]"           # includes GUI (requires a display)
 **Verify:**
 
 ```bash
-python omni.py --version
+tyranos --version
 # 1.0.0
 ```
 
@@ -104,39 +104,39 @@ export OMNI__DEBUG=true
 ## Running a single command
 
 ```bash
-python omni.py run "COMMAND"
+tyranos run "COMMAND"
 ```
 
 **Examples:**
 
 ```bash
 # File system
-python omni.py run "create a folder named reports in ~/Documents"
-python omni.py run "create 5 folders named test1 through test5 on the Desktop"
-python omni.py run "delete all .tmp files in /home/user/Downloads"
+tyranos run "create a folder named reports in ~/Documents"
+tyranos run "create 5 folders named test1 through test5 on the Desktop"
+tyranos run "delete all .tmp files in /home/user/Downloads"
 
 # Screenshots / UI
-python omni.py run "take a screenshot and save to ~/screenshots/now.png"
+tyranos run "take a screenshot and save to ~/screenshots/now.png"
 
 # System info
-python omni.py run "show running processes sorted by CPU"
-python omni.py run "check disk usage on /"
+tyranos run "show running processes sorted by CPU"
+tyranos run "check disk usage on /"
 
 # Web / network
-python omni.py run "download https://example.com/file.zip to ~/Downloads"
+tyranos run "download https://example.com/file.zip to ~/Downloads"
 
 # Development
-python omni.py run "create a Python project called my-api in ~/Projects"
-python omni.py run "deploy the app"
-python omni.py run "run the test suite"
+tyranos run "create a Python project called my-api in ~/Projects"
+tyranos run "deploy the app"
+tyranos run "run the test suite"
 ```
 
 **Flags:**
 
 ```bash
-python omni.py run "delete all logs" --safe-mode   # asks for confirmation first
-python omni.py run "build project" --debug          # verbose output
-python omni.py run "summarise this" -m openai/gpt-4o  # force a specific model
+tyranos run "delete all logs" --safe-mode   # asks for confirmation first
+tyranos run "build project" --debug          # verbose output
+tyranos run "summarise this" -m openai/gpt-4o  # force a specific model
 ```
 
 ---
@@ -146,7 +146,7 @@ python omni.py run "summarise this" -m openai/gpt-4o  # force a specific model
 Starts a REPL where you type commands one at a time:
 
 ```bash
-python omni.py chatbot
+tyranos chatbot
 ```
 
 - Type any natural language command and press Enter.
@@ -174,15 +174,15 @@ show disk usage on /home
 **Run it:**
 
 ```bash
-python omni.py batch tasks.txt
+tyranos batch tasks.txt
 ```
 
 **Options:**
 
 ```bash
-python omni.py batch tasks.txt --stop-on-error     # halt on first failure
-python omni.py batch tasks.txt --safe-mode         # confirm destructive steps
-python omni.py batch tasks.txt --debug             # verbose output per step
+tyranos batch tasks.txt --stop-on-error     # halt on first failure
+tyranos batch tasks.txt --safe-mode         # confirm destructive steps
+tyranos batch tasks.txt --debug             # verbose output per step
 ```
 
 ---
@@ -204,14 +204,14 @@ The n8n bridge talks to a running [n8n](https://n8n.io) instance via its REST AP
 ### List workflows
 
 ```bash
-python omni.py n8n list
+tyranos n8n list
 ```
 
 ### Create a workflow from natural language
 
 ```bash
-python omni.py n8n create "send a Slack message every morning at 9am"
-python omni.py n8n create "watch a folder for new CSV files and email them to me"
+tyranos n8n create "send a Slack message every morning at 9am"
+tyranos n8n create "watch a folder for new CSV files and email them to me"
 ```
 
 Tyranos uses the AI layer to generate the workflow JSON, then posts it to n8n. You can activate it manually from the n8n UI or via the API.
@@ -219,13 +219,13 @@ Tyranos uses the AI layer to generate the workflow JSON, then posts it to n8n. Y
 ### Trigger (run) a workflow
 
 ```bash
-python omni.py n8n run <WORKFLOW_ID>
+tyranos n8n run <WORKFLOW_ID>
 ```
 
 ### Check workflow status
 
 ```bash
-python omni.py n8n status <WORKFLOW_ID>
+tyranos n8n status <WORKFLOW_ID>
 ```
 
 ---
@@ -237,21 +237,21 @@ Builds a bootable Linux ISO from scratch. Requires root and Linux build tools (`
 **List available profiles:**
 
 ```bash
-python omni.py distro profiles
+tyranos distro profiles
 ```
 
 **Estimate build time and disk usage (dry run):**
 
 ```bash
-python omni.py distro estimate --profile minimal
-python omni.py distro estimate --profile desktop
+tyranos distro estimate --profile minimal
+tyranos distro estimate --profile desktop
 ```
 
 **Build an ISO:**
 
 ```bash
-sudo python omni.py distro build --profile minimal --output ~/isos/
-sudo python omni.py distro build --profile desktop --name "MyDistro" --output ~/isos/
+sudo tyranos distro build --profile minimal --output ~/isos/
+sudo tyranos distro build --profile desktop --name "MyDistro" --output ~/isos/
 ```
 
 Build stages (all async, progress reported to the console):
@@ -287,14 +287,14 @@ These flags apply to all commands:
 
 ```bash
 # Debug a failing command
-python omni.py --debug run "my command"
+tyranos --debug run "my command"
 
 # Always log to a file
-python omni.py --log-file ~/omni.jsonl run "my command"
+tyranos --log-file ~/tyranos.jsonl run "my command"
 
 # Set via environment so you don't have to type it every time
 export OMNI_SAFE_MODE=true
-python omni.py run "delete old logs"   # will ask for confirmation
+tyranos run "delete old logs"   # will ask for confirmation
 ```
 
 ---
@@ -314,10 +314,10 @@ Tyranos uses [loguru](https://github.com/Delgan/loguru) for structured logging.
 
 ```bash
 # Tail-follow a running session
-tail -f ~/omni.jsonl | python -m json.tool
+tail -f ~/tyranos.jsonl | python -m json.tool
 
 # Filter only errors
-grep '"level":"ERROR"' ~/omni.jsonl | python -m json.tool
+grep '"level":"ERROR"' ~/tyranos.jsonl | python -m json.tool
 ```
 
 ---
@@ -395,7 +395,7 @@ require_root_confirmation = true
 Tyranos automatically selects the best free model from OpenRouter at startup. You do **not** need to set a model name. If you want to pin a model:
 
 ```bash
-python omni.py run "my command" -m openai/gpt-4o
+tyranos run "my command" -m openai/gpt-4o
 ```
 
 Or in `.env` (not recommended — overrides auto-selection):
@@ -408,7 +408,7 @@ Or in `.env` (not recommended — overrides auto-selection):
 
 ```bash
 # Confirm every destructive step interactively
-python omni.py --safe-mode batch cleanup_tasks.txt
+tyranos --safe-mode batch cleanup_tasks.txt
 ```
 
 ### Running without an AI key (offline / local mode)
@@ -418,9 +418,9 @@ Some simple intents (file operations, folder creation) are handled directly by t
 ### Shell completion
 
 ```bash
-python omni.py --install-completion    # installs completion for your shell
+tyranos --install-completion    # installs completion for your shell
 # restart your shell, then:
-python omni.py r<TAB>    # completes to 'run'
+tyranos r<TAB>    # completes to 'run'
 ```
 
 ### Programmatic Python API
@@ -442,18 +442,18 @@ engine.shutdown()
 
 ```bash
 # 1. List existing workflows
-python omni.py n8n list
+tyranos n8n list
 
 # 2. Create a new one from natural language
-python omni.py n8n create "every hour, check if /var/log/app.log is over 100MB and email me"
+tyranos n8n create "every hour, check if /var/log/app.log is over 100MB and email me"
 
 # 3. Activate it in the n8n UI (or via the n8n REST API directly)
 
 # 4. Check its last execution status
-python omni.py n8n status <id>
+tyranos n8n status <id>
 
 # 5. Trigger it manually
-python omni.py n8n run <id>
+tyranos n8n run <id>
 ```
 
 ### Batch file for a morning routine
@@ -467,5 +467,5 @@ list all files modified in the last 24 hours in ~/Projects
 ```
 
 ```bash
-python omni.py batch morning_routine.txt --log-file ~/morning.jsonl
+tyranos batch morning_routine.txt --log-file ~/morning.jsonl
 ```

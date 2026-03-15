@@ -426,3 +426,61 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 **Test impact:** Zero regressions — 153 passed. GUI code passes `ruff check` cleanly.
 
 ---
+
+# Repository Cleanup Pass (2026-03-15)
+
+> **Scope:** Cleanup, reorganisation, and code quality fixes applied across the whole repository.
+
+---
+
+## Fix #C1 — Delete stale artefacts and legacy shim
+
+**Date:** 2026-03-15
+**File(s):** `coverage.xml` (root), `omni.py`
+**Bug:** `coverage.xml` was a local CI artefact committed accidentally. `omni.py` was a one-liner backward-compat shim that served no purpose after all callers were updated to use `tyranos._cli` directly.
+**Fix:** Deleted both files. Added `coverage.xml` to `.gitignore` (already was there). No functional references to `omni.py` existed outside historical documentation.
+**Verified:** `git ls-files omni.py coverage.xml` → empty.
+
+---
+
+## Fix #C2 — Move tests to root tests/
+
+**Date:** 2026-03-15
+**File(s):** `tyranos/tests/` → `tests/`
+**Bug:** Tests lived inside the package directory (`tyranos/tests/`) but `pyproject.toml` declared `testpaths = ["tests"]` and the CI yaml explicitly passed `tyranos/tests/` overriding it — mismatch.
+**Root Cause:** Tests were placed inside the package during initial development and never migrated.
+**Fix:** Copied all 8 test files to `tests/` at root (no import changes needed — all used absolute package imports). Deleted `tyranos/tests/`. Updated `.github/workflows/ci.yml` line 98 to `pytest tests/`.
+**Verified:** `pytest tests/ -q --asyncio-mode=auto -m "not integration and not slow"` → 153 passed.
+
+---
+
+## Fix #C3 — Move docs to root docs/
+
+**Date:** 2026-03-15
+**File(s):** `tyranos/docs/` → `docs/`
+**Bug:** Documentation files were inside the Python package tree, making them invisible in standard repository docs browsing and not the conventional location.
+**Fix:** Copied all 5 docs files to `docs/` at root. Updated `README.md` links from `tyranos/docs/X.md` to `docs/X.md`. Updated `README.md` pytest example command. Deleted `tyranos/docs/`.
+**Verified:** `ls docs/` shows all 5 files; no `tyranos/docs/` or `tyranos/tests/` remain.
+
+---
+
+## Fix #C4 — Ruff I001 unsorted imports in test files
+
+**Date:** 2026-03-15
+**File(s):** `tests/test_model_fallback.py`, `tests/test_nlp.py`, `tests/test_path_validator.py`, `tests/test_response_parser.py`, `tests/test_spell_corrector.py`
+**Bug:** `ruff check --output-format=github` reported `I001` (unsorted import blocks) in all 5 non-trivial test files.
+**Fix:** `ruff check tests/ --select I001 --fix` auto-sorted all import blocks; `ruff format tests/` reformatted for style.
+**Verified:** `ruff check tyranos/ tyranos.py tests/` → no output (zero issues).
+
+---
+
+## Fix #C5 — Ruff format issues in 16 GUI files
+
+**Date:** 2026-03-15
+**File(s):** `tyranos/ui/gui/app.py`, `tyranos/ui/gui/theme.py`, `tyranos/ui/gui/sidebar.py`, all 6 pages and 6 components.
+**Bug:** `ruff format --check tyranos/` reported 16 GUI files would be reformatted.
+**Root Cause:** GUI was added in a previous session without running the formatter.
+**Fix:** `ruff format tyranos/ui/gui/` — 16 files reformatted.
+**Verified:** `ruff format --check tyranos/ tyranos.py tests/` → "93 files already formatted".
+
+---

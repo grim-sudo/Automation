@@ -66,7 +66,9 @@ class HomePage(ctk.CTkScrollableFrame):
         left.pack(side="left", fill="x", expand=True)
 
         hour = datetime.now().hour
-        greeting = "Good morning" if hour < 12 else "Good afternoon" if hour < 18 else "Good evening"
+        greeting = (
+            "Good morning" if hour < 12 else "Good afternoon" if hour < 18 else "Good evening"
+        )
         ctk.CTkLabel(
             left,
             text=f"{greeting}, Commander",
@@ -93,10 +95,10 @@ class HomePage(ctk.CTkScrollableFrame):
         right.pack(side="right", padx=(T.SPACE_LG, 0))
 
         actions = [
-            ("💬 New Chat",      "chat"),
-            ("⚡ Run Command",   "automate"),
-            ("💿 Build OS",      "distro"),
-            ("🔄 New Workflow",  "n8n"),
+            ("💬 New Chat", "chat"),
+            ("⚡ Run Command", "automate"),
+            ("💿 Build OS", "distro"),
+            ("🔄 New Workflow", "n8n"),
         ]
         for idx, (label, page) in enumerate(actions):
             row, col = divmod(idx, 2)
@@ -144,6 +146,7 @@ class HomePage(ctk.CTkScrollableFrame):
 
         try:
             import psutil
+
             self._cpu_label = ctk.CTkLabel(
                 sys_card.body, text=f"CPU: {psutil.cpu_percent():.0f}%", **T.label_body_kwargs()
             )
@@ -154,21 +157,21 @@ class HomePage(ctk.CTkScrollableFrame):
             ctk.CTkLabel(
                 sys_card.body,
                 text=f"RAM: {ram.percent:.0f}%  ({ram.used // 1024 // 1024:.0f} MB / "
-                     f"{ram.total // 1024 // 1024:.0f} MB)",
+                f"{ram.total // 1024 // 1024:.0f} MB)",
                 **T.label_secondary_kwargs(),
             ).pack(anchor="w")
         except Exception:
-            ctk.CTkLabel(sys_card.body, text="psutil not available", **T.label_secondary_kwargs()).pack(
-                anchor="w"
-            )
+            ctk.CTkLabel(
+                sys_card.body, text="psutil not available", **T.label_secondary_kwargs()
+            ).pack(anchor="w")
 
         # Card 3 — n8n
         n8n_card = _StatCard(row, title="🔄 n8n Workflows")
         n8n_card.grid(row=0, column=2, padx=(T.GAP_ELEMENT, 0), sticky="nsew")
 
-        ctk.CTkLabel(n8n_card.body, text="0 active", font=T.FONT_HEADING, text_color=T.TEXT_ACCENT).pack(
-            anchor="w"
-        )
+        ctk.CTkLabel(
+            n8n_card.body, text="0 active", font=T.FONT_HEADING, text_color=T.TEXT_ACCENT
+        ).pack(anchor="w")
         ctk.CTkLabel(
             n8n_card.body,
             text="Not connected to n8n",
@@ -224,9 +227,7 @@ class HomePage(ctk.CTkScrollableFrame):
 
     def _update_clock(self) -> None:
         try:
-            self._date_label.configure(
-                text=datetime.now().strftime("%A, %B %d, %Y  %H:%M:%S")
-            )
+            self._date_label.configure(text=datetime.now().strftime("%A, %B %d, %Y  %H:%M:%S"))
             self.after(1000, self._update_clock)
         except Exception:
             pass
@@ -235,6 +236,7 @@ class HomePage(ctk.CTkScrollableFrame):
         def _update() -> None:
             try:
                 import psutil
+
                 cpu = psutil.cpu_percent(interval=None)
                 if self._sparkline:
                     self._sparkline.push(cpu)
@@ -248,6 +250,7 @@ class HomePage(ctk.CTkScrollableFrame):
 
 
 # ── Helper widgets ─────────────────────────────────────────────────────────────
+
 
 class _StatCard(ctk.CTkFrame):
     def __init__(self, parent: tk.Widget, title: str, **kwargs: object) -> None:
@@ -289,24 +292,26 @@ class _ActivityRow(ctk.CTkFrame):
         )
         color = self._TYPE_COLORS.get(activity_type, T.TEXT_SECONDARY)
 
-        icon_bg = ctk.CTkFrame(self, fg_color=color[:7] + "30", corner_radius=6, width=32, height=32)
+        icon_bg = ctk.CTkFrame(
+            self, fg_color=color[:7] + "30", corner_radius=6, width=32, height=32
+        )
         icon_bg.pack(side="left", padx=(4, 8), pady=4)
         icon_bg.pack_propagate(False)
 
         icons = {"chat": "💬", "automate": "⚡", "n8n": "🔄", "distro": "💿"}
-        ctk.CTkLabel(
-            icon_bg, text=icons.get(activity_type, "•"), font=T.FONT_SMALL
-        ).place(relx=0.5, rely=0.5, anchor="center")
+        ctk.CTkLabel(icon_bg, text=icons.get(activity_type, "•"), font=T.FONT_SMALL).place(
+            relx=0.5, rely=0.5, anchor="center"
+        )
 
         mid = ctk.CTkFrame(self, fg_color="transparent")
         mid.pack(side="left", fill="x", expand=True, pady=4)
-        ctk.CTkLabel(mid, text=description[:80], **T.label_body_kwargs(), anchor="w").pack(anchor="w")
+        ctk.CTkLabel(mid, text=description[:80], **T.label_body_kwargs(), anchor="w").pack(
+            anchor="w"
+        )
         ctk.CTkLabel(mid, text=timestamp, **T.label_secondary_kwargs(), anchor="w").pack(anchor="w")
 
         badge_status = "active" if status == "success" else "error"
-        StatusBadge(self, text=status.capitalize(), status=badge_status).pack(
-            side="right", padx=8
-        )
+        StatusBadge(self, text=status.capitalize(), status=badge_status).pack(side="right", padx=8)
 
 
 def _empty_state(

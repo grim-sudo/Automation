@@ -169,20 +169,28 @@ class _TyranosAvatar(tk.Canvas):
     def _draw(self, s: int) -> None:
         # Circle background
         pad = 2
-        self.create_oval(pad, pad, s - pad, s - pad, fill=T.PURPLE_DARK, outline=T.PURPLE, width=1.5)
+        self.create_oval(
+            pad, pad, s - pad, s - pad, fill=T.PURPLE_DARK, outline=T.PURPLE, width=1.5
+        )
         # "T" shape
         cx, cy = s // 2, s // 2
         bar_w, bar_h = int(s * 0.55), int(s * 0.1)
         stem_w, stem_h = int(s * 0.15), int(s * 0.28)
         # Top bar
         self.create_rectangle(
-            cx - bar_w // 2, cy - bar_h // 2 - stem_h // 2,
-            cx + bar_w // 2, cy - bar_h // 2 - stem_h // 2 + bar_h,
-            fill=T.CYAN_LIGHT, outline="",
+            cx - bar_w // 2,
+            cy - bar_h // 2 - stem_h // 2,
+            cx + bar_w // 2,
+            cy - bar_h // 2 - stem_h // 2 + bar_h,
+            fill=T.CYAN_LIGHT,
+            outline="",
         )
         # Vertical stem
         self.create_rectangle(
-            cx - stem_w // 2, cy - bar_h // 2 - stem_h // 2 + bar_h,
-            cx + stem_w // 2, cy - bar_h // 2 - stem_h // 2 + bar_h + stem_h,
-            fill=T.PURPLE_LIGHT, outline="",
+            cx - stem_w // 2,
+            cy - bar_h // 2 - stem_h // 2 + bar_h,
+            cx + stem_w // 2,
+            cy - bar_h // 2 - stem_h // 2 + bar_h + stem_h,
+            fill=T.PURPLE_LIGHT,
+            outline="",
         )

@@ -8,10 +8,10 @@ from __future__ import annotations
 # ── Color Palette ─────────────────────────────────────────────────────────────
 
 # Backgrounds
-BG_DEEP = "#080810"          # Deep space black — main window bg
-BG_SURFACE = "#0f0f1a"       # Card background
-BG_RAISED = "#1a1a2e"        # Elevated cards, hover states
-BG_HIGHLIGHT = "#16213e"     # Selected states
+BG_DEEP = "#080810"  # Deep space black — main window bg
+BG_SURFACE = "#0f0f1a"  # Card background
+BG_RAISED = "#1a1a2e"  # Elevated cards, hover states
+BG_HIGHLIGHT = "#16213e"  # Selected states
 
 # Accent — Tyranos purple
 PURPLE = "#7c3aed"
@@ -42,7 +42,7 @@ ERROR_DIM = "#7f1d1d"
 # Typography
 TEXT_PRIMARY = "#e2e8f0"
 TEXT_SECONDARY = "#64748b"
-TEXT_ACCENT = "#a78bfa"      # light purple highlights
+TEXT_ACCENT = "#a78bfa"  # light purple highlights
 TEXT_CYAN = "#67e8f9"
 TEXT_MUTED = "#475569"
 TEXT_WHITE = "#ffffff"
@@ -104,6 +104,7 @@ ANIM_SLOW = 300
 ANIM_SPLASH = 1500
 
 # ── Reusable CTk widget kwargs ────────────────────────────────────────────────
+
 
 def card_kwargs(corner_radius: int = RADIUS_CARD) -> dict:
     """Standard card frame styling."""

@@ -109,7 +109,8 @@ class TyranosApp(ctk.CTk):
         canvas.create_oval(8, 8, 112, 112, outline=T.PURPLE_DARK, width=6)
         canvas.create_oval(16, 16, 104, 104, fill=T.PURPLE, outline=T.PURPLE_LIGHT, width=2)
         canvas.create_text(
-            60, 60,
+            60,
+            60,
             text="T",
             font=(T.FONT_FAMILY, 44, "bold"),
             fill=T.TEXT_WHITE,
@@ -119,7 +120,10 @@ class TyranosApp(ctk.CTk):
         t = self._splash_ring_step
         start = (t * 360) % 360
         canvas.create_arc(
-            8, 8, 112, 112,
+            8,
+            8,
+            112,
+            112,
             start=start,
             extent=90,
             outline=T.CYAN,

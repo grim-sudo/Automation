@@ -14,13 +14,48 @@ from .. import theme as T
 from ..components.status_badge import StatusBadge
 
 _SAMPLE_HISTORY: list[dict] = [
-    {"ts": "2026-03-15 14:22", "cmd": "Create Python Flask project", "status": "ok", "duration": "1.2s"},
-    {"ts": "2026-03-15 13:10", "cmd": "Set up Docker Compose for Postgres", "status": "ok", "duration": "0.8s"},
-    {"ts": "2026-03-15 12:45", "cmd": "Build Arch Linux minimal ISO", "status": "error", "duration": "4.1s"},
-    {"ts": "2026-03-15 11:30", "cmd": "Automate n8n Gmail workflow", "status": "ok", "duration": "0.3s"},
-    {"ts": "2026-03-14 19:15", "cmd": "Move all .jpg files to images/", "status": "ok", "duration": "0.1s"},
-    {"ts": "2026-03-14 18:00", "cmd": "Generate Kubernetes deployment YAML", "status": "ok", "duration": "0.5s"},
-    {"ts": "2026-03-14 16:20", "cmd": "Scan ports on localhost", "status": "warn", "duration": "2.3s"},
+    {
+        "ts": "2026-03-15 14:22",
+        "cmd": "Create Python Flask project",
+        "status": "ok",
+        "duration": "1.2s",
+    },
+    {
+        "ts": "2026-03-15 13:10",
+        "cmd": "Set up Docker Compose for Postgres",
+        "status": "ok",
+        "duration": "0.8s",
+    },
+    {
+        "ts": "2026-03-15 12:45",
+        "cmd": "Build Arch Linux minimal ISO",
+        "status": "error",
+        "duration": "4.1s",
+    },
+    {
+        "ts": "2026-03-15 11:30",
+        "cmd": "Automate n8n Gmail workflow",
+        "status": "ok",
+        "duration": "0.3s",
+    },
+    {
+        "ts": "2026-03-14 19:15",
+        "cmd": "Move all .jpg files to images/",
+        "status": "ok",
+        "duration": "0.1s",
+    },
+    {
+        "ts": "2026-03-14 18:00",
+        "cmd": "Generate Kubernetes deployment YAML",
+        "status": "ok",
+        "duration": "0.5s",
+    },
+    {
+        "ts": "2026-03-14 16:20",
+        "cmd": "Scan ports on localhost",
+        "status": "warn",
+        "duration": "2.3s",
+    },
 ]
 
 
@@ -129,7 +164,13 @@ class HistoryPage(ctk.CTkFrame):
                 text_color=T.TEXT_MUTED,
                 width=width or 1,
                 anchor="w",
-            ).pack(side="left", padx=T.SPACE_SM, pady=T.SPACE_XS, expand=(width == 0), fill="x" if width == 0 else "none")
+            ).pack(
+                side="left",
+                padx=T.SPACE_SM,
+                pady=T.SPACE_XS,
+                expand=(width == 0),
+                fill="x" if width == 0 else "none",
+            )
 
         self._list_frame = ctk.CTkScrollableFrame(
             card,

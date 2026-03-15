@@ -111,31 +111,50 @@ class ProgressCard(ctk.CTkFrame):
             # Glow highlight at leading edge
             if fill_w > 8:
                 self._track.create_oval(
-                    fill_w - 6, 1, fill_w + 1, h - 1,
-                    fill=T.PURPLE_LIGHT, outline="",
+                    fill_w - 6,
+                    1,
+                    fill_w + 1,
+                    h - 1,
+                    fill=T.PURPLE_LIGHT,
+                    outline="",
                 )
 
 
 def _rounded_rect(
     canvas: tk.Canvas,
-    x1: int, y1: int, x2: int, y2: int,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
     r: int,
     **kwargs: object,
 ) -> None:
     """Draw a rounded rectangle on a canvas."""
     r = min(r, (x2 - x1) // 2, (y2 - y1) // 2)
     points = [
-        x1 + r, y1,
-        x2 - r, y1,
-        x2, y1,
-        x2, y1 + r,
-        x2, y2 - r,
-        x2, y2,
-        x2 - r, y2,
-        x1 + r, y2,
-        x1, y2,
-        x1, y2 - r,
-        x1, y1 + r,
-        x1, y1,
+        x1 + r,
+        y1,
+        x2 - r,
+        y1,
+        x2,
+        y1,
+        x2,
+        y1 + r,
+        x2,
+        y2 - r,
+        x2,
+        y2,
+        x2 - r,
+        y2,
+        x1 + r,
+        y2,
+        x1,
+        y2,
+        x1,
+        y2 - r,
+        x1,
+        y1 + r,
+        x1,
+        y1,
     ]
     canvas.create_polygon(points, smooth=True, **kwargs)  # type: ignore[arg-type]

@@ -316,7 +316,7 @@ TIPS:
         """Print welcome banner"""
         banner = """
 ╔═══════════════════════════════════════════════════════════╗
-║        OMNI AUTOMATOR - INTERACTIVE CHATBOT MODE         ║
+║            TYRANOS - INTERACTIVE CHATBOT MODE            ║
 ║                Smart Automation Assistant                  ║
 ╚═══════════════════════════════════════════════════════════╝
 """

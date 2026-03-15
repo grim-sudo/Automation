@@ -1,8 +1,14 @@
 # Tyranos — Polyglot Migration Architecture
 
-**Status:** Planning
+**Status:** Phase 2 complete (Rust CLI + Tauri scaffold built and CI-verified)
 **Target version:** 3.0
 **Profiled baseline:** Python 3.10, Tyranos 2.0, x86_64 Linux (Arch)
+
+**Phase completion:**
+- ✅ **Phase 1 — Rust CLI:** `crates/tyranos-{cli,core}` built; binary `target/release/tyranos-bin` (3.2 MB). Feature flag: `TYRANOS_RUST_CLI=1`. Note: commands that delegate to Python (AI, version) carry ~357 ms Python startup overhead; pure-Rust commands are sub-millisecond.
+- ✅ **Phase 2 — Tauri scaffold:** `ui-tauri/` built (Vite 6 + TypeScript 5.6 + Tauri v2). All 11 Tauri commands implemented. Feature flag: `TYRANOS_GUI=tauri`. Full production build pending final QA.
+- ⏳ **Phase 3 — Go n8n bridge:** not yet started (trigger: > 20 active workflows)
+- ⏳ **Phase 4 — Rust distro builder:** not yet started
 
 ---
 

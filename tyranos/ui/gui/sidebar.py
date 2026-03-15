@@ -12,13 +12,13 @@ import customtkinter as ctk
 from . import theme as T
 
 _NAV_ITEMS = [
-    ("home",        "🏠",  "Home"),
-    ("chat",        "💬",  "Chat"),
-    ("automate",    "⚡",  "Automate"),
-    ("n8n",         "🔄",  "Workflows"),
-    ("distro",      "💿",  "Build OS"),
-    ("history",     "📋",  "History"),
-    ("settings",    "⚙️",  "Settings"),
+    ("home", "🏠", "Home"),
+    ("chat", "💬", "Chat"),
+    ("automate", "⚡", "Automate"),
+    ("n8n", "🔄", "Workflows"),
+    ("distro", "💿", "Build OS"),
+    ("history", "📋", "History"),
+    ("settings", "⚙️", "Settings"),
 ]
 
 
@@ -191,6 +191,7 @@ class Sidebar(ctk.CTkFrame):
 
     def _start_status_pulse(self) -> None:
         import math
+
         self._pulse_phase = 0.0
 
         def _tick() -> None:
@@ -325,13 +326,19 @@ class _TyranosLogoCanvas(tk.Canvas):
         sh = int(s * 0.3)
         # Crossbar
         self.create_rectangle(
-            cx - bw // 2, cy - sh // 2 - bh // 2,
-            cx + bw // 2, cy - sh // 2 + bh // 2,
-            fill=T.CYAN_LIGHT, outline="",
+            cx - bw // 2,
+            cy - sh // 2 - bh // 2,
+            cx + bw // 2,
+            cy - sh // 2 + bh // 2,
+            fill=T.CYAN_LIGHT,
+            outline="",
         )
         # Stem
         self.create_rectangle(
-            cx - sw // 2, cy - sh // 2 + bh // 2,
-            cx + sw // 2, cy + sh // 2,
-            fill=T.PURPLE_LIGHT, outline="",
+            cx - sw // 2,
+            cy - sh // 2 + bh // 2,
+            cx + sw // 2,
+            cy + sh // 2,
+            fill=T.PURPLE_LIGHT,
+            outline="",
         )
