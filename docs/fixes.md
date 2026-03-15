@@ -484,3 +484,14 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 **Verified:** `ruff format --check tyranos/ tyranos.py tests/` → "93 files already formatted".
 
 ---
+
+## Fix #C6 — npm cache step failing on gitignored package-lock.json
+
+**Date:** 2026-03-15
+**File:** `.github/workflows/ci.yml`
+**Bug:** The `tauri` CI job used `actions/setup-node@v4` with `cache: npm` and `cache-dependency-path: ui-tauri/package-lock.json`. Because `ui-tauri/package-lock.json` is listed in `.gitignore`, it is never committed, so the file does not exist in CI checkouts. This caused the built-in `setup-node` cache feature to fail (file-not-found on the dependency path).
+**Root Cause:** `package-lock.json` was gitignored (correct for a Tauri project where `node_modules/` is also ignored and the lockfile differs per developer), but the CI cache step depended on its presence.
+**Fix:** Removed `cache: npm` and `cache-dependency-path` from `setup-node`. Added an explicit `Cache npm` step using `actions/cache@v4` with `continue-on-error: true` so a cache miss never fails the job. The key still uses `hashFiles('ui-tauri/package-lock.json')` with a `npm-` restore-key fallback.
+**Verified:** `yaml.safe_load('.github/workflows/ci.yml')` → ✓ 7 jobs, all with unique keys; `tauri` job steps show `Cache npm [continue-on-error]`.
+
+---
