@@ -10,7 +10,7 @@ These caused hard failures before any code ran.
 
 ### `invalid-syntax` — f-string quote reuse (Python 3.10/3.11)
 
-**File:** `tyranos/workflow/engine.py:459`
+**File:** `archon/workflow/engine.py:459`
 
 **What it means:**
 Using the same quote character inside an f-string expression as the one wrapping the f-string is only valid syntax in Python 3.12+. The CI matrix tests Python 3.10, 3.11, and 3.12, so this broke the two older jobs outright.
@@ -28,7 +28,7 @@ f"...DeleteDirectory('{_escaped}', ...)"
 
 ### `F821` — Undefined name `DistroProfile`
 
-**File:** `tyranos/distro_builder/package_selector.py:117`
+**File:** `archon/distro_builder/package_selector.py:117`
 
 **What it means:**
 `DistroProfile` was used as a return type annotation but was never imported into the module. This would raise a `NameError` at runtime whenever the function was called.
@@ -36,7 +36,7 @@ f"...DeleteDirectory('{_escaped}', ...)"
 **Fix:** Added the missing import at the top of the file.
 
 ```python
-from tyranos.distro_builder.models import DistroProfile
+from archon.distro_builder.models import DistroProfile
 ```
 
 ---
@@ -128,7 +128,7 @@ except ImportError:
 
 ### `E741` — Ambiguous variable name `l`
 
-**File:** `tyranos/ai/openrouter_integration.py:321`
+**File:** `archon/ai/openrouter_integration.py:321`
 
 **What it means:**
 The letter `l` (lowercase L) is visually identical to `1` (one) and `I` (uppercase i) in most fonts. This causes misreads during code review and debugging.
@@ -186,14 +186,14 @@ These are purely stylistic. They carry no bug risk and were suppressed rather th
 ## Final CI Results
 
 ```
-ruff check tyranos/ omni.py tests/ --output-format=github
+ruff check archon/ omni.py tests/ --output-format=github
 → 0 errors
 
-ruff format --check tyranos/ omni.py tests/
+ruff format --check archon/ omni.py tests/
 → 70 files already formatted
 
 pytest tests/ -v --tb=short --asyncio-mode=auto \
-  --cov=tyranos --cov-report=term-missing \
+  --cov=archon --cov-report=term-missing \
   --cov-report=xml:coverage.xml \
   -m "not integration and not slow"
 → 153 passed, 1 warning
@@ -205,19 +205,19 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 # Post-Rename Fixes (Phase 2–5)
 
-> **Scope:** All bugs found and fixed during capability testing after the omni_automator → tyranos rename.
+> **Scope:** All bugs found and fixed during capability testing after the omni_automator → archon rename.
 
 ---
 
-## Fix #1 — mypy "Duplicate module named tyranos"
+## Fix #1 — mypy "Duplicate module named archon"
 
 **Date:** 2026-03-14
 **Phase:** 1 (CI Fix)
 **File(s):** `.github/workflows/ci.yml`
-**Bug:** `mypy tyranos/ tyranos.py` produced `error: Duplicate module named "tyranos" (also at "tyranos/__init__.py")` causing 3×12 = 36 CI annotation errors.
-**Root Cause:** The `mypy` command included both the `tyranos/` package directory and the `tyranos.py` root script. Python resolves both as module `"tyranos"`, and mypy treats this as a fatal duplication.
-**Fix:** Removed `tyranos.py` from the mypy command — now runs `mypy tyranos/` only.
-**Verified:** `mypy tyranos/ --ignore-missing-imports --no-error-summary --warn-return-any` → 0 errors.
+**Bug:** `mypy archon/ archon.py` produced `error: Duplicate module named "archon" (also at "archon/__init__.py")` causing 3×12 = 36 CI annotation errors.
+**Root Cause:** The `mypy` command included both the `archon/` package directory and the `archon.py` root script. Python resolves both as module `"archon"`, and mypy treats this as a fatal duplication.
+**Fix:** Removed `archon.py` from the mypy command — now runs `mypy archon/` only.
+**Verified:** `mypy archon/ --ignore-missing-imports --no-error-summary --warn-return-any` → 0 errors.
 
 ---
 
@@ -226,9 +226,9 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 **Date:** 2026-03-14
 **Phase:** 1 (CI Fix)
 **File(s):** `launch_gui.py`, `launch_chatbot.py`
-**Bug:** Both files contained `from tyranos import app` which raises `ImportError: cannot import name 'app' from 'tyranos'` at runtime.
-**Root Cause:** The Typer `app` object lives in `tyranos._cli`, not in `tyranos.__init__`. After the rename, the shims were not updated to point at the correct module.
-**Fix:** Changed both files to `from tyranos._cli import app`. Also updated docstrings that still referenced the old `omni.py` entry point.
+**Bug:** Both files contained `from archon import app` which raises `ImportError: cannot import name 'app' from 'archon'` at runtime.
+**Root Cause:** The Typer `app` object lives in `archon._cli`, not in `archon.__init__`. After the rename, the shims were not updated to point at the correct module.
+**Fix:** Changed both files to `from archon._cli import app`. Also updated docstrings that still referenced the old `omni.py` entry point.
 **Verified:** `python -c "import launch_gui; import launch_chatbot"` → no errors.
 
 ---
@@ -249,7 +249,7 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 **Date:** 2026-03-14
 **Phase:** 2 (print→loguru migration)
-**File(s):** `tyranos/os_adapters/arch_adapter.py`
+**File(s):** `archon/os_adapters/arch_adapter.py`
 **Bug:** `SyntaxError: invalid syntax` at line 615: `return True                except Exception:` — two separate lines merged into one.
 **Root Cause:** A background agent that was replacing `print()` calls with loguru incorrectly merged a `return True` line with the following `except Exception:` line onto a single line.
 **Fix:** Manually split the merged line back into two separate lines:
@@ -257,7 +257,7 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
                 return True
         except Exception:
 ```
-**Verified:** `python -c "import tyranos.os_adapters.arch_adapter"` → no errors.
+**Verified:** `python -c "import archon.os_adapters.arch_adapter"` → no errors.
 
 ---
 
@@ -265,11 +265,11 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 **Date:** 2026-03-14
 **Phase:** 2 (capability testing)
-**File(s):** `tyranos/_cli.py`
-**Bug:** `tyranos distro profiles` showed path `/home/grim/Projects/Automation/tyranos/tyranos/distro_builder/profiles` (doubled `tyranos/tyranos/`).
-**Root Cause:** The original path code was `Path(__file__).parent / "tyranos" / "distro_builder" / "profiles"`. After `_cli.py` was moved inside the `tyranos/` package, `Path(__file__).parent` already points to `tyranos/`, so appending `"tyranos"` doubled the segment.
+**File(s):** `archon/_cli.py`
+**Bug:** `archon distro profiles` showed path `/home/grim/Projects/Automation/archon/archon/distro_builder/profiles` (doubled `archon/archon/`).
+**Root Cause:** The original path code was `Path(__file__).parent / "archon" / "distro_builder" / "profiles"`. After `_cli.py` was moved inside the `archon/` package, `Path(__file__).parent` already points to `archon/`, so appending `"archon"` doubled the segment.
 **Fix:** Changed to `Path(__file__).parent / "distro_builder" / "profiles"`.
-**Verified:** `tyranos distro profiles` → shows 3 correct profile files.
+**Verified:** `archon distro profiles` → shows 3 correct profile files.
 
 ---
 
@@ -277,15 +277,15 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 **Date:** 2026-03-14
 **Phase:** 3 (print→loguru migration)
-**File(s):** `tyranos/workflow/error_handler.py`
-**Bug:** 32 `print()` calls in interactive error-recovery methods violated Rule 8 ("print() anywhere in tyranos/ is a bug").
+**File(s):** `archon/workflow/error_handler.py`
+**Bug:** 32 `print()` calls in interactive error-recovery methods violated Rule 8 ("print() anywhere in archon/ is a bug").
 **Root Cause:** The file already used `self.logger = get_logger("SmartErrorHandler")` for backend logging but used bare `print()` for user-facing interactive menus.
 **Fix:** Replaced all `print()` calls with appropriate `self.logger` calls:
 - Error messages → `self.logger.error()`
 - Warning/confirmation prompts → `self.logger.warning()`
 - Menu options and informational messages → `self.logger.info()`
 **Note:** The remaining `print()` calls in `workflow/engine.py`, `core/engine.py`, `ai/task_executor.py`, `plugins/project_generator.py` are inside triple-quoted string templates that generate Python source code — they are content, not execution. The calls in `config.py` docstring and `ai/task_planner.py` docstring are documentation examples.
-**Verified:** `grep -rn "^\s*print(" tyranos/workflow/error_handler.py` → 0 results.
+**Verified:** `grep -rn "^\s*print(" archon/workflow/error_handler.py` → 0 results.
 
 ---
 
@@ -293,11 +293,11 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 **Date:** 2026-03-14
 **Phase:** 3
-**File(s):** `tyranos/plugins/web_automation.py`
+**File(s):** `archon/plugins/web_automation.py`
 **Bug:** `ruff check` reported `I001 Import block is un-sorted or un-formatted` because a `sys.path.append()` call was placed between import groups, breaking isort's view of the import block.
 **Root Cause:** A prior print→loguru migration added `import contextlib` and `from loguru import logger` after the `sys.path.append()` rather than before it.
 **Fix:** Ran `ruff check --fix --select I001` to auto-fix the import order, moving all stdlib and third-party imports above the `sys.path.append()` call.
-**Verified:** `ruff check tyranos/ tyranos.py tests/ --output-format=github` → 0 errors.
+**Verified:** `ruff check archon/ archon.py tests/ --output-format=github` → 0 errors.
 
 ---
 
@@ -305,8 +305,8 @@ The 1 warning is a `DeprecationWarning` from Python 3.14 about `asyncio.DefaultE
 
 **Date:** 2026-03-14
 **Phase:** 3 (capability testing — Bug)
-**File(s):** `tyranos/parsers/command_parser.py`
-**Bug:** `tyranos run "list files"` failed with `Plugin 'unknown' not found`. Same for `ls`, `show files`, `list directory`.
+**File(s):** `archon/parsers/command_parser.py`
+**Bug:** `archon run "list files"` failed with `Plugin 'unknown' not found`. Same for `ls`, `show files`, `list directory`.
 **Root Cause:** `_parse_simple_command()` had no handler for "list"/"ls"/"show files" verbs. The default fallback at line 1177 returned `action="unknown", category="unknown"`. The core engine's `_execute_parsed_command()` then attempted `plugin_manager.execute("unknown", "unknown", ...)` which raised "Plugin 'unknown' not found".
 **Fix:** Added a list handler in `_parse_simple_command()` before the default fallback:
 ```python
@@ -320,21 +320,21 @@ if any(kw in command.lower() for kw in list_keywords):
     return [ParsedStep(action="list", category="filesystem", params={"path": path}, priority=1)]
 ```
 All OS adapters already supported `action="list"` in their filesystem `execute()` method.
-**Verified:** `tyranos run "list files"` → Success, lists current directory. `tyranos run "list files in /tmp"` → Success, lists /tmp.
+**Verified:** `archon run "list files"` → Success, lists current directory. `archon run "list files in /tmp"` → Success, lists /tmp.
 
 ---
 
 ## Final CI Results (Post-Rename, Post-Capability-Testing)
 
 ```
-ruff check tyranos/ tyranos.py tests/ --output-format=github
+ruff check archon/ archon.py tests/ --output-format=github
 → 0 errors
 
-ruff format --check tyranos/ tyranos.py tests/
+ruff format --check archon/ archon.py tests/
 → 71 files already formatted
 
 pytest tests/ -v --tb=short --asyncio-mode=auto \
-  --cov=tyranos --cov-report=term-missing \
+  --cov=archon --cov-report=term-missing \
   --cov-report=xml:coverage.xml \
   -m "not integration and not slow"
 → 153 passed, 1 warning
@@ -346,23 +346,23 @@ The 1 warning is the same `DeprecationWarning` for `asyncio.DefaultEventLoopPoli
 
 | Capability | Status | Notes |
 |---|---|---|
-| `tyranos --help` | ✅ | All commands shown |
-| `tyranos --version` | ✅ | `Tyranos v1.0.0` |
-| `tyranos run "create folder X"` | ✅ | Creates directory |
-| `tyranos run "delete folder X"` | ✅ | Removes directory |
-| `tyranos run "list files"` | ✅ | Fixed (Fix #8) |
-| `tyranos run "list files in /tmp"` | ✅ | Path extraction works |
-| `tyranos run --debug ...` | ✅ | DEBUG level logs shown |
-| `tyranos run --safe-mode ...` | ✅ | Mode flag accepted |
-| `tyranos --log-file /tmp/x.log run ...` | ✅ | JSON logs written to file |
-| `tyranos batch commands.txt` | ✅ | 2/2 commands succeed |
-| `tyranos chatbot --help` | ✅ | Interactive mode accessible |
-| `tyranos n8n --help` | ✅ | n8n commands listed |
-| `tyranos distro --help` | ✅ | Distro commands listed |
-| `tyranos distro profiles` | ✅ | Fixed (Fix #5), 3 profiles |
-| `tyranos distro estimate arch gaming` | ✅ | Size estimate shown |
-| `tyranos distro build` (no root) | ✅ | Fails correctly w/ PermissionError |
-| Shims: `tyranos.py`, `launch_gui.py`, `launch_chatbot.py` | ✅ | Import without errors |
+| `archon --help` | ✅ | All commands shown |
+| `archon --version` | ✅ | `Archon v1.0.0` |
+| `archon run "create folder X"` | ✅ | Creates directory |
+| `archon run "delete folder X"` | ✅ | Removes directory |
+| `archon run "list files"` | ✅ | Fixed (Fix #8) |
+| `archon run "list files in /tmp"` | ✅ | Path extraction works |
+| `archon run --debug ...` | ✅ | DEBUG level logs shown |
+| `archon run --safe-mode ...` | ✅ | Mode flag accepted |
+| `archon --log-file /tmp/x.log run ...` | ✅ | JSON logs written to file |
+| `archon batch commands.txt` | ✅ | 2/2 commands succeed |
+| `archon chatbot --help` | ✅ | Interactive mode accessible |
+| `archon n8n --help` | ✅ | n8n commands listed |
+| `archon distro --help` | ✅ | Distro commands listed |
+| `archon distro profiles` | ✅ | Fixed (Fix #5), 3 profiles |
+| `archon distro estimate arch gaming` | ✅ | Size estimate shown |
+| `archon distro build` (no root) | ✅ | Fails correctly w/ PermissionError |
+| Shims: `archon.py`, `launch_gui.py`, `launch_chatbot.py` | ✅ | Import without errors |
 | NLP engine (SemanticNLPEngine) | ✅ | `analyze()` returns intent |
 | Spell corrector | ✅ | Corrects typos |
 | Path validator (traversal + null byte) | ✅ | 5/5 security test cases pass |
@@ -371,14 +371,14 @@ The 1 warning is the same `DeprecationWarning` for `asyncio.DefaultEventLoopPoli
 | AI parser (offline) | ✅ | Falls back to basic parsing |
 | No `shell=True` anywhere | ✅ | Grep confirms zero instances |
 | No hardcoded model names | ✅ | Only `FreeModelResolver` used |
-| No bare `print()` in tyranos/ | ✅ | All converted to loguru |
+| No bare `print()` in archon/ | ✅ | All converted to loguru |
 
 ---
 
 ## Fix #9 — TestCaching::test_invalidate_forces_refetch
 
 **Date:** 2026-03-14
-**File(s):** `tyranos/ai/model_resolver.py`
+**File(s):** `archon/ai/model_resolver.py`
 **Bug:** `assert 1 == 2` — `MagicMock.call_count` was 1, expected 2 after cache invalidation.
 **Root Cause:** `invalidate()` only reset `self._fetched_at = 0.0` but left `self._models` populated.
 `_is_fresh()` is: `bool(self._models) and (time.monotonic() - self._fetched_at) < _CACHE_TTL_SECONDS`.
@@ -406,20 +406,20 @@ pytest tests/ -m "not integration and not slow" → 153 passed, 0 failed
 **Date:** 2026-03-15
 **Files added:**
 ```
-tyranos/ui/gui/__init__.py         ModernTyranosGUI entry point (replaces gui.py)
-tyranos/ui/gui/app.py              TyranosApp main window + splash screen
-tyranos/ui/gui/theme.py            Design-system constants
-tyranos/ui/gui/animations.py       FadeAnimator, PulseAnimator, TypingDotAnimator, SlideInAnimator
-tyranos/ui/gui/sidebar.py          Collapsible 240px/64px navigation
-tyranos/ui/gui/components/         9 components: ChatBubble, Sparkline, StatusBadge, Toast, …
-tyranos/ui/gui/pages/              7 pages: Home, Chat, Automate, n8n, Distro, History, Settings
+archon/ui/gui/__init__.py         ModernArchonGUI entry point (replaces gui.py)
+archon/ui/gui/app.py              ArchonApp main window + splash screen
+archon/ui/gui/theme.py            Design-system constants
+archon/ui/gui/animations.py       FadeAnimator, PulseAnimator, TypingDotAnimator, SlideInAnimator
+archon/ui/gui/sidebar.py          Collapsible 240px/64px navigation
+archon/ui/gui/components/         9 components: ChatBubble, Sparkline, StatusBadge, Toast, …
+archon/ui/gui/pages/              7 pages: Home, Chat, Automate, n8n, Distro, History, Settings
 ```
 **Changes to existing files:**
 - `pyproject.toml` — `[gui]` extras: added `darkdetect>=0.8.0`, `pyperclip>=1.8.0`, `psutil>=5.9.0`
 
 **Design system:** `BG_DEEP=#080810`, `PURPLE=#7c3aed`, `CYAN=#06b6d4` — space-black + neon palette.
 
-**Architecture:** `ModernTyranosGUI(engine).run()` is the public entry point. Pages are loaded lazily.
+**Architecture:** `ModernArchonGUI(engine).run()` is the public entry point. Pages are loaded lazily.
 Splash screen runs a spinning cyan arc animation during import. All long operations use
 `threading.Thread` + `queue.Queue` + `after(100)` polling to keep the UI responsive.
 
@@ -437,7 +437,7 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 
 **Date:** 2026-03-15
 **File(s):** `coverage.xml` (root), `omni.py`
-**Bug:** `coverage.xml` was a local CI artefact committed accidentally. `omni.py` was a one-liner backward-compat shim that served no purpose after all callers were updated to use `tyranos._cli` directly.
+**Bug:** `coverage.xml` was a local CI artefact committed accidentally. `omni.py` was a one-liner backward-compat shim that served no purpose after all callers were updated to use `archon._cli` directly.
 **Fix:** Deleted both files. Added `coverage.xml` to `.gitignore` (already was there). No functional references to `omni.py` existed outside historical documentation.
 **Verified:** `git ls-files omni.py coverage.xml` → empty.
 
@@ -446,10 +446,10 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 ## Fix #C2 — Move tests to root tests/
 
 **Date:** 2026-03-15
-**File(s):** `tyranos/tests/` → `tests/`
-**Bug:** Tests lived inside the package directory (`tyranos/tests/`) but `pyproject.toml` declared `testpaths = ["tests"]` and the CI yaml explicitly passed `tyranos/tests/` overriding it — mismatch.
+**File(s):** `archon/tests/` → `tests/`
+**Bug:** Tests lived inside the package directory (`archon/tests/`) but `pyproject.toml` declared `testpaths = ["tests"]` and the CI yaml explicitly passed `archon/tests/` overriding it — mismatch.
 **Root Cause:** Tests were placed inside the package during initial development and never migrated.
-**Fix:** Copied all 8 test files to `tests/` at root (no import changes needed — all used absolute package imports). Deleted `tyranos/tests/`. Updated `.github/workflows/ci.yml` line 98 to `pytest tests/`.
+**Fix:** Copied all 8 test files to `tests/` at root (no import changes needed — all used absolute package imports). Deleted `archon/tests/`. Updated `.github/workflows/ci.yml` line 98 to `pytest tests/`.
 **Verified:** `pytest tests/ -q --asyncio-mode=auto -m "not integration and not slow"` → 153 passed.
 
 ---
@@ -457,10 +457,10 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 ## Fix #C3 — Move docs to root docs/
 
 **Date:** 2026-03-15
-**File(s):** `tyranos/docs/` → `docs/`
+**File(s):** `archon/docs/` → `docs/`
 **Bug:** Documentation files were inside the Python package tree, making them invisible in standard repository docs browsing and not the conventional location.
-**Fix:** Copied all 5 docs files to `docs/` at root. Updated `README.md` links from `tyranos/docs/X.md` to `docs/X.md`. Updated `README.md` pytest example command. Deleted `tyranos/docs/`.
-**Verified:** `ls docs/` shows all 5 files; no `tyranos/docs/` or `tyranos/tests/` remain.
+**Fix:** Copied all 5 docs files to `docs/` at root. Updated `README.md` links from `archon/docs/X.md` to `docs/X.md`. Updated `README.md` pytest example command. Deleted `archon/docs/`.
+**Verified:** `ls docs/` shows all 5 files; no `archon/docs/` or `archon/tests/` remain.
 
 ---
 
@@ -470,18 +470,18 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 **File(s):** `tests/test_model_fallback.py`, `tests/test_nlp.py`, `tests/test_path_validator.py`, `tests/test_response_parser.py`, `tests/test_spell_corrector.py`
 **Bug:** `ruff check --output-format=github` reported `I001` (unsorted import blocks) in all 5 non-trivial test files.
 **Fix:** `ruff check tests/ --select I001 --fix` auto-sorted all import blocks; `ruff format tests/` reformatted for style.
-**Verified:** `ruff check tyranos/ tyranos.py tests/` → no output (zero issues).
+**Verified:** `ruff check archon/ archon.py tests/` → no output (zero issues).
 
 ---
 
 ## Fix #C5 — Ruff format issues in 16 GUI files
 
 **Date:** 2026-03-15
-**File(s):** `tyranos/ui/gui/app.py`, `tyranos/ui/gui/theme.py`, `tyranos/ui/gui/sidebar.py`, all 6 pages and 6 components.
-**Bug:** `ruff format --check tyranos/` reported 16 GUI files would be reformatted.
+**File(s):** `archon/ui/gui/app.py`, `archon/ui/gui/theme.py`, `archon/ui/gui/sidebar.py`, all 6 pages and 6 components.
+**Bug:** `ruff format --check archon/` reported 16 GUI files would be reformatted.
 **Root Cause:** GUI was added in a previous session without running the formatter.
-**Fix:** `ruff format tyranos/ui/gui/` — 16 files reformatted.
-**Verified:** `ruff format --check tyranos/ tyranos.py tests/` → "93 files already formatted".
+**Fix:** `ruff format archon/ui/gui/` — 16 files reformatted.
+**Verified:** `ruff format --check archon/ archon.py tests/` → "93 files already formatted".
 
 ---
 
@@ -509,7 +509,7 @@ Splash screen runs a spinning cyan arc animation during import. All long operati
 4. **Unused variable `config`** — `python.rs` line 43 declared `config: &Config` as a parameter of `call_python()` but never used it inside the function — unused variable warning.
 
 **Fix:**
-1. Generated 15 icon files (`icon.png`, `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, and all Windows Square/Store logos) via Pillow with Tyranos brand colours (BG_DEEP `#080810`, purple circle, cyan outline, white T). Updated `tauri.conf.json` `bundle.icon` to list the five cross-platform icons.
+1. Generated 15 icon files (`icon.png`, `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, and all Windows Square/Store logos) via Pillow with Archon brand colours (BG_DEEP `#080810`, purple circle, cyan outline, white T). Updated `tauri.conf.json` `bundle.icon` to list the five cross-platform icons.
 2. Removed `.unwrap_or_default()` from both fields — plain `.clone()` is sufficient since the type is already `String`.
 3. Removed the `use tauri::Manager;` line from `main.rs` entirely (`.manage()` is on `Builder`, not `Manager`).
 4. Renamed parameter to `_config: &Config` in `python.rs` to suppress the unused-variable lint while keeping the public API signature stable.

@@ -178,9 +178,11 @@ ui-tauri/package-lock.json
 cap_test_*/
 final_cleanup_test/
 batch_cap_*/
-tyranos_*.txt
+archon_*.txt
 batch_*.txt
 /tests_output/
 
 # Rust build artifacts (workspace-level)
 /target/
+e2e/
+

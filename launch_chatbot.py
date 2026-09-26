@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Interactive Chatbot Launcher — backward compatibility shim.
-Delegates to `tyranos chatbot` via the unified tyranos._cli entry point.
+Delegates to `archon chatbot` via the unified archon._cli entry point.
 
-Prefer using:  tyranos chatbot
+Prefer using:  archon chatbot
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main() -> None:
-    """Start the Tyranos chatbot via the unified CLI."""
+    """Start the Archon chatbot via the unified CLI."""
     sys.argv = [sys.argv[0], "chatbot"]
-    from tyranos._cli import app  # type: ignore[import]
+    from archon._cli import app  # type: ignore[import]
     app()
 
 

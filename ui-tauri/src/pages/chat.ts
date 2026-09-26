@@ -1,6 +1,6 @@
 /**
  * Chat page — streaming AI conversation.
- * Mirrors tyranos/ui/gui/pages/chat_page.py.
+ * Mirrors archon/ui/gui/pages/chat_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -82,5 +82,5 @@ export function renderChat(container: HTMLElement): void {
   });
 
   // Welcome message
-  appendBubble("assistant", "Hi! I'm Tyranos. Describe a task or ask anything.");
+  appendBubble("assistant", "Hi! I'm Archon. Describe a task or ask anything.");
 }

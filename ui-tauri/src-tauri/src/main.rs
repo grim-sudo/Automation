@@ -5,7 +5,7 @@ mod commands;
 mod python;
 
 use commands::AppState;
-use tyranos_core::config::Config;
+use archon_core::config::Config;
 
 fn main() {
     let config = Config::load().unwrap_or_default();

@@ -1,4 +1,4 @@
-//! Tauri command handlers — all AI work is delegated to `python tyranos.py`
+//! Tauri command handlers — all AI work is delegated to `python archon.py`
 //! via subprocess (no shell=true). The Tauri layer handles IPC and config only.
 
 use crate::python::call_python;
@@ -6,7 +6,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::State;
-use tyranos_core::config::Config;
+use archon_core::config::Config;
 
 /// Shared app state injected into commands via Tauri's State mechanism.
 pub struct AppState {
@@ -175,7 +175,7 @@ pub async fn save_settings(
     settings: Settings,
     _state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // Write to ~/.tyranos/config.toml using Python to preserve TOML formatting.
+    // Write to ~/.archon/config.toml using Python to preserve TOML formatting.
     let payload = serde_json::json!({
         "action": "save_settings",
         "settings": settings,

@@ -1,12 +1,20 @@
-# Tyranos — Polyglot Migration Architecture
+# Archon — Polyglot Migration Architecture
+
+> **⚠️ SUPERSEDED (2026-09-26).** The current direction is the **capability
+> platform** (agent core → capability registry → native/plugin/MCP sources);
+> see `docs/ARCHITECTURE_AUDIT.md`. This polyglot Rust/Go/Tauri plan is kept
+> for historical context. The pieces already built — the Rust CLI
+> (`ARCHON_RUST_CLI=1`) and the Tauri GUI (`ARCHON_GUI=tauri`) — remain
+> supported as **optional, feature-flagged backends**; the Go n8n bridge and
+> Rust distro builder (Phases 3–4 below) are **not planned**.
 
 **Status:** Phase 2 complete (Rust CLI + Tauri scaffold built and CI-verified)
 **Target version:** 3.0
-**Profiled baseline:** Python 3.10, Tyranos 2.0, x86_64 Linux (Arch)
+**Profiled baseline:** Python 3.10, Archon 2.0, x86_64 Linux (Arch)
 
 **Phase completion:**
-- ✅ **Phase 1 — Rust CLI:** `crates/tyranos-{cli,core}` built; binary `target/release/tyranos-bin` (3.2 MB). Feature flag: `TYRANOS_RUST_CLI=1`. Note: commands that delegate to Python (AI, version) carry ~357 ms Python startup overhead; pure-Rust commands are sub-millisecond.
-- ✅ **Phase 2 — Tauri scaffold:** `ui-tauri/` built (Vite 6 + TypeScript 5.6 + Tauri v2). All 11 Tauri commands implemented. Feature flag: `TYRANOS_GUI=tauri`. Full production build pending final QA.
+- ✅ **Phase 1 — Rust CLI:** `crates/archon-{cli,core}` built; binary `target/release/archon-bin` (3.2 MB). Feature flag: `ARCHON_RUST_CLI=1`. Note: commands that delegate to Python (AI, version) carry ~357 ms Python startup overhead; pure-Rust commands are sub-millisecond.
+- ✅ **Phase 2 — Tauri scaffold:** `ui-tauri/` built (Vite 6 + TypeScript 5.6 + Tauri v2). All 11 Tauri commands implemented. Feature flag: `ARCHON_GUI=tauri`. Full production build pending final QA.
 - ⏳ **Phase 3 — Go n8n bridge:** not yet started (trigger: > 20 active workflows)
 - ⏳ **Phase 4 — Rust distro builder:** not yet started
 
@@ -14,7 +22,7 @@
 
 ## 1. Why Migrate?
 
-### Profiled Baselines (Tyranos 2.0)
+### Profiled Baselines (Archon 2.0)
 
 | Metric | Measured value | Target (v3.0) |
 |---|---|---|
@@ -33,7 +41,7 @@ this is unacceptable. A compiled CLI binary starts in **< 20 ms**.
 ## 2. Proposed Stack
 
 ```
-tyranos/
+archon/
 ├── cli/          → Rust (Clap)          cold-start ~18 ms, binary ~2.5 MB
 ├── core/         → Rust (library crate) shared logic, FFI bridge
 ├── ai/           → Python (kept)        OpenRouter async client, ML deps
@@ -104,15 +112,15 @@ Migrate a component only when **all three** of its triggers fire.
 
 ### Phase 1 — Rust CLI skeleton (target: 3.0-alpha)
 
-**Goal:** `tyranos <cmd>` cold-start < 80 ms.
+**Goal:** `archon <cmd>` cold-start < 80 ms.
 
-1. Create `crates/tyranos-cli/` with Clap 4 argument parser.
+1. Create `crates/archon-cli/` with Clap 4 argument parser.
 2. Implement NLP intent classifier in Rust (port regex patterns from `nlp/semantic_engine.py`).
-3. For AI operations: shell out to `python -m tyranos.ai <json>` — keeps Python AI layer untouched.
-4. Feature flag: `TYRANOS_RUST_CLI=1` activates Rust binary; Python CLI remains default.
+3. For AI operations: shell out to `python -m archon.ai <json>` — keeps Python AI layer untouched.
+4. Feature flag: `ARCHON_RUST_CLI=1` activates Rust binary; Python CLI remains default.
 5. Validation: cold-start benchmark must reach < 80 ms before flag is removed.
 
-**Rollback:** `TYRANOS_RUST_CLI=0` or delete binary — Python `_cli.py` is unchanged.
+**Rollback:** `ARCHON_RUST_CLI=0` or delete binary — Python `_cli.py` is unchanged.
 
 **Files touched:**
 - `crates/` (new — Rust workspace)
@@ -123,13 +131,13 @@ Migrate a component only when **all three** of its triggers fire.
 
 **Goal:** GUI cold-start < 400 ms; design parity with CustomTkinter v2 GUI.
 
-1. Port `tyranos/ui/gui/theme.py` color tokens to CSS custom properties.
+1. Port `archon/ui/gui/theme.py` color tokens to CSS custom properties.
 2. Scaffold Tauri app in `ui-tauri/` — reuse existing TypeScript/React component library or write minimal vanilla TS.
 3. Tauri commands (Rust) bridge to Python AI layer via stdio JSON-RPC.
-4. Feature flag: `TYRANOS_GUI=tauri|ctk` — default remains `ctk` until parity achieved.
-5. CustomTkinter GUI (`tyranos/ui/gui/`) remains fully functional as fallback.
+4. Feature flag: `ARCHON_GUI=tauri|ctk` — default remains `ctk` until parity achieved.
+5. CustomTkinter GUI (`archon/ui/gui/`) remains fully functional as fallback.
 
-**Rollback:** `TYRANOS_GUI=ctk` restores v2 GUI immediately.
+**Rollback:** `ARCHON_GUI=ctk` restores v2 GUI immediately.
 
 ### Phase 3 — Go n8n bridge (target: 3.1)
 
@@ -137,9 +145,9 @@ Migrate a component only when **all three** of its triggers fire.
 
 1. Implement Go module `n8n-bridge/` with goroutine HTTP multiplexer.
 2. Expose gRPC or HTTP/2 API; Python `n8n_bridge/` becomes thin client.
-3. Feature flag: `TYRANOS_N8N_BACKEND=go|python`.
+3. Feature flag: `ARCHON_N8N_BACKEND=go|python`.
 
-**Rollback:** `TYRANOS_N8N_BACKEND=python` — Go service stops, aiohttp client resumes.
+**Rollback:** `ARCHON_N8N_BACKEND=python` — Go service stops, aiohttp client resumes.
 
 ### Phase 4 — Rust distro builder (target: 3.1)
 
@@ -174,7 +182,7 @@ The Python client calls `http://localhost:5679/api/v1/...` — identical URL sha
 ### Tauri ↔ Python (AI layer)
 
 ```
-Tauri frontend  →  Tauri command (Rust)  →  spawn python -m tyranos.ai
+Tauri frontend  →  Tauri command (Rust)  →  spawn python -m archon.ai
                                          ←  stdout JSON stream
 ```
 
@@ -186,10 +194,10 @@ SSE streaming preserved: Python writes `data: {...}\n\n` to stdout; Rust relays 
 
 | Component | Env var | Safe value | Risky value |
 |---|---|---|---|
-| CLI | `TYRANOS_RUST_CLI` | `0` (Python) | `1` (Rust) |
-| GUI | `TYRANOS_GUI` | `ctk` (CustomTkinter) | `tauri` |
-| n8n bridge | `TYRANOS_N8N_BACKEND` | `python` | `go` |
-| Distro builder | `TYRANOS_DISTRO_BACKEND` | `python` | `rust` |
+| CLI | `ARCHON_RUST_CLI` | `0` (Python) | `1` (Rust) |
+| GUI | `ARCHON_GUI` | `ctk` (CustomTkinter) | `tauri` |
+| n8n bridge | `ARCHON_N8N_BACKEND` | `python` | `go` |
+| Distro builder | `ARCHON_DISTRO_BACKEND` | `python` | `rust` |
 
 All flags default to `python`/`ctk` so `git bisect` always works without recompiling.
 
@@ -205,9 +213,9 @@ All flags default to `python`/`ctk` so `git bisect` always works without recompi
 
 ## 8. What Does NOT Change
 
-- `tyranos/config.py` — config schema, env vars, `~/.tyranos/config.toml` path
-- `tyranos/ai/` — entire AI layer stays Python until Phase 4+
-- `tyranos/_cli.py` — the Python CLI entry point remains for `pip install` users
+- `archon/config.py` — config schema, env vars, `~/.archon/config.toml` path
+- `archon/ai/` — entire AI layer stays Python until Phase 4+
+- `archon/_cli.py` — the Python CLI entry point remains for `pip install` users
 - `tests/` — all 153 existing tests must continue to pass throughout migration
 - `pyproject.toml` extras (`[gui]`, `[n8n]`, etc.) — install surface unchanged
 

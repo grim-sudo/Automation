@@ -1,12 +1,12 @@
-# Tyranos example configuration file
-# Copy to ~/.tyranos/config.toml and edit as needed.
+# Archon example configuration file
+# Copy to ~/.archon/config.toml and edit as needed.
 # All settings have defaults — only add what you want to override.
 
 # ── Global ────────────────────────────────────────────────────────────────────
 debug             = false   # verbose debug logging to terminal
 safe_mode         = false   # require confirmation before destructive ops
 continue_on_error = false   # keep going in batch mode after a failure
-# log_file = "/var/log/tyranos.jsonl"   # write structured JSON logs to file
+# log_file = "/var/log/archon.jsonl"   # write structured JSON logs to file
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 [ai]
@@ -34,10 +34,10 @@ polling_interval_seconds = 5
 
 # ── Distro Builder ────────────────────────────────────────────────────────────
 [distro_builder]
-work_dir                  = "/tmp/tyranos_distro_build"
+work_dir                  = "/tmp/archon_distro_build"
 output_dir                = "./distro_output"
 default_jobs              = 0                           # 0 = auto from nproc
 debian_mirror             = "http://deb.debian.org/debian"
 debian_suite              = "bookworm"
-kernel_cache_dir          = "~/.tyranos/kernel_cache"
+kernel_cache_dir          = "~/.archon/kernel_cache"
 require_root_confirmation = true

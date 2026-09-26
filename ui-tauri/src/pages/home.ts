@@ -1,5 +1,5 @@
 /**
- * Home / Dashboard page — mirrors tyranos/ui/gui/pages/home_page.py.
+ * Home / Dashboard page — mirrors archon/ui/gui/pages/home_page.py.
  */
 
 import { showPage } from "../router.js";
@@ -9,7 +9,7 @@ export function renderHome(container: HTMLElement): void {
     <div class="topbar">
       <span class="topbar-title">⚡  Dashboard</span>
       <div class="topbar-spacer"></div>
-      <span style="font-size:11px;color:var(--text-secondary)">Tyranos v2.0</span>
+      <span style="font-size:11px;color:var(--text-secondary)">Archon v2.0</span>
     </div>
     <div style="flex:1;overflow-y:auto;padding:20px;display:grid;
                 grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
@@ -20,7 +20,7 @@ export function renderHome(container: HTMLElement): void {
           Universal Automation Intelligence
         </h2>
         <p style="color:var(--text-secondary);line-height:1.6;">
-          Describe what you want in plain English. Tyranos maps your intent through
+          Describe what you want in plain English. Archon maps your intent through
           a multi-layer AI pipeline and runs it.
         </p>
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">

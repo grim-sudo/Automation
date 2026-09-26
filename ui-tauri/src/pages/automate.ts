@@ -1,6 +1,6 @@
 /**
  * Automate page — single NL command execution with output log.
- * Mirrors tyranos/ui/gui/pages/automate_page.py.
+ * Mirrors archon/ui/gui/pages/automate_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";

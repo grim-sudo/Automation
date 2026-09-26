@@ -1,4 +1,4 @@
-# Tyranos — Setup & Installation Guide
+# Archon — Setup & Installation Guide
 
 > **Quick links**: [README](README.md) | [Usage examples](usage.md) | [Full CLI reference](user_guide.md)
 
@@ -33,7 +33,7 @@ cd Automation
 
 ## Step 2 — Create a Virtual Environment
 
-A virtual environment keeps Tyranos's dependencies isolated from your system Python.
+A virtual environment keeps Archon's dependencies isolated from your system Python.
 
 ```bash
 # Create the venv (name it whatever you like; the project uses "venv" by convention)
@@ -84,7 +84,7 @@ pip install -e ".[dev,n8n,distro,gui]"  # everything
 
 ## Step 4 — Configure Your API Key
 
-Tyranos uses [OpenRouter](https://openrouter.ai) to discover and call free AI models at
+Archon uses [OpenRouter](https://openrouter.ai) to discover and call free AI models at
 runtime. At least one API key is required for AI-enhanced features.
 
 ### Option A — `.env` file (recommended)
@@ -97,10 +97,10 @@ OPENROUTER_API_KEY=sk-or-v1-...
 # OPENAI_API_KEY=sk-...           # optional direct OpenAI access
 # ANTHROPIC_API_KEY=sk-ant-...    # optional direct Anthropic access
 
-# Leave OPENROUTER_MODEL blank — Tyranos auto-selects the best free model
+# Leave OPENROUTER_MODEL blank — Archon auto-selects the best free model
 # OPENROUTER_MODEL=
 
-# n8n integration (optional — only needed for tyranos n8n commands)
+# n8n integration (optional — only needed for archon n8n commands)
 N8N_URL=http://localhost:5678
 N8N_API_KEY=your-n8n-api-key
 ```
@@ -108,7 +108,7 @@ N8N_API_KEY=your-n8n-api-key
 > **Important:** Always use the flat variable names `N8N_URL` and `N8N_API_KEY` (not
 > `N8N__URL`). The compat layer maps these to the correct nested config fields.
 
-Tyranos reads `.env` automatically on startup.
+Archon reads `.env` automatically on startup.
 
 ### Option B — Environment variables
 
@@ -132,14 +132,14 @@ setx OPENROUTER_API_KEY "sk-or-v1-..."
 Generate an example config:
 
 ```bash
-python -c "from tyranos.config import generate_example_config; generate_example_config()"
-# Writes ~/.tyranos/config.example.toml
+python -c "from archon.config import generate_example_config; generate_example_config()"
+# Writes ~/.archon/config.example.toml
 ```
 
 Copy and edit it:
 
 ```bash
-cp ~/.tyranos/config.example.toml ~/.tyranos/config.toml
+cp ~/.archon/config.example.toml ~/.archon/config.toml
 ```
 
 ```toml
@@ -157,49 +157,49 @@ api_key = "your-n8n-api-key"
 
 ```bash
 # Print version
-python tyranos.py --version
-# Tyranos v1.0.0
+python archon.py --version
+# Archon v2.0.0
 
 # Show help
-python tyranos.py --help
+python archon.py --help
 
 # Run a simple test
-python tyranos.py run "create a folder named tyranos_test"
-ls tyranos_test       # Linux/macOS — should exist
-dir tyranos_test      # Windows
+python archon.py run "create a folder named archon_test"
+ls archon_test       # Linux/macOS — should exist
+dir archon_test      # Windows
 
 # Clean up
-python tyranos.py run "delete the folder tyranos_test"
+python archon.py run "delete the folder archon_test"
 ```
 
 > **Note:** If you installed with `pip install -e .` and your venv's `bin/` is on `PATH`, you can
-> use `tyranos` directly instead of `python tyranos.py`.
+> use `archon` directly instead of `python archon.py`.
 
 ---
 
 ## Running Modes
 
-### `tyranos run` — Single Command
+### `archon run` — Single Command
 
 Execute one natural-language command and exit.
 
 ```bash
-python tyranos.py run "create a folder named reports"
-python tyranos.py run "copy all PDF files to archive"
-python tyranos.py run "show disk usage on /"
+python archon.py run "create a folder named reports"
+python archon.py run "copy all PDF files to archive"
+python archon.py run "show disk usage on /"
 
 # Per-command flags
-python tyranos.py run "delete all logs" --safe-mode      # confirm before destructive ops
-python tyranos.py run "build the project" --debug        # verbose output
-python tyranos.py run "summarise this" -m openai/gpt-4o  # force a specific model
+python archon.py run "delete all logs" --safe-mode      # confirm before destructive ops
+python archon.py run "build the project" --debug        # verbose output
+python archon.py run "summarise this" -m openai/gpt-4o  # force a specific model
 ```
 
-### `tyranos chatbot` — Interactive Mode
+### `archon chatbot` — Interactive Mode
 
 Multi-turn conversational interface with context carried across turns.
 
 ```bash
-python tyranos.py chatbot
+python archon.py chatbot
 ```
 
 Special commands inside the chatbot:
@@ -216,17 +216,17 @@ Special commands inside the chatbot:
 exit        — quit
 ```
 
-### `tyranos gui` — Graphical Interface
+### `archon gui` — Graphical Interface
 
-Tyranos v2.0 ships a futuristic dark-mode GUI (CustomTkinter) with 7 pages:
+Archon v2.0 ships a futuristic dark-mode GUI (CustomTkinter) with 7 pages:
 **Home · Chat · Automate · n8n · Distro Builder · History · Settings**
 
 ```bash
 pip install -e ".[gui]"
-python tyranos.py gui
+python archon.py gui
 ```
 
-### `tyranos batch` — Bulk Execution
+### `archon batch` — Bulk Execution
 
 Run multiple commands from a plain-text file. Lines starting with `#` and blank lines are skipped.
 
@@ -238,10 +238,10 @@ take a screenshot and save to ~/screenshots/before.png
 ```
 
 ```bash
-python tyranos.py batch tasks.txt
-python tyranos.py batch tasks.txt --stop-on-error   # halt on first failure
-python tyranos.py batch tasks.txt --safe-mode       # confirm destructive steps
-python tyranos.py batch tasks.txt --debug           # verbose per-step output
+python archon.py batch tasks.txt
+python archon.py batch tasks.txt --stop-on-error   # halt on first failure
+python archon.py batch tasks.txt --safe-mode       # confirm destructive steps
+python archon.py batch tasks.txt --debug           # verbose per-step output
 ```
 
 ---
@@ -267,16 +267,16 @@ N8N_API_KEY=eyJhbGciOiJIUzI1NiIs...
 
 ```bash
 # List all workflows
-python tyranos.py n8n list
+python archon.py n8n list
 
 # Create a workflow from natural language
-python tyranos.py n8n create "every hour fetch weather data and post to Slack"
+python archon.py n8n create "every hour fetch weather data and post to Slack"
 
 # Trigger a workflow manually
-python tyranos.py n8n run <workflow-id>
+python archon.py n8n run <workflow-id>
 
 # Check execution status
-python tyranos.py n8n status <workflow-id>
+python archon.py n8n status <workflow-id>
 ```
 
 ---
@@ -305,21 +305,21 @@ pip install -e ".[distro]"
 
 ```bash
 # List available profiles
-python tyranos.py distro profiles
+python archon.py distro profiles
 
 # Estimate build time and disk usage (dry run)
-python tyranos.py distro estimate --profile minimal
+python archon.py distro estimate --profile minimal
 
 # Build from a named profile
-sudo python tyranos.py distro build --profile debian_base --output ~/isos/
+sudo python archon.py distro build --profile debian_base --output ~/isos/
 
 # Build from natural language
-sudo python tyranos.py distro build --nl "minimal Debian ISO with nginx, headless, no GUI"
+sudo python archon.py distro build --nl "minimal Debian ISO with nginx, headless, no GUI"
 ```
 
 ### Custom build profile
 
-Create `~/.tyranos/profiles/my-server.toml`:
+Create `~/.archon/profiles/my-server.toml`:
 
 ```toml
 [meta]
@@ -354,7 +354,7 @@ desktop  = ""
 1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
 2. `SECTION__FIELD` env vars — e.g. `AI__MAX_TOKENS=16000`
 3. Flat legacy env vars — `OPENROUTER_API_KEY`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
-4. `~/.tyranos/config.toml`
+4. `~/.archon/config.toml`
 5. Built-in defaults
 
 ### Full config skeleton
@@ -364,7 +364,7 @@ desktop  = ""
 debug             = false    # verbose debug logging to console
 safe_mode         = false    # require confirmation before destructive operations
 continue_on_error = false    # keep going in batch mode after a failure
-# log_file = "/var/log/tyranos.jsonl"   # write JSON logs to file
+# log_file = "/var/log/archon.jsonl"   # write JSON logs to file
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 [ai]
@@ -390,12 +390,12 @@ polling_interval_seconds = 5
 
 # ── Distro Builder ────────────────────────────────────────────────────────────
 [distro_builder]
-work_dir                  = "/tmp/tyranos_distro_build"
+work_dir                  = "/tmp/archon_distro_build"
 output_dir                = "./distro_output"
 default_jobs              = 0       # 0 = auto from nproc
 debian_mirror             = "http://deb.debian.org/debian"
 debian_suite              = "bookworm"
-kernel_cache_dir          = "~/.tyranos/kernel_cache"
+kernel_cache_dir          = "~/.archon/kernel_cache"
 require_root_confirmation = true
 ```
 
@@ -419,9 +419,9 @@ require_root_confirmation = true
 ## Running the Test Suite
 
 ```bash
-# All 153 tests
+# All 232 tests
 pytest tests/ -v
-# Expected: 153 passed, 1 warning
+# Expected: 232 passed, 2 warnings
 
 # Quiet summary
 pytest tests/ -q
@@ -430,7 +430,7 @@ pytest tests/ -q
 pytest tests/test_response_parser.py -v
 
 # With coverage (requires pytest-cov)
-pytest tests/ --cov=tyranos --cov-report=term-missing
+pytest tests/ --cov=archon --cov-report=term-missing
 
 # Skip slow / integration tests
 pytest tests/ -m "not slow and not integration"
@@ -442,18 +442,18 @@ pytest tests/ -m "not slow and not integration"
 
 ```bash
 # Lint
-ruff check tyranos/ tests/
+ruff check archon/ tests/
 
 # Auto-fix + format
-ruff check --fix tyranos/ tests/
-ruff format tyranos/ tests/
+ruff check --fix archon/ tests/
+ruff format archon/ tests/
 
 # Type check
-mypy tyranos/ --ignore-missing-imports
+mypy archon/ --ignore-missing-imports
 
 # Full CI check (same as GitHub Actions)
-ruff check tyranos/ tests/ && \
-mypy tyranos/ --ignore-missing-imports && \
+ruff check archon/ tests/ && \
+mypy archon/ --ignore-missing-imports && \
 pytest tests/ -v
 ```
 
@@ -461,22 +461,22 @@ pytest tests/ -v
 
 ## Troubleshooting
 
-### `tyranos: command not found`
+### `archon: command not found`
 
 Activate your venv and verify the install:
 
 ```bash
 source venv/bin/activate
-which tyranos       # should show path inside venv/
+which archon       # should show path inside venv/
 # If not found, use:
-python tyranos.py --help
+python archon.py --help
 ```
 
 ### AI not responding / empty responses
 
 ```bash
 echo $OPENROUTER_API_KEY          # check the key is set
-python tyranos.py --debug run "hello"   # see full HTTP traffic
+python archon.py --debug run "hello"   # see full HTTP traffic
 ```
 
 ### n8n returns 401 Unauthorized
@@ -505,7 +505,7 @@ pip install -e . --force-reinstall --no-cache-dir
 sudo apt-get install xvfb
 Xvfb :99 -screen 0 1024x768x24 &
 export DISPLAY=:99
-python tyranos.py gui
+python archon.py gui
 ```
 
 ### Distro builder: permission denied
@@ -513,22 +513,22 @@ python tyranos.py gui
 `debootstrap` and `pacstrap` require root:
 
 ```bash
-sudo python tyranos.py distro build --profile debian_base --output ./isos/
+sudo python archon.py distro build --profile debian_base --output ./isos/
 ```
 
 ### Enable debug logging
 
 ```bash
-python tyranos.py --debug run "your command"
-python tyranos.py --log-file /tmp/tyranos.jsonl run "your command"
-python -m json.tool < /tmp/tyranos.jsonl   # pretty-print JSON logs
+python archon.py --debug run "your command"
+python archon.py --log-file /tmp/archon.jsonl run "your command"
+python -m json.tool < /tmp/archon.jsonl   # pretty-print JSON logs
 ```
 
 ---
 
 ## Security Notes
 
-- **Never commit your API key** — use a `.env` file (add it to `.gitignore`) or `~/.tyranos/config.toml`
+- **Never commit your API key** — use a `.env` file (add it to `.gitignore`) or `~/.archon/config.toml`
 - Use `--safe-mode` to confirm before destructive operations
 - All subprocess calls use `safe_run()` with list-form arguments — no `shell=True` anywhere
 - `PathValidator` blocks `..` traversal sequences and null-byte injection before any path operation
@@ -538,7 +538,7 @@ python -m json.tool < /tmp/tyranos.jsonl   # pretty-print JSON logs
 
 ## Next Steps
 
-1. Run `python tyranos.py chatbot` to explore capabilities interactively
+1. Run `python archon.py chatbot` to explore capabilities interactively
 2. Read [usage.md](usage.md) for per-task command examples for every capability
 3. Read [user_guide.md](user_guide.md) for the full CLI and Python API reference
-4. Copy `~/.tyranos/config.example.toml` to `config.toml` and customise it
+4. Copy `~/.archon/config.example.toml` to `config.toml` and customise it

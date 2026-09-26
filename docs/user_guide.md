@@ -1,6 +1,6 @@
-# Tyranos — User Guide
+# Archon — User Guide
 
-Tyranos is a natural-language automation framework. You describe what you want in plain English; the framework maps your intent to the right action and runs it.
+Archon is a natural-language automation framework. You describe what you want in plain English; the framework maps your intent to the right action and runs it.
 
 ---
 
@@ -46,7 +46,7 @@ pip install -e ".[gui]"           # includes GUI (requires a display)
 **Verify:**
 
 ```bash
-tyranos --version
+archon --version
 # 1.0.0
 ```
 
@@ -54,10 +54,10 @@ tyranos --version
 
 ## Configuration
 
-Tyranos reads settings from multiple sources in this priority order (highest wins):
+Archon reads settings from multiple sources in this priority order (highest wins):
 
 ```
-CLI flag → environment variable → .env file → ~/.tyranos/config.toml → built-in default
+CLI flag → environment variable → .env file → ~/.archon/config.toml → built-in default
 ```
 
 ### Quick start: `.env` file
@@ -70,7 +70,7 @@ OPENROUTER_API_KEY=sk-or-...
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Leave OPENROUTER_MODEL blank — Tyranos auto-selects the best free model
+# Leave OPENROUTER_MODEL blank — Archon auto-selects the best free model
 # OPENROUTER_MODEL=
 
 # n8n integration (optional)
@@ -80,13 +80,13 @@ N8N_API_KEY=your-n8n-api-key
 
 ### Config file
 
-On first run, an example config is written to `~/.tyranos/config.example.toml`. Copy it:
+On first run, an example config is written to `~/.archon/config.example.toml`. Copy it:
 
 ```bash
-cp ~/.tyranos/config.example.toml ~/.tyranos/config.toml
+cp ~/.archon/config.example.toml ~/.archon/config.toml
 ```
 
-Then edit `~/.tyranos/config.toml` to set your keys and preferences.
+Then edit `~/.archon/config.toml` to set your keys and preferences.
 
 ### Nested environment variables
 
@@ -104,39 +104,39 @@ export OMNI__DEBUG=true
 ## Running a single command
 
 ```bash
-tyranos run "COMMAND"
+archon run "COMMAND"
 ```
 
 **Examples:**
 
 ```bash
 # File system
-tyranos run "create a folder named reports in ~/Documents"
-tyranos run "create 5 folders named test1 through test5 on the Desktop"
-tyranos run "delete all .tmp files in /home/user/Downloads"
+archon run "create a folder named reports in ~/Documents"
+archon run "create 5 folders named test1 through test5 on the Desktop"
+archon run "delete all .tmp files in /home/user/Downloads"
 
 # Screenshots / UI
-tyranos run "take a screenshot and save to ~/screenshots/now.png"
+archon run "take a screenshot and save to ~/screenshots/now.png"
 
 # System info
-tyranos run "show running processes sorted by CPU"
-tyranos run "check disk usage on /"
+archon run "show running processes sorted by CPU"
+archon run "check disk usage on /"
 
 # Web / network
-tyranos run "download https://example.com/file.zip to ~/Downloads"
+archon run "download https://example.com/file.zip to ~/Downloads"
 
 # Development
-tyranos run "create a Python project called my-api in ~/Projects"
-tyranos run "deploy the app"
-tyranos run "run the test suite"
+archon run "create a Python project called my-api in ~/Projects"
+archon run "deploy the app"
+archon run "run the test suite"
 ```
 
 **Flags:**
 
 ```bash
-tyranos run "delete all logs" --safe-mode   # asks for confirmation first
-tyranos run "build project" --debug          # verbose output
-tyranos run "summarise this" -m openai/gpt-4o  # force a specific model
+archon run "delete all logs" --safe-mode   # asks for confirmation first
+archon run "build project" --debug          # verbose output
+archon run "summarise this" -m openai/gpt-4o  # force a specific model
 ```
 
 ---
@@ -146,7 +146,7 @@ tyranos run "summarise this" -m openai/gpt-4o  # force a specific model
 Starts a REPL where you type commands one at a time:
 
 ```bash
-tyranos chatbot
+archon chatbot
 ```
 
 - Type any natural language command and press Enter.
@@ -174,15 +174,15 @@ show disk usage on /home
 **Run it:**
 
 ```bash
-tyranos batch tasks.txt
+archon batch tasks.txt
 ```
 
 **Options:**
 
 ```bash
-tyranos batch tasks.txt --stop-on-error     # halt on first failure
-tyranos batch tasks.txt --safe-mode         # confirm destructive steps
-tyranos batch tasks.txt --debug             # verbose output per step
+archon batch tasks.txt --stop-on-error     # halt on first failure
+archon batch tasks.txt --safe-mode         # confirm destructive steps
+archon batch tasks.txt --debug             # verbose output per step
 ```
 
 ---
@@ -204,28 +204,28 @@ The n8n bridge talks to a running [n8n](https://n8n.io) instance via its REST AP
 ### List workflows
 
 ```bash
-tyranos n8n list
+archon n8n list
 ```
 
 ### Create a workflow from natural language
 
 ```bash
-tyranos n8n create "send a Slack message every morning at 9am"
-tyranos n8n create "watch a folder for new CSV files and email them to me"
+archon n8n create "send a Slack message every morning at 9am"
+archon n8n create "watch a folder for new CSV files and email them to me"
 ```
 
-Tyranos uses the AI layer to generate the workflow JSON, then posts it to n8n. You can activate it manually from the n8n UI or via the API.
+Archon uses the AI layer to generate the workflow JSON, then posts it to n8n. You can activate it manually from the n8n UI or via the API.
 
 ### Trigger (run) a workflow
 
 ```bash
-tyranos n8n run <WORKFLOW_ID>
+archon n8n run <WORKFLOW_ID>
 ```
 
 ### Check workflow status
 
 ```bash
-tyranos n8n status <WORKFLOW_ID>
+archon n8n status <WORKFLOW_ID>
 ```
 
 ---
@@ -237,21 +237,21 @@ Builds a bootable Linux ISO from scratch. Requires root and Linux build tools (`
 **List available profiles:**
 
 ```bash
-tyranos distro profiles
+archon distro profiles
 ```
 
 **Estimate build time and disk usage (dry run):**
 
 ```bash
-tyranos distro estimate --profile minimal
-tyranos distro estimate --profile desktop
+archon distro estimate --profile minimal
+archon distro estimate --profile desktop
 ```
 
 **Build an ISO:**
 
 ```bash
-sudo tyranos distro build --profile minimal --output ~/isos/
-sudo tyranos distro build --profile desktop --name "MyDistro" --output ~/isos/
+sudo archon distro build --profile minimal --output ~/isos/
+sudo archon distro build --profile desktop --name "MyDistro" --output ~/isos/
 ```
 
 Build stages (all async, progress reported to the console):
@@ -287,21 +287,21 @@ These flags apply to all commands:
 
 ```bash
 # Debug a failing command
-tyranos --debug run "my command"
+archon --debug run "my command"
 
 # Always log to a file
-tyranos --log-file ~/tyranos.jsonl run "my command"
+archon --log-file ~/archon.jsonl run "my command"
 
 # Set via environment so you don't have to type it every time
 export OMNI_SAFE_MODE=true
-tyranos run "delete old logs"   # will ask for confirmation
+archon run "delete old logs"   # will ask for confirmation
 ```
 
 ---
 
 ## Logging
 
-Tyranos uses [loguru](https://github.com/Delgan/loguru) for structured logging.
+Archon uses [loguru](https://github.com/Delgan/loguru) for structured logging.
 
 | Mode | Output |
 |------|--------|
@@ -314,10 +314,10 @@ Tyranos uses [loguru](https://github.com/Delgan/loguru) for structured logging.
 
 ```bash
 # Tail-follow a running session
-tail -f ~/tyranos.jsonl | python -m json.tool
+tail -f ~/archon.jsonl | python -m json.tool
 
 # Filter only errors
-grep '"level":"ERROR"' ~/tyranos.jsonl | python -m json.tool
+grep '"level":"ERROR"' ~/archon.jsonl | python -m json.tool
 ```
 
 ---
@@ -350,12 +350,12 @@ export OMNI__DISTRO_BUILDER__OUTPUT_DIR=/mnt/builds
 
 ## Configuration file reference
 
-`~/.tyranos/config.toml`:
+`~/.archon/config.toml`:
 
 ```toml
 # Global
 debug = false
-# log_file = "/var/log/tyranos.jsonl"
+# log_file = "/var/log/archon.jsonl"
 safe_mode = false
 continue_on_error = false   # keep going in batch mode even when a step fails
 
@@ -382,7 +382,7 @@ output_dir = "./distro_output"
 default_jobs = 0                  # 0 = auto-detect from nproc
 debian_mirror = "http://deb.debian.org/debian"
 debian_suite = "bookworm"
-kernel_cache_dir = "~/.tyranos/kernel_cache"
+kernel_cache_dir = "~/.archon/kernel_cache"
 require_root_confirmation = true
 ```
 
@@ -392,10 +392,10 @@ require_root_confirmation = true
 
 ### Model selection
 
-Tyranos automatically selects the best free model from OpenRouter at startup. You do **not** need to set a model name. If you want to pin a model:
+Archon automatically selects the best free model from OpenRouter at startup. You do **not** need to set a model name. If you want to pin a model:
 
 ```bash
-tyranos run "my command" -m openai/gpt-4o
+archon run "my command" -m openai/gpt-4o
 ```
 
 Or in `.env` (not recommended — overrides auto-selection):
@@ -408,7 +408,7 @@ Or in `.env` (not recommended — overrides auto-selection):
 
 ```bash
 # Confirm every destructive step interactively
-tyranos --safe-mode batch cleanup_tasks.txt
+archon --safe-mode batch cleanup_tasks.txt
 ```
 
 ### Running without an AI key (offline / local mode)
@@ -418,19 +418,19 @@ Some simple intents (file operations, folder creation) are handled directly by t
 ### Shell completion
 
 ```bash
-tyranos --install-completion    # installs completion for your shell
+archon --install-completion    # installs completion for your shell
 # restart your shell, then:
-tyranos r<TAB>    # completes to 'run'
+archon r<TAB>    # completes to 'run'
 ```
 
 ### Programmatic Python API
 
 ```python
-from tyranos.config import get_settings
-from tyranos.core.engine import Tyranos
+from archon.config import get_settings
+from archon.core.engine import Archon
 
 settings = get_settings()
-engine = Tyranos(settings)
+engine = Archon(settings)
 
 result = engine.execute("create a folder named reports in /tmp")
 print(result)
@@ -442,18 +442,18 @@ engine.shutdown()
 
 ```bash
 # 1. List existing workflows
-tyranos n8n list
+archon n8n list
 
 # 2. Create a new one from natural language
-tyranos n8n create "every hour, check if /var/log/app.log is over 100MB and email me"
+archon n8n create "every hour, check if /var/log/app.log is over 100MB and email me"
 
 # 3. Activate it in the n8n UI (or via the n8n REST API directly)
 
 # 4. Check its last execution status
-tyranos n8n status <id>
+archon n8n status <id>
 
 # 5. Trigger it manually
-tyranos n8n run <id>
+archon n8n run <id>
 ```
 
 ### Batch file for a morning routine
@@ -467,5 +467,5 @@ list all files modified in the last 24 hours in ~/Projects
 ```
 
 ```bash
-tyranos batch morning_routine.txt --log-file ~/morning.jsonl
+archon batch morning_routine.txt --log-file ~/morning.jsonl
 ```

@@ -1,6 +1,6 @@
 /**
  * n8n Workflows page — list, create, and trigger workflows.
- * Mirrors tyranos/ui/gui/pages/n8n_page.py.
+ * Mirrors archon/ui/gui/pages/n8n_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";

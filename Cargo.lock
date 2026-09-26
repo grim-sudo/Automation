@@ -1636,7 +1636,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
-name = "tyranos-cli"
+name = "archon-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1649,11 +1649,11 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "tyranos-core",
+ "archon-core",
 ]
 
 [[package]]
-name = "tyranos-core"
+name = "archon-core"
 version = "0.1.0"
 dependencies = [
  "once_cell",

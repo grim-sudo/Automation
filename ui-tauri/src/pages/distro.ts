@@ -1,6 +1,6 @@
 /**
  * Distro Builder page — 5-step wizard.
- * Mirrors tyranos/ui/gui/pages/distro_page.py.
+ * Mirrors archon/ui/gui/pages/distro_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -81,7 +81,7 @@ function renderSelectStep(container: HTMLElement, content: HTMLElement): void {
     }
   }).catch(() => {
     content.querySelector<HTMLElement>("#profiles-grid")!.innerHTML =
-      `<div style="color:var(--error);">⚠ Could not load profiles. Is Tyranos installed?</div>`;
+      `<div style="color:var(--error);">⚠ Could not load profiles. Is Archon installed?</div>`;
   });
 
   content.querySelector("#nl-go")!.addEventListener("click", () => {
@@ -151,13 +151,13 @@ function renderBuildingStep(container: HTMLElement, content: HTMLElement): void 
     log.scrollTop = log.scrollHeight;
   }
 
-  logLine("[tyranos] Starting distro build…");
-  logLine(`[tyranos] Profile: ${selectedProfile}`);
-  logLine(`[tyranos] Output:  ${outputDir}`);
+  logLine("[archon] Starting distro build…");
+  logLine(`[archon] Profile: ${selectedProfile}`);
+  logLine(`[archon] Output:  ${outputDir}`);
 
   invoke<string>("distro_build", { profile: selectedProfile, outputDir }).then((result) => {
     logLine(result);
-    logLine("[tyranos] Build complete.");
+    logLine("[archon] Build complete.");
     toast.success("Distro build finished!");
     showStep(container, "done");
   }).catch((err) => {

@@ -1,6 +1,6 @@
 /**
  * Collapsible sidebar navigation component.
- * Mirrors tyranos/ui/gui/sidebar.py.
+ * Mirrors archon/ui/gui/sidebar.py.
  */
 
 import { showPage, type PageId } from "../router.js";
@@ -29,7 +29,7 @@ export function initSidebar(): void {
   const header = document.createElement("div");
   header.className = "sidebar-header";
   header.innerHTML = `
-    <span class="sidebar-logo" id="sidebar-logo">⚡ Tyranos</span>
+    <span class="sidebar-logo" id="sidebar-logo">⚡ Archon</span>
     <button class="btn btn-ghost" id="sidebar-toggle" title="Toggle sidebar"
             style="margin-left:auto;padding:4px 6px;">‹</button>
   `;

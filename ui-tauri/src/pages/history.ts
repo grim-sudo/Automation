@@ -1,6 +1,6 @@
 /**
  * History page — execution log viewer.
- * Mirrors tyranos/ui/gui/pages/history_page.py.
+ * Mirrors archon/ui/gui/pages/history_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";

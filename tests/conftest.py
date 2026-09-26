@@ -1,4 +1,4 @@
-"""pytest configuration and shared fixtures for Tyranos tests.
+"""pytest configuration and shared fixtures for Archon tests.
 
 Fixtures here are available to every test module automatically.  They are
 kept intentionally small — each test file declares its own local fixtures

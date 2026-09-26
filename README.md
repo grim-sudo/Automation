@@ -1,12 +1,18 @@
-# Tyranos
+<p align="center">
+  <img src="assets/archon_logo.svg" alt="Archon" width="160" height="160">
+</p>
 
-## Universal Automation Framework with AI Intelligence
+<h1 align="center">Archon</h1>
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com)
-[![CI](https://github.com/grim-sudo/Automation/actions/workflows/ci.yml/badge.svg)](https://github.com/grim-sudo/Automation/actions)
+<p align="center"><strong>Universal Automation Framework with AI Intelligence</strong></p>
 
-Tyranos is a cross-platform automation framework that executes complex workflows from plain-English commands. Describe what you want — the framework maps your intent through a multi-layer NLP and AI pipeline and runs it.
+<p align="center">
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python"></a>
+  <a href="https://github.com"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform"></a>
+  <a href="https://github.com/grim-sudo/Automation/actions"><img src="https://github.com/grim-sudo/Automation/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+Archon is a cross-platform automation framework that executes complex workflows from plain-English commands. Describe what you want — the framework maps your intent through a multi-layer NLP and AI pipeline and runs it.
 
 ---
 
@@ -18,11 +24,11 @@ Tyranos is a cross-platform automation framework that executes complex workflows
 | **n8n workflow bridge** | Create, run, and manage n8n workflows from natural language or CLI |
 | **Linux distro builder** | Build bootable ISOs from TOML profiles or NL descriptions (Debian, Arch, Buildroot) |
 | **Async AI layer** | `httpx.AsyncClient` + SSE streaming + `tenacity` fallback chain + `tiktoken` context window |
-| **Unified CLI** | Single `tyranos` entry point — `run`, `chatbot`, `gui`, `batch`, `n8n`, `distro` |
-| **pydantic-settings config** | `~/.tyranos/config.toml` + env-var overrides + `.env` file support |
+| **Unified CLI** | Single `archon` entry point — `run`, `chatbot`, `gui`, `batch`, `n8n`, `distro` |
+| **pydantic-settings config** | `~/.archon/config.toml` + env-var overrides + `.env` file support |
 | **Structured output parsing** | Pydantic v2 `TaskPlan` / `IntentResult` with JSON-repair fallbacks |
 | **Subprocess security** | All shell commands use list-form `safe_run()` — zero `shell=True` |
-| **Full test suite** | 153 passing pytest tests with async support |
+| **Full test suite** | 232 passing pytest tests with async support |
 
 ---
 
@@ -39,7 +45,7 @@ pip install -e .
 echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
 
 # 3. Run your first command
-python tyranos.py run "create a folder named my-project"
+python archon.py run "create a folder named my-project"
 ```
 
 See [SETUP.md](SETUP.md) for full installation and configuration instructions.
@@ -52,16 +58,16 @@ See [SETUP.md](SETUP.md) for full installation and configuration instructions.
 
 | Command | Description |
 |---------|-------------|
-| `tyranos run "…"` | Execute one natural-language command and exit |
-| `tyranos chatbot` | Multi-turn conversational REPL with streaming |
-| `tyranos gui` | Graphical interface (requires `[gui]` extra) |
-| `tyranos batch FILE` | Run a file of commands, one per line |
-| `tyranos n8n …` | n8n workflow management sub-commands |
-| `tyranos distro …` | Custom Linux ISO builder sub-commands |
+| `archon run "…"` | Execute one natural-language command and exit |
+| `archon chatbot` | Multi-turn conversational REPL with streaming |
+| `archon gui` | Graphical interface (requires `[gui]` extra) |
+| `archon batch FILE` | Run a file of commands, one per line |
+| `archon n8n …` | n8n workflow management sub-commands |
+| `archon distro …` | Custom Linux ISO builder sub-commands |
 
 ### NLP Intent Types
 
-Tyranos recognises 10 intent categories and routes each to the appropriate plugin:
+Archon recognises 10 intent categories and routes each to the appropriate plugin:
 
 | Intent | Example trigger words |
 |--------|----------------------|
@@ -122,7 +128,7 @@ Full instructions: [SETUP.md](SETUP.md)
 Settings are read in this priority order (highest wins):
 
 ```
-CLI flag  →  SECTION__FIELD env var  →  .env file  →  ~/.tyranos/config.toml  →  default
+CLI flag  →  SECTION__FIELD env var  →  .env file  →  ~/.archon/config.toml  →  default
 ```
 
 **Minimal `.env`:**
@@ -135,7 +141,7 @@ N8N_URL=http://localhost:5678
 N8N_API_KEY=your-n8n-key
 ```
 
-**Key `~/.tyranos/config.toml` settings:**
+**Key `~/.archon/config.toml` settings:**
 
 ```toml
 [ai]
@@ -161,60 +167,60 @@ safe_mode = false
 
 ```bash
 # --- Files & Folders ---
-python tyranos.py run "create a folder named reports"
-python tyranos.py run "create 50 folders named test1 to test50"
-python tyranos.py run "delete all .tmp files in ~/Downloads"
-python tyranos.py run "copy all PDFs from ~/Documents to ~/archive"
-python tyranos.py run "rename old_config.json to config.json"
-python tyranos.py run "list all files in ~/Projects"
+python archon.py run "create a folder named reports"
+python archon.py run "create 50 folders named test1 to test50"
+python archon.py run "delete all .tmp files in ~/Downloads"
+python archon.py run "copy all PDFs from ~/Documents to ~/archive"
+python archon.py run "rename old_config.json to config.json"
+python archon.py run "list all files in ~/Projects"
 
 # --- Projects ---
-python tyranos.py run "create a Python project called my-api"
-python tyranos.py run "scaffold a React app named dashboard"
-python tyranos.py run "generate an Express backend named api-server"
-python tyranos.py run "create a Java project named inventory-system"
+python archon.py run "create a Python project called my-api"
+python archon.py run "scaffold a React app named dashboard"
+python archon.py run "generate an Express backend named api-server"
+python archon.py run "create a Java project named inventory-system"
 
 # --- DevOps ---
-python tyranos.py run "create a Dockerfile for a Node.js app"
-python tyranos.py run "generate a docker-compose for postgres and redis"
-python tyranos.py run "create a GitHub Actions CI pipeline"
-python tyranos.py run "generate Terraform config for AWS EC2"
+python archon.py run "create a Dockerfile for a Node.js app"
+python archon.py run "generate a docker-compose for postgres and redis"
+python archon.py run "create a GitHub Actions CI pipeline"
+python archon.py run "generate Terraform config for AWS EC2"
 
 # --- Documents ---
-python tyranos.py run "create a Word document named quarterly-report.docx"
-python tyranos.py run "generate a PowerPoint presentation about AI trends"
-python tyranos.py run "create an Excel spreadsheet with columns for name, date, amount"
-python tyranos.py run "generate a PDF invoice"
+python archon.py run "create a Word document named quarterly-report.docx"
+python archon.py run "generate a PowerPoint presentation about AI trends"
+python archon.py run "create an Excel spreadsheet with columns for name, date, amount"
+python archon.py run "generate a PDF invoice"
 
 # --- Packages ---
-python tyranos.py run "install nginx"
-python tyranos.py run "uninstall apache2"
-python tyranos.py run "search for python packages matching http"
-python tyranos.py run "list all installed packages"
+python archon.py run "install nginx"
+python archon.py run "uninstall apache2"
+python archon.py run "search for python packages matching http"
+python archon.py run "list all installed packages"
 
 # --- Web ---
-python tyranos.py run "scrape https://example.com and extract all links"
-python tyranos.py run "download https://example.com/file.zip to ~/Downloads"
+python archon.py run "scrape https://example.com and extract all links"
+python archon.py run "download https://example.com/file.zip to ~/Downloads"
 
 # --- n8n ---
-python tyranos.py n8n list
-python tyranos.py n8n create "send a Slack message every morning at 9am"
-python tyranos.py n8n run <workflow-id>
-python tyranos.py n8n status <workflow-id>
+python archon.py n8n list
+python archon.py n8n create "send a Slack message every morning at 9am"
+python archon.py n8n run <workflow-id>
+python archon.py n8n status <workflow-id>
 
 # --- Distro ---
-python tyranos.py distro profiles
-python tyranos.py distro estimate --profile debian_base
-sudo python tyranos.py distro build --profile debian_base --output ./dist
+python archon.py distro profiles
+python archon.py distro estimate --profile debian_base
+sudo python archon.py distro build --profile debian_base --output ./dist
 
 # --- Typo tolerance ---
-python tyranos.py run "creat a fodler named test"   # auto-corrected
-python tyranos.py run "intall packge nginx"          # auto-corrected
+python archon.py run "creat a fodler named test"   # auto-corrected
+python archon.py run "intall packge nginx"          # auto-corrected
 
 # --- Flags ---
-python tyranos.py --debug run "deploy the app"
-python tyranos.py --safe-mode run "delete old logs"
-python tyranos.py --log-file ~/tyranos.jsonl batch tasks.txt
+python archon.py --debug run "deploy the app"
+python archon.py --safe-mode run "delete old logs"
+python archon.py --log-file ~/archon.jsonl batch tasks.txt
 ```
 
 ---
@@ -222,9 +228,9 @@ python tyranos.py --log-file ~/tyranos.jsonl batch tasks.txt
 ## Architecture
 
 ```
-Tyranos v2.0
-├── tyranos.py                          Unified typer CLI entry point
-├── tyranos/
+Archon v2.0
+├── archon.py                          Unified typer CLI entry point
+├── archon/
 │   ├── ai/
 │   │   ├── model_resolver.py       Dynamic free-model resolution (OpenRouter)
 │   │   ├── model_manager.py        Priority-ordered fallback chain (tenacity)
@@ -234,7 +240,7 @@ Tyranos v2.0
 │   │   └── task_planner.py         High-level planning orchestration
 │   ├── config.py                   pydantic-settings (TOML + env vars)
 │   ├── core/
-│   │   ├── engine.py               Main Tyranos orchestrator
+│   │   ├── engine.py               Main Archon orchestrator
 │   │   └── plugin_manager.py       Plugin discovery and dispatch
 │   ├── nlp/
 │   │   ├── semantic_engine.py      10-intent NLP classifier
@@ -271,7 +277,7 @@ Tyranos v2.0
 │       │   └── pages/                    Home, Chat, Automate, n8n, Distro, History, Settings
 │       ├── chatbot.py                    REPL chatbot mode
 │       └── cli.py                        Enhanced CLI
-└── tests/                            153 pytest tests
+└── tests/                            232 pytest tests
 ```
 
 ---
@@ -280,15 +286,15 @@ Tyranos v2.0
 
 ```python
 # High-level engine
-from tyranos.core.engine import Tyranos
+from archon.core.engine import Archon
 
-engine = Tyranos()
+engine = Archon()
 result = engine.execute("create folder my_project")
 engine.shutdown()
 
 # Async AI direct
 import asyncio
-from tyranos.ai.openrouter_integration import OpenRouterAutomationAI
+from archon.ai.openrouter_integration import OpenRouterAutomationAI
 
 ai = OpenRouterAutomationAI()
 plan = asyncio.run(ai.analyze_automation_request_async("setup a Python project"))
@@ -297,7 +303,7 @@ for step in plan.steps:
 
 # n8n bridge
 import asyncio
-from tyranos.plugins.n8n_bridge import WorkflowManager, N8nConfig
+from archon.plugins.n8n_bridge import WorkflowManager, N8nConfig
 
 cfg = N8nConfig(url="http://localhost:5678", api_key="...")
 mgr = WorkflowManager(cfg)
@@ -325,10 +331,10 @@ workflows = asyncio.run(mgr.list_workflows())
 ```bash
 pip install -e ".[dev]"
 
-pytest tests/ -v --asyncio-mode=auto -m "not integration and not slow"   # run the 153-test suite
-ruff check --fix tyranos/                # lint + auto-fix
-ruff format tyranos/                     # format
-mypy tyranos/ --ignore-missing-imports   # type check
+pytest tests/ -v --asyncio-mode=auto -m "not integration and not slow"   # run the 232-test suite
+ruff check --fix archon/                # lint + auto-fix
+ruff format archon/                     # format
+mypy archon/ --ignore-missing-imports   # type check
 ```
 
 ---
@@ -347,8 +353,8 @@ mypy tyranos/ --ignore-missing-imports   # type check
 
 | Problem | Fix |
 |---------|-----|
-| `tyranos: command not found` | Activate venv: `source .venv/bin/activate` |
-| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `tyranos --debug run "hello"` |
+| `archon: command not found` | Activate venv: `source .venv/bin/activate` |
+| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `archon --debug run "hello"` |
 | 401 from n8n | Ensure `N8N_API_KEY` and `N8N_URL` are set in `.env` |
 | GUI not launching | `pip install -e ".[gui]"` |
 | distro: permission denied | Run distro commands with `sudo` |

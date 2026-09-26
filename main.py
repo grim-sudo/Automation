@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Tyranos legacy entry point — backward compatibility shim.
-Delegates to the unified tyranos.py entry point via the typer CLI.
+Archon legacy entry point — backward compatibility shim.
+Delegates to the unified archon.py entry point via the typer CLI.
 
 For the new interface, use:
-  tyranos run "your command"
-  tyranos chatbot
-  tyranos gui
-  tyranos batch commands.txt
+  archon run "your command"
+  archon chatbot
+  archon gui
+  archon batch commands.txt
 """
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main() -> None:
-    """Translate legacy argparse arguments to tyranos.py typer commands and execute."""
+    """Translate legacy argparse arguments to archon.py typer commands and execute."""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Tyranos — legacy entry point (use `tyranos` for the new interface)",
+        description="Archon — legacy entry point (use `archon` for the new interface)",
         add_help=False,
     )
     mode_group = parser.add_mutually_exclusive_group()
@@ -43,7 +43,7 @@ def main() -> None:
     # absorb unknown flags silently for forward-compat
     args, _ = parser.parse_known_args()
 
-    # Build equivalent typer argv for tyranos.py
+    # Build equivalent typer argv for archon.py
     new_argv = [sys.argv[0]]
     if args.debug:
         new_argv += ["--debug"]
@@ -52,7 +52,7 @@ def main() -> None:
 
     if args.list_models:
         # No direct equivalent; show message
-        print("Use `tyranos --help` or check your config.toml for available model options.")
+        print("Use `archon --help` or check your config.toml for available model options.")
         sys.exit(0)
 
     if args.gui:
@@ -66,9 +66,9 @@ def main() -> None:
     else:
         new_argv.append("chatbot")
 
-    # Invoke tyranos app
+    # Invoke archon app
     sys.argv = new_argv
-    from tyranos._cli import app  # noqa: E402
+    from archon._cli import app  # noqa: E402
     app()
 
 

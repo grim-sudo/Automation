@@ -1,5 +1,5 @@
 /**
- * Tyranos GUI — Tauri frontend entry point.
+ * Archon GUI — Tauri frontend entry point.
  * Initialises the sidebar and routes to the correct page on load.
  */
 

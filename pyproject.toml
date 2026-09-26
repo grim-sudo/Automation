@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tyranos"
+name = "archon"
 version = "2.0.0"
 description = "Universal OS Automation Framework with Natural Language Processing"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-authors = [{ name = "Tyranos Team", email = "contact@tyranos.dev" }]
+authors = [{ name = "Archon Team", email = "contact@archon.dev" }]
 keywords = ["automation", "nlp", "ai", "cli", "workflow"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -107,11 +107,11 @@ dev = [
     "aiohttp>=3.9.0",
 ]
 all = [
-    "tyranos[gui,web,n8n,distro,data]",
+    "archon[gui,web,n8n,distro,data]",
 ]
 
 [project.scripts]
-tyranos = "tyranos._cli:app"
+archon = "archon._cli:app"
 
 [project.urls]
 Homepage = "https://github.com/grim-sudo/Automation"
@@ -121,14 +121,14 @@ Issues = "https://github.com/grim-sudo/Automation/issues"
 # ─── Hatchling build config ────────────────────────────────────────────────────
 
 [tool.hatch.build.targets.wheel]
-packages = ["tyranos"]
+packages = ["archon"]
 
 # ─── Ruff (linting + formatting) ──────────────────────────────────────────────
 
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-src = ["tyranos", "tests"]
+src = ["archon", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -214,7 +214,7 @@ markers = [
 # ─── coverage ─────────────────────────────────────────────────────────────────
 
 [tool.coverage.run]
-source = ["tyranos"]
+source = ["archon"]
 omit = ["tests/*", "*/migrations/*"]
 
 [tool.coverage.report]

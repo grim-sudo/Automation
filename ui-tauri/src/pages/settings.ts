@@ -1,6 +1,6 @@
 /**
  * Settings page — API keys, n8n URL, and preferences.
- * Mirrors tyranos/ui/gui/pages/settings_page.py.
+ * Mirrors archon/ui/gui/pages/settings_page.py.
  */
 
 import { invoke } from "@tauri-apps/api/core";

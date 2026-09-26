@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Archon emblem">
+  <title>Archon</title>
+  <defs>
+    <!-- Obsidian backdrop -->
+    <radialGradient id="void" cx="50%" cy="46%" r="58%">
+      <stop offset="0%" stop-color="#1b1922"/>
+      <stop offset="52%" stop-color="#0e0d12"/>
+      <stop offset="100%" stop-color="#0a0a0d"/>
+    </radialGradient>
+    <!-- Central reactor glow -->
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff0bf" stop-opacity="0.95"/>
+      <stop offset="30%" stop-color="#e6c65c" stop-opacity="0.45"/>
+      <stop offset="70%" stop-color="#d4af37" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Gold rule / reticle -->
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6df8f"/>
+      <stop offset="48%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#8a6d1f"/>
+    </linearGradient>
+    <!-- Bright edge highlight -->
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff6d5"/>
+      <stop offset="55%" stop-color="#e6c65c"/>
+      <stop offset="100%" stop-color="#a9821f"/>
+    </linearGradient>
+    <!-- Blade: shadowed steel face -->
+    <linearGradient id="steel" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#3a3842"/>
+      <stop offset="55%" stop-color="#191821"/>
+      <stop offset="100%" stop-color="#0b0a0e"/>
+    </linearGradient>
+    <!-- Blade: gold-lit face -->
+    <linearGradient id="litface" x1="0.85" y1="0" x2="0.2" y2="1">
+      <stop offset="0%" stop-color="#e9cf7a"/>
+      <stop offset="45%" stop-color="#9a7c33"/>
+      <stop offset="100%" stop-color="#3c3015"/>
+    </linearGradient>
+    <!-- Bead sphere -->
+    <radialGradient id="bead" cx="36%" cy="30%" r="72%">
+      <stop offset="0%" stop-color="#fff7dc"/>
+      <stop offset="46%" stop-color="#e6c65c"/>
+      <stop offset="100%" stop-color="#7a5f1c"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+
+    <!-- One blade, pointing up; reused rotated 120° / 240° -->
+    <g id="blade">
+      <!-- shadowed (left) face -->
+      <path d="M256,54 L229,168 L243,236 L256,252 Z" fill="url(#steel)"/>
+      <!-- gold-lit (right) face -->
+      <path d="M256,54 L283,168 L269,236 L256,252 Z" fill="url(#litface)"/>
+      <!-- outer edge highlight -->
+      <path d="M256,54 L283,168 L269,236" fill="none" stroke="url(#edge)"
+            stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+      <!-- central ridge -->
+      <path d="M256,54 L256,252" fill="none" stroke="#f6df8f" stroke-width="1.5" opacity="0.85"/>
+    </g>
+  </defs>
+
+  <!-- Backdrop -->
+  <circle cx="256" cy="256" r="250" fill="url(#void)"/>
+
+  <!-- HUD reticle -->
+  <g fill="none" stroke="url(#gold)" stroke-linecap="round">
+    <circle cx="256" cy="256" r="214" stroke-width="1.4" opacity="0.5"/>
+    <circle cx="256" cy="256" r="198" stroke-width="2.2" opacity="0.85"
+            stroke-dasharray="4 12 46 12 4 12"/>
+    <circle cx="256" cy="256" r="182" stroke-width="1" opacity="0.35"
+            stroke-dasharray="1.5 13"/>
+    <circle cx="256" cy="256" r="150" stroke-width="1.2" opacity="0.4"/>
+  </g>
+
+  <!-- Crosshair -->
+  <g stroke="url(#gold)" stroke-width="1" opacity="0.32">
+    <line x1="20" y1="256" x2="492" y2="256"/>
+    <line x1="256" y1="20" x2="256" y2="492"/>
+  </g>
+
+  <!-- Reticle detail dots -->
+  <g fill="#e6c65c" opacity="0.8">
+    <circle cx="366" cy="150" r="1.8"/>
+    <circle cx="146" cy="150" r="1.8"/>
+    <circle cx="120" cy="256" r="1.8"/>
+    <circle cx="392" cy="256" r="1.8"/>
+    <circle cx="200" cy="372" r="1.8"/>
+    <circle cx="312" cy="372" r="1.8"/>
+  </g>
+
+  <!-- Cardinal beads -->
+  <g>
+    <circle cx="256" cy="42"  r="7.5" fill="url(#bead)"/>
+    <circle cx="256" cy="470" r="7.5" fill="url(#bead)"/>
+    <circle cx="42"  cy="256" r="7.5" fill="url(#bead)"/>
+    <circle cx="470" cy="256" r="7.5" fill="url(#bead)"/>
+  </g>
+
+  <!-- Reactor glow behind the blades -->
+  <circle cx="256" cy="256" r="128" fill="url(#core)"/>
+
+  <!-- Tri-blade sigil -->
+  <g>
+    <use href="#blade"/>
+    <use href="#blade" transform="rotate(120 256 256)"/>
+    <use href="#blade" transform="rotate(240 256 256)"/>
+  </g>
+
+  <!-- Reactor core -->
+  <g>
+    <path d="M234,244 A24,24 0 0 0 278,244" fill="none" stroke="url(#gold)"
+          stroke-width="2.4" stroke-linecap="round"/>
+    <line x1="256" y1="210" x2="256" y2="292" stroke="url(#edge)" stroke-width="2.2"/>
+    <circle cx="256" cy="256" r="9" fill="url(#core)" filter="url(#glow)"/>
+    <circle cx="256" cy="256" r="4.5" fill="url(#bead)"/>
+  </g>
+</svg>

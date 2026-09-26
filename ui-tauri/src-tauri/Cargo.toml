@@ -1,8 +1,8 @@
 [package]
-name = "tyranos-tauri"
+name = "archon-tauri"
 version = "2.0.0"
-description = "Tyranos GUI — Tauri backend"
-authors = ["Tyranos Contributors"]
+description = "Archon GUI — Tauri backend"
+authors = ["Archon Contributors"]
 edition = "2021"
 
 [build-dependencies]
@@ -17,5 +17,5 @@ serde_json               = "1"
 tokio                    = { version = "1", features = ["full"] }
 anyhow                   = "1"
 
-# Reuse tyranos-core for config + validation
-tyranos-core = { path = "../../crates/tyranos-core" }
+# Reuse archon-core for config + validation
+archon-core = { path = "../../crates/archon-core" }

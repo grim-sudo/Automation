@@ -66,7 +66,7 @@ _FAKE_API_KEY = "sk-or-test-key-1234"
 # ---------------------------------------------------------------------------
 
 try:
-    from tyranos.ai.model_resolver import FreeModelResolver, ModelInfo, get_resolver
+    from archon.ai.model_resolver import FreeModelResolver, ModelInfo, get_resolver
 
     _IMPORT_OK = True
 except ImportError:
@@ -285,9 +285,9 @@ class TestGetResolverSingleton:
         # Patch get_config so no real config file is needed
         mock_cfg = MagicMock()
         mock_cfg.openrouter_api_key = _FAKE_API_KEY
-        with patch("tyranos.ai.model_resolver.get_config", return_value=mock_cfg):
+        with patch("archon.ai.model_resolver.get_config", return_value=mock_cfg):
             # Reset the module-level singleton so we can test creation
-            import tyranos.ai.model_resolver as _mr
+            import archon.ai.model_resolver as _mr
 
             original = _mr._resolver
             _mr._resolver = None
@@ -302,8 +302,8 @@ class TestGetResolverSingleton:
         """The singleton must be a FreeModelResolver instance."""
         mock_cfg = MagicMock()
         mock_cfg.openrouter_api_key = _FAKE_API_KEY
-        with patch("tyranos.ai.model_resolver.get_config", return_value=mock_cfg):
-            import tyranos.ai.model_resolver as _mr
+        with patch("archon.ai.model_resolver.get_config", return_value=mock_cfg):
+            import archon.ai.model_resolver as _mr
 
             original = _mr._resolver
             _mr._resolver = None

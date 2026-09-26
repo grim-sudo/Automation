@@ -1,4 +1,4 @@
 [workspace]
-members  = ["crates/tyranos-cli", "crates/tyranos-core"]
+members  = ["crates/archon-cli", "crates/archon-core"]
 exclude  = ["ui-tauri/src-tauri"]
 resolver = "2"

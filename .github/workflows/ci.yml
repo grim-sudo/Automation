@@ -32,10 +32,10 @@ jobs:
         run: pip install "ruff>=0.3.0"
 
       - name: Ruff lint check
-        run: ruff check tyranos/ tyranos.py tests/ --output-format=github
+        run: ruff check archon/ archon.py tests/ --output-format=github
 
       - name: Ruff format check
-        run: ruff format --check tyranos/ tyranos.py tests/
+        run: ruff format --check archon/ archon.py tests/
 
   # ─── Type checking (mypy) ────────────────────────────────────────────────────
   typecheck:
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run mypy
         run: |
-          mypy tyranos/ \
+          mypy archon/ \
             --ignore-missing-imports \
             --no-error-summary \
             --warn-return-any
@@ -99,7 +99,7 @@ jobs:
             -v \
             --tb=short \
             --asyncio-mode=auto \
-            --cov=tyranos \
+            --cov=archon \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             -m "not integration and not slow"
@@ -184,11 +184,11 @@ jobs:
         run: cargo test --workspace
 
       - name: Cargo build (release)
-        run: cargo build --release --package tyranos-cli
+        run: cargo build --release --package archon-cli
 
       - name: Benchmark cold-start (< 80 ms target)
         run: |
-          BIN=./target/release/tyranos-bin
+          BIN=./target/release/archon-bin
           START=$(date +%s%3N)
           $BIN version || true
           END=$(date +%s%3N)
@@ -201,8 +201,8 @@ jobs:
       - name: Upload release binary
         uses: actions/upload-artifact@v4
         with:
-          name: tyranos-bin-linux-x86_64
-          path: target/release/tyranos-bin
+          name: archon-bin-linux-x86_64
+          path: target/release/archon-bin
           retention-days: 7
 
   # ─── Tauri GUI — TypeScript check + Rust cargo check ─────────────────────────

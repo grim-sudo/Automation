@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 GUI Launcher — backward compatibility shim.
-Delegates to `tyranos gui` via the unified tyranos._cli entry point.
+Delegates to `archon gui` via the unified archon._cli entry point.
 
-Prefer using:  tyranos gui
+Prefer using:  archon gui
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def main() -> None:
-    """Launch the Tyranos GUI via the unified CLI."""
+    """Launch the Archon GUI via the unified CLI."""
     sys.argv = [sys.argv[0], "gui"]
-    from tyranos._cli import app  # type: ignore[import]
+    from archon._cli import app  # type: ignore[import]
     app()
 
 

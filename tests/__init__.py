@@ -1,1 +1,1 @@
-"""Tyranos test suite."""
+"""Archon test suite."""

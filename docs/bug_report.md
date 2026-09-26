@@ -1,4 +1,4 @@
-# Tyranos — Bug Report
+# Archon — Bug Report
 
 **Audit date:** 2026-03-14
 **Python version tested:** 3.14.3
