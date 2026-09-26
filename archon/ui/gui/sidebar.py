@@ -13,22 +13,39 @@ from . import theme as T
 from .components.icon import Icon
 from .particles import draw_archon_sigil
 
-# Grouped navigation. Only backend-backed destinations are listed; each entry is
+# Grouped navigation mirroring the command-center spec. Each entry is
 # (page_key, icon_name, label). Empty group title renders with no header.
 _NAV_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
-    ("", [
-        ("home", "overview", "Overview"),
-        ("automate", "command", "Command"),
+    ("COMMAND", [
+        ("command", "command", "Command"),
+        ("overview", "overview", "Overview"),
         ("chat", "chat", "Chat"),
     ]),
-    ("AUTOMATION", [
-        ("n8n", "workflows", "Workflows"),
-        ("distro", "osbuilder", "OS Builder"),
+    ("OPERATE", [
+        ("systems", "systems", "Systems"),
+        ("processes", "processes", "Processes"),
+        ("files", "files", "Files"),
+        ("network", "network", "Network"),
     ]),
-    ("ACTIVITY", [
-        ("history", "history", "History"),
+    ("INTELLIGENCE", [
+        ("models", "models", "Models"),
+        ("agents", "agents", "Agents"),
+        ("memory", "memory", "Memory"),
+    ]),
+    ("AUTOMATE", [
+        ("workflows", "workflows", "Workflows"),
+        ("mcp", "mcp", "MCP"),
+    ]),
+    ("BUILD", [
+        ("osbuilder", "osbuilder", "OS Builder"),
+        ("projects", "projects", "Projects"),
+    ]),
+    ("DATA", [
+        ("datasets", "datasets", "Datasets"),
+        ("analytics", "analytics", "Analytics"),
     ]),
     ("SYSTEM", [
+        ("logs", "logs", "Logs"),
         ("settings", "settings", "Settings"),
     ]),
 ]
@@ -51,7 +68,7 @@ class Sidebar(ctk.CTkFrame):
         self,
         parent: tk.Widget,
         on_navigate: Callable[[str], None] | None = None,
-        initial_page: str = "chat",
+        initial_page: str = "command",
         **kwargs: object,
     ) -> None:
         super().__init__(

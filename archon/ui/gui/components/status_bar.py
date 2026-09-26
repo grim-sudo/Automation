@@ -43,8 +43,17 @@ class StatusBar(ctk.CTkFrame):
         self._dot_id = self._dot.create_oval(0, 0, 8, 8, fill=T.SUCCESS, outline="")
 
         ctk.CTkLabel(
-            left, text="Archon Core", font=T.FONT_MICRO, text_color=T.TEXT_SECONDARY
+            left, text="ARCHON CORE", font=(T.FONT_FAMILY, 9, "bold"),
+            text_color=T.TEXT_SECONDARY,
         ).pack(side="left")
+
+        ctk.CTkLabel(left, text="│", font=T.FONT_MICRO,
+                     text_color=T.TEXT_DIM).pack(side="left", padx=T.SPACE_SM)
+        self._ops_label = ctk.CTkLabel(
+            left, text="0 OPERATIONS", font=(T.FONT_FAMILY, 9, "bold"),
+            text_color=T.TEXT_MUTED,
+        )
+        self._ops_label.pack(side="left")
 
         # Right: metrics (packed right-to-left → visual order CPU RAM DISK NET).
         right = ctk.CTkFrame(self, fg_color="transparent")
@@ -64,6 +73,16 @@ class StatusBar(ctk.CTkFrame):
     def set_core_status(self, ok: bool) -> None:
         try:
             self._dot.itemconfig(self._dot_id, fill=T.SUCCESS if ok else T.ERROR)
+        except tk.TclError:
+            pass
+
+    def set_operations(self, count: int) -> None:
+        """Update the active-operations counter in the strip."""
+        try:
+            self._ops_label.configure(
+                text=f"{count} OPERATION{'S' if count != 1 else ''}",
+                text_color=T.TEXT_ACCENT if count else T.TEXT_MUTED,
+            )
         except tk.TclError:
             pass
 

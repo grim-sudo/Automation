@@ -13,31 +13,57 @@ from typing import Any
 import customtkinter as ctk
 
 from . import theme as T
+from .components.command_palette import CommandPalette
 from .components.status_bar import StatusBar
 from .components.topbar import TopBar
-from .pages.automate import AutomatePage
 from .pages.chat import ChatPage
+from .pages.command import CommandView
 from .pages.distro_page import DistroPage
+from .pages.files import FilesView
 from .pages.history import HistoryPage
 from .pages.home import HomePage
+from .pages.mcp import McpView
+from .pages.models import ModelsView
 from .pages.n8n_page import N8nPage
+from .pages.network import NetworkView
+from .pages.processes import ProcessesView
 from .pages.settings import SettingsPage
+from .pages.standby import (
+    AgentsView,
+    AnalyticsView,
+    DatasetsView,
+    MemoryView,
+    ProjectsView,
+)
+from .pages.systems import SystemsView
 from .particles import ParticleField, draw_archon_sigil
 from .sidebar import Sidebar
 
 _STATE_PATH = Path.home() / ".archon" / "gui_state.json"
 
-_PAGE_ORDER = ["home", "chat", "automate", "n8n", "distro", "history", "settings"]
-
+# page key → view class. The command center is the flagship home surface.
 _PAGE_CLASSES: dict[str, type] = {
-    "home": HomePage,
+    "command": CommandView,
+    "overview": HomePage,
     "chat": ChatPage,
-    "automate": AutomatePage,
-    "n8n": N8nPage,
-    "distro": DistroPage,
-    "history": HistoryPage,
+    "systems": SystemsView,
+    "processes": ProcessesView,
+    "network": NetworkView,
+    "files": FilesView,
+    "models": ModelsView,
+    "agents": AgentsView,
+    "memory": MemoryView,
+    "workflows": N8nPage,
+    "mcp": McpView,
+    "osbuilder": DistroPage,
+    "projects": ProjectsView,
+    "datasets": DatasetsView,
+    "analytics": AnalyticsView,
+    "logs": HistoryPage,
     "settings": SettingsPage,
 }
+
+_HOME_PAGE = "command"
 
 
 class ArchonApp(ctk.CTk):
@@ -52,7 +78,7 @@ class ArchonApp(ctk.CTk):
         super().__init__(fg_color=T.BG_DEEP)
         self._engine = engine
         self._pages: dict[str, ctk.CTkFrame] = {}
-        self._active_page = "home"
+        self._active_page = _HOME_PAGE
 
         self.title("Archon")
         self.minsize(900, 600)
@@ -144,7 +170,7 @@ class ArchonApp(ctk.CTk):
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-        self._sidebar = Sidebar(self, on_navigate=self._navigate, initial_page="home")
+        self._sidebar = Sidebar(self, on_navigate=self._navigate, initial_page=_HOME_PAGE)
         self._sidebar.grid(row=0, column=0, rowspan=3, sticky="ns")
 
         self._topbar = TopBar(
@@ -162,14 +188,53 @@ class ArchonApp(ctk.CTk):
         self._statusbar = StatusBar(self)
         self._statusbar.grid(row=2, column=1, sticky="ew")
 
-        # Pre-build home page; others built on demand
-        self._show_page("home")
-        self._topbar.set_page("home")
+        # Universal command palette (Ctrl+Space) overlaid on the whole window.
+        self._palette = CommandPalette(
+            self,
+            destinations=self._palette_destinations(),
+            on_navigate=self._navigate,
+            on_command=self._handle_command,
+            recents=self._recent_commands,
+        )
 
-        # Keyboard shortcuts
+        # Pre-build the command center; others built on demand.
+        self._show_page(_HOME_PAGE)
+        self._topbar.set_page(_HOME_PAGE)
+
+        # Keyboard shortcuts.
+        self.bind("<Control-space>", lambda _e: self._palette.toggle())
         self.bind("<Control-comma>", lambda _e: self._navigate("settings"))
-        self.bind("<Control-h>", lambda _e: self._navigate("home"))
+        self.bind("<Control-h>", lambda _e: self._navigate(_HOME_PAGE))
         self.bind("<Control-t>", lambda _e: self._navigate("chat"))
+
+    # ── Command palette support ─────────────────────────────────────────────
+
+    def _palette_destinations(self) -> list[tuple[str, str]]:
+        labels = {
+            "command": "Command", "overview": "Overview", "chat": "Chat",
+            "systems": "Systems", "processes": "Processes", "network": "Network",
+            "files": "Files", "models": "Models", "agents": "Agents",
+            "memory": "Memory", "workflows": "Workflows", "mcp": "MCP / Capabilities",
+            "osbuilder": "OS Builder", "projects": "Projects",
+            "datasets": "Datasets", "analytics": "Analytics",
+            "logs": "Logs", "settings": "Settings",
+        }
+        return [(key, labels.get(key, key.title())) for key in _PAGE_CLASSES]
+
+    def _recent_commands(self) -> list[str]:
+        getter = getattr(self._engine, "get_execution_history", None)
+        if not callable(getter):
+            return []
+        try:
+            records = getter(6)
+        except Exception:
+            return []
+        seen: list[str] = []
+        for rec in reversed(records):
+            cmd = rec.get("original_command")
+            if cmd and cmd not in seen:
+                seen.append(cmd)
+        return seen[:4]
 
     # ── Navigation ────────────────────────────────────────────────────────────
 
@@ -182,9 +247,9 @@ class ArchonApp(ctk.CTk):
         self._topbar.set_page(page_name)
 
     def _handle_command(self, text: str) -> None:
-        """Route a global command-bar entry to the Command view and run it."""
-        self._navigate("automate")
-        page = self._pages.get("automate")
+        """Route a global command-bar / palette entry to the command center."""
+        self._navigate(_HOME_PAGE)
+        page = self._pages.get(_HOME_PAGE)
         submit = getattr(page, "submit_command", None)
         if callable(submit):
             submit(text)

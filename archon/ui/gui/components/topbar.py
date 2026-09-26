@@ -18,12 +18,23 @@ from .. import theme as T
 
 # Human-facing (title, context) per page key.
 _PAGE_META: dict[str, tuple[str, str]] = {
-    "home": ("Overview", "System status and quick actions"),
-    "automate": ("Command", "Describe an operation — Archon executes it"),
+    "command": ("Command", "Describe an operation — Archon executes it"),
+    "overview": ("Overview", "System status and recent activity"),
     "chat": ("Chat", "Converse with the Archon intelligence layer"),
-    "n8n": ("Workflows", "Browse, trigger, and monitor n8n workflows"),
-    "distro": ("OS Builder", "Compose and build a custom Linux image"),
-    "history": ("History", "Past operations and their results"),
+    "systems": ("Systems", "Machines Archon can see and control"),
+    "processes": ("Processes", "Live process table for this machine"),
+    "network": ("Network", "Interfaces, addresses, and throughput"),
+    "files": ("Files", "Browse the local filesystem"),
+    "models": ("Models", "The intelligence Archon routes tasks to"),
+    "agents": ("Agents", "Autonomous operations on Archon's behalf"),
+    "memory": ("Memory", "What Archon knows about your environment"),
+    "workflows": ("Workflows", "Browse, trigger, and monitor n8n workflows"),
+    "mcp": ("MCP", "Capabilities that extend Archon's reach"),
+    "osbuilder": ("OS Builder", "Compose and build a custom Linux image"),
+    "projects": ("Projects", "Architecture, decisions, tasks, artifacts"),
+    "datasets": ("Datasets", "Query and summarize data as an instrument"),
+    "analytics": ("Analytics", "Aggregations and insights"),
+    "logs": ("Logs", "Past operations and their results"),
     "settings": ("Settings", "Configuration and preferences"),
 }
 

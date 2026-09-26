@@ -39,6 +39,10 @@ class HomePage(ctk.CTkScrollableFrame):
         self._build()
         self._start_system_updates()
 
+    def _navigate(self, page: str) -> None:
+        if self._on_navigate:
+            self._on_navigate(page)
+
     # ── Build ─────────────────────────────────────────────────────────────────
 
     def _build(self) -> None:
@@ -96,9 +100,9 @@ class HomePage(ctk.CTkScrollableFrame):
 
         actions = [
             ("New Chat", "chat"),
-            ("Run Command", "automate"),
-            ("Build OS", "distro"),
-            ("New Workflow", "n8n"),
+            ("Run Command", "command"),
+            ("Build OS", "osbuilder"),
+            ("New Workflow", "workflows"),
         ]
         for idx, (label, page) in enumerate(actions):
             row, col = divmod(idx, 2)
@@ -181,7 +185,7 @@ class HomePage(ctk.CTkScrollableFrame):
             n8n_card.body,
             text="Open Workflows →",
             **T.btn_outline_kwargs(),
-            command=lambda: self._navigate("n8n"),
+            command=lambda: self._navigate("workflows"),
         ).pack(anchor="w")
 
     def _build_activity_feed(self) -> None:
@@ -290,10 +294,8 @@ class _ActivityRow(ctk.CTkFrame):
             corner_radius=T.RADIUS_SM,
             **kwargs,  # type: ignore[arg-type]
         )
-        color = self._TYPE_COLORS.get(activity_type, T.TEXT_SECONDARY)
-
         icon_bg = ctk.CTkFrame(
-            self, fg_color=color[:7] + "30", corner_radius=6, width=32, height=32
+            self, fg_color=T.BG_RAISED, corner_radius=6, width=32, height=32
         )
         icon_bg.pack(side="left", padx=(4, 8), pady=4)
         icon_bg.pack_propagate(False)

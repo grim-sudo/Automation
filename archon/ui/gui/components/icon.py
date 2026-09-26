@@ -99,6 +99,96 @@ def _settings(c: tk.Canvas, s: int, col: str, w: int) -> None:
     _oval(c, s, (0.56, 0.60, 0.68, 0.76), col, w)
 
 
+def _systems(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _rect(c, s, (0.20, 0.24, 0.80, 0.60), col, w)
+    _line(c, s, [(0.36, 0.60), (0.36, 0.72)], col, w)
+    _line(c, s, [(0.64, 0.60), (0.64, 0.72)], col, w)
+    _line(c, s, [(0.28, 0.74), (0.72, 0.74)], col, w)
+
+
+def _processes(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _rect(c, s, (0.30, 0.30, 0.70, 0.70), col, w)
+    for t in (0.40, 0.50, 0.60):
+        _line(c, s, [(t, 0.16), (t, 0.30)], col, w)
+        _line(c, s, [(t, 0.70), (t, 0.84)], col, w)
+        _line(c, s, [(0.16, t), (0.30, t)], col, w)
+        _line(c, s, [(0.70, t), (0.84, t)], col, w)
+
+
+def _network(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.42, 0.16, 0.58, 0.32), col, w)
+    _oval(c, s, (0.16, 0.66, 0.32, 0.82), col, w)
+    _oval(c, s, (0.68, 0.66, 0.84, 0.82), col, w)
+    _line(c, s, [(0.50, 0.32), (0.24, 0.66)], col, w)
+    _line(c, s, [(0.50, 0.32), (0.76, 0.66)], col, w)
+
+
+def _files(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _line(
+        c, s,
+        [(0.20, 0.28), (0.44, 0.28), (0.52, 0.38), (0.80, 0.38),
+         (0.80, 0.74), (0.20, 0.74), (0.20, 0.28)],
+        col, w,
+    )
+
+
+def _models(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.42, 0.14, 0.58, 0.30), col, w)
+    _oval(c, s, (0.16, 0.66, 0.30, 0.80), col, w)
+    _oval(c, s, (0.44, 0.66, 0.56, 0.80), col, w)
+    _oval(c, s, (0.70, 0.66, 0.84, 0.80), col, w)
+    _line(c, s, [(0.50, 0.30), (0.50, 0.50)], col, w)
+    _line(c, s, [(0.23, 0.66), (0.50, 0.50), (0.77, 0.66)], col, w)
+
+
+def _agents(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.36, 0.20, 0.64, 0.48), col, w)
+    _line(c, s, [(0.24, 0.80), (0.30, 0.58), (0.70, 0.58), (0.76, 0.80)], col, w)
+
+
+def _memory(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.22, 0.20, 0.78, 0.80), col, w)
+    _line(c, s, [(0.50, 0.20), (0.50, 0.80)], col, w)
+    _line(c, s, [(0.30, 0.36), (0.44, 0.36)], col, w)
+    _line(c, s, [(0.56, 0.60), (0.70, 0.60)], col, w)
+
+
+def _mcp(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.44, 0.44, 0.56, 0.56), col, w)
+    for bx, by in ((0.44, 0.14), (0.14, 0.66), (0.74, 0.66)):
+        _oval(c, s, (bx, by, bx + 0.12, by + 0.12), col, w)
+    _line(c, s, [(0.50, 0.44), (0.50, 0.26)], col, w)
+    _line(c, s, [(0.44, 0.52), (0.26, 0.66)], col, w)
+    _line(c, s, [(0.56, 0.52), (0.74, 0.66)], col, w)
+
+
+def _projects(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _rect(c, s, (0.20, 0.26, 0.80, 0.74), col, w)
+    _line(c, s, [(0.20, 0.40), (0.80, 0.40)], col, w)
+    _line(c, s, [(0.32, 0.26), (0.32, 0.20), (0.48, 0.20), (0.48, 0.26)], col, w)
+
+
+def _datasets(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.24, 0.18, 0.76, 0.34), col, w)
+    _line(c, s, [(0.24, 0.26), (0.24, 0.74)], col, w)
+    _line(c, s, [(0.76, 0.26), (0.76, 0.74)], col, w)
+    c.create_arc(0.24 * s, 0.66 * s, 0.76 * s, 0.82 * s, start=180, extent=180,
+                 style="arc", outline=col, width=w)
+    c.create_arc(0.24 * s, 0.42 * s, 0.76 * s, 0.58 * s, start=180, extent=180,
+                 style="arc", outline=col, width=w)
+
+
+def _analytics(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _line(c, s, [(0.20, 0.80), (0.20, 0.20)], col, w)
+    _line(c, s, [(0.20, 0.80), (0.80, 0.80)], col, w)
+    _line(c, s, [(0.32, 0.66), (0.48, 0.48), (0.60, 0.58), (0.78, 0.32)], col, w)
+
+
+def _core(c: tk.Canvas, s: int, col: str, w: int) -> None:
+    _oval(c, s, (0.20, 0.20, 0.80, 0.80), col, w)
+    _oval(c, s, (0.42, 0.42, 0.58, 0.58), col, w)
+
+
 _DRAWERS: dict[str, Callable[[tk.Canvas, int, str, int], None]] = {
     "overview": _overview,
     "command": _command,
@@ -109,6 +199,18 @@ _DRAWERS: dict[str, Callable[[tk.Canvas, int, str, int], None]] = {
     "capabilities": _capabilities,
     "logs": _logs,
     "settings": _settings,
+    "systems": _systems,
+    "processes": _processes,
+    "network": _network,
+    "files": _files,
+    "models": _models,
+    "agents": _agents,
+    "memory": _memory,
+    "mcp": _mcp,
+    "projects": _projects,
+    "datasets": _datasets,
+    "analytics": _analytics,
+    "core": _core,
 }
 
 
