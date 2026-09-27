@@ -25,8 +25,8 @@ pub struct Config {
 /// AI provider configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
-    pub openrouter_api_key: String,
-    pub openrouter_base_url: String,
+    pub ollama_url: String,
+    pub ollama_model: String,
     pub model: String,
     pub max_tokens: u32,
     pub timeout_secs: u64,
@@ -36,8 +36,8 @@ pub struct AiConfig {
 impl Default for AiConfig {
     fn default() -> Self {
         Self {
-            openrouter_api_key: String::new(),
-            openrouter_base_url: "https://openrouter.ai/api/v1".to_string(),
+            ollama_url: "http://127.0.0.1:11434".to_string(),
+            ollama_model: "qwen3.5:9b".to_string(),
             model: String::new(),
             max_tokens: 8000,
             timeout_secs: 30,
@@ -100,9 +100,14 @@ impl Config {
 
     /// Apply environment variable overrides on top of file config.
     fn apply_env_overrides(&mut self) {
-        if let Ok(v) = std::env::var("OPENROUTER_API_KEY") {
+        if let Ok(v) = std::env::var("OLLAMA_URL") {
             if !v.is_empty() {
-                self.ai.openrouter_api_key = v;
+                self.ai.ollama_url = v;
+            }
+        }
+        if let Ok(v) = std::env::var("OLLAMA_MODEL") {
+            if !v.is_empty() {
+                self.ai.ollama_model = v;
             }
         }
         if let Ok(v) = std::env::var("N8N_URL") {

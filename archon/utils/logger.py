@@ -44,13 +44,14 @@ _configured: bool = False
 def configure_logging(
     debug: bool = False,
     log_file: str | None = None,
+    console_level: str | None = None,
 ) -> None:
     """Configure the global loguru logger.
 
     Removes **all** existing loguru sinks and installs fresh ones:
 
     - A ``stderr`` sink at level ``DEBUG`` when *debug* is ``True``, otherwise
-      at ``INFO``.
+      at ``INFO`` — unless *console_level* overrides it.
     - An optional JSON-formatted file sink when *log_file* is given.
 
     This function is idempotent: calling it multiple times replaces the sinks
@@ -61,13 +62,16 @@ def configure_logging(
                   exception diagnostics.
         log_file: Path to a file that receives newline-delimited JSON log
                   records.  ``None`` disables file logging.
+        console_level: Explicit level for the stderr sink (e.g. ``"ERROR"`` to
+                  keep interactive sessions quiet). Overrides the debug-derived
+                  default; the file sink still captures everything at ``DEBUG``.
     """
     global _configured
 
     # Reset every existing sink so re-calls are idempotent.
     logger.remove()
 
-    level = "DEBUG" if debug else "INFO"
+    level = console_level or ("DEBUG" if debug else "INFO")
 
     # ── Stderr sink (human-readable with colour) ─────────────────────────────
     logger.add(

@@ -994,11 +994,11 @@ class WorkflowEngine:
         """Generate even/odd checking code using AI for specified language"""
         language = language.lower().strip()
 
-        # Use AI to generate the code dynamically
+        # Use the local Ollama model to generate the code dynamically.
         try:
-            from ..ai.openrouter_integration import OpenRouterAutomationAI
+            from ..ai.automation_ai import OllamaAutomationAI
 
-            ai = OpenRouterAutomationAI()
+            ai = OllamaAutomationAI()
 
             prompt = f"""Generate a complete, working {language} program that checks if a number is even or odd.
 
@@ -1013,38 +1013,11 @@ Requirements:
 
 Return ONLY the code, no explanations or markdown formatting."""
 
-            # Use the AI to generate code
-            if hasattr(ai, "client") and ai.client:
-                try:
-                    response = ai.client.chat.completions.create(
-                        model=ai.model_name,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are an expert code generator. Generate production-ready code.",
-                            },
-                            {"role": "user", "content": prompt},
-                        ],
-                        temperature=0.7,
-                        max_tokens=1000,
-                    )
-                    code = response.choices[0].message.content if response.choices else ""
-
-                    # Clean up markdown code blocks if present
-                    if code and code.startswith("```"):
-                        lines = code.split("\n")
-                        if lines[0].startswith("```"):
-                            code = "\n".join(lines[1:])
-                        if code.endswith("```"):
-                            code = code[:-3]
-                        code = code.strip()
-
-                    return code if code else self._generate_even_odd_fallback(language)
-                except Exception as e:
-                    self.logger.debug(f"OpenRouter API call failed: {e}")
-                    return self._generate_even_odd_fallback(language)
-            else:
-                return self._generate_even_odd_fallback(language)
+            code = ai.generate_code(
+                prompt,
+                system_prompt="You are an expert code generator. Generate production-ready code.",
+            )
+            return code if code else self._generate_even_odd_fallback(language)
 
         except Exception as e:
             self.logger.warning(f"AI code generation failed, using fallback: {e}")
@@ -1105,11 +1078,11 @@ Return ONLY the code, no explanations or markdown formatting."""
         # Determine complexity level
         complexity = self._get_complexity_level(algorithm)
 
-        # Use AI to generate code dynamically for any algorithm/problem
+        # Use the local Ollama model to generate code for any algorithm/problem.
         try:
-            from ..ai.openrouter_integration import OpenRouterAutomationAI
+            from ..ai.automation_ai import OllamaAutomationAI
 
-            ai = OpenRouterAutomationAI()
+            ai = OllamaAutomationAI()
 
             # Build adaptive prompt based on complexity
             # Extend supported algorithms to include more complex systems
@@ -1133,45 +1106,15 @@ Return ONLY the code, no explanations or markdown formatting."""
             # Update the prompt to include the new algorithms
             prompt = self._build_generation_prompt(algo_desc, language, complexity, java_class_name)
 
-            # Use the AI to generate code
-            if hasattr(ai, "client") and ai.client:
-                try:
-                    response = ai.client.chat.completions.create(
-                        model=ai.model_name,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": self._get_system_prompt(language, complexity),
-                            },
-                            {"role": "user", "content": prompt},
-                        ],
-                        temperature=0.7,
-                        max_tokens=2000 if complexity == "complex" else 1500,
-                    )
-                    code = response.choices[0].message.content if response.choices else ""
-
-                    # Clean up markdown code blocks if present
-                    if code and code.startswith("```"):
-                        lines = code.split("\n")
-                        if lines[0].startswith("```"):
-                            code = "\n".join(lines[1:])
-                        if code.endswith("```"):
-                            code = code[:-3]
-                        code = code.strip()
-
-                    # Post-process code based on language
-                    code = self._post_process_code(code, language, complexity)
-
-                    return (
-                        code
-                        if code
-                        else self._generate_algorithm_fallback(algorithm, language, complexity)
-                    )
-                except Exception as e:
-                    self.logger.debug(f"OpenRouter API call failed: {e}")
-                    return self._generate_algorithm_fallback(algorithm, language, complexity)
-            else:
-                return self._generate_algorithm_fallback(algorithm, language, complexity)
+            code = ai.generate_code(
+                prompt,
+                system_prompt=self._get_system_prompt(language, complexity),
+            )
+            if code:
+                # Post-process code based on language
+                code = self._post_process_code(code, language, complexity)
+                return code
+            return self._generate_algorithm_fallback(algorithm, language, complexity)
 
         except Exception as e:
             self.logger.warning(f"AI code generation failed for {algorithm}, using fallback: {e}")

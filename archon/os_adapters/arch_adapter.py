@@ -72,6 +72,10 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
                 return False
             elif action == "list":
                 return self.list_directory(params.get("path", "."))
+            elif action in ("read_file", "read"):
+                return self.read_file(
+                    params.get("path") or params.get("name") or params.get("file_path")
+                )
             else:
                 raise ValueError(f"Unknown filesystem action: {action}")
         except Exception as e:
@@ -80,7 +84,16 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
             return False
 
     def get_capabilities(self) -> list[str]:
-        return ["create_folder", "create_file", "delete", "copy", "move", "rename", "list"]
+        return [
+            "create_folder",
+            "create_file",
+            "read_file",
+            "delete",
+            "copy",
+            "move",
+            "rename",
+            "list",
+        ]
 
     def create_folder(self, name: str, location: str = None) -> bool:
         """Create folder with Arch-appropriate permissions"""
@@ -117,6 +130,25 @@ class ArchFilesystemAdapter(BaseFilesystemAdapter):
         except Exception as e:
             logger.warning(f"Failed to create file: {e}")
             return False
+
+    def read_file(self, path: str) -> dict[str, Any]:
+        """Read a text file and return its contents.
+
+        Returns a dict so callers (and the MCP layer) get structured output
+        rather than a bare string, matching the other filesystem actions.
+        """
+        if not path:
+            return {"success": False, "error": "read_file requires a path"}
+        try:
+            with open(path, encoding="utf-8") as f:
+                content = f.read()
+            return {"success": True, "path": path, "content": content}
+        except FileNotFoundError:
+            return {"success": False, "error": f"File not found: {path}"}
+        except PermissionError:
+            return {"success": False, "error": f"Permission denied reading: {path}"}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to read {path}: {e}"}
 
     def delete(self, path: str, recursive: bool = True) -> bool:
         """Delete file or directory with safety checks"""

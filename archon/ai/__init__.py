@@ -1,37 +1,21 @@
 """AI integration layer for Archon."""
 
+from .automation_ai import AITaskPlan, OllamaAutomationAI
 from .context_manager import ContextManager, Message
-from .model_manager import ModelManager, ModelProvider, ModelRoute
-from .openrouter_integration import (
-    AIProviderError,
-    AITaskPlan,
-    # Legacy
-    OpenRouterAutomationAI,
-    OpenRouterClient,
-    OpenRouterConfig,
-    StreamChunk,
-)
+from .ollama_integration import AIProviderError, OllamaProvider
 from .response_parser import ResponseParser, TaskPlan
-from .task_planner import TaskPlanner
 
 __all__ = [
-    # New async client (spec-required)
-    "OpenRouterClient",
-    "OpenRouterConfig",
-    "StreamChunk",
+    # Local Ollama backend
+    "OllamaProvider",
     "AIProviderError",
-    # Model manager (spec-required)
-    "ModelManager",
-    "ModelProvider",
-    "ModelRoute",
-    # Context manager (spec-required)
+    # AI facade
+    "OllamaAutomationAI",
+    "AITaskPlan",
+    # Context manager
     "ContextManager",
     "Message",
-    # Task planner (spec-required)
-    "TaskPlanner",
-    "TaskPlan",
+    # Response parsing
     "ResponseParser",
-    # Legacy compatibility — used by parsers/ai_parser.py and task_executor.py
-    "OpenRouterAutomationAI",
-    "AITaskPlan",
+    "TaskPlan",
 ]

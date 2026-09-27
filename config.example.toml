@@ -9,19 +9,17 @@ continue_on_error = false   # keep going in batch mode after a failure
 # log_file = "/var/log/archon.jsonl"   # write structured JSON logs to file
 
 # ── AI ────────────────────────────────────────────────────────────────────────
+# Archon runs entirely against a local Ollama server; no API key is required.
 [ai]
-# API keys — prefer env vars; config file is encrypted-at-rest on most OSes
-openrouter_api_key = ""   # or OPENROUTER_API_KEY env var
-openai_api_key     = ""   # optional
-anthropic_api_key  = ""   # optional
+ollama_url   = "http://127.0.0.1:11434"   # or OLLAMA_URL env var
+ollama_model = "qwen3.5:9b"               # or OLLAMA_MODEL env var
 
-# Leave model blank to auto-select the best free model from OpenRouter at runtime
-model          = ""
-fallback_chain = []   # list of model IDs to try in order, e.g. ["openai/gpt-4o-mini"]
+# Leave model blank to use ollama_model above.
+model       = ""
 
 max_tokens  = 8000   # sliding-window context budget (tokens)
 timeout     = 30     # per-request timeout in seconds
-max_retries = 3      # retries before advancing the fallback chain
+max_retries = 3      # retries on transient failures
 retry_delay = 2.0    # exponential back-off base delay (seconds)
 
 # ── n8n ───────────────────────────────────────────────────────────────────────

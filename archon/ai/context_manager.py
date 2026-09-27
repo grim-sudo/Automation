@@ -101,7 +101,7 @@ class ContextManager:
         ctx.set_system_prompt("You are a helpful assistant.")
         ctx.add_message("user", "Open my browser")
         ctx.add_message("assistant", '{"steps": []}')
-        messages = ctx.get_messages()  # pass directly to OpenAI / OpenRouter
+        messages = ctx.get_messages()  # pass directly to the Ollama chat API
     """
 
     def __init__(self, max_tokens: int = 8000, model: str = "cl100k_base") -> None:

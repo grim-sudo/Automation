@@ -37,20 +37,20 @@ function paint(wrap: HTMLElement, body: HTMLElement, s: AiStatus): void {
     state: kv("State"),
     provider: kv("Provider"),
     model: kv("Active model"),
-    key: kv("API key"),
+    url: kv("Server URL"),
   };
   rows.state.set(online ? "● Available" : "● Offline", online ? "var(--success)" : "var(--error)");
   rows.provider.set(s.provider || "—");
   rows.model.set(s.model || "—");
-  rows.key.set(s.has_api_key ? "Present" : "Missing", s.has_api_key ? "var(--success)" : "var(--warning)");
+  rows.url.set(s.url || "—");
   for (const r of Object.values(rows)) body.append(r.row);
   if (s.last_error) {
     body.append(el("div", { class: "inline-error", text: s.last_error }));
   }
 
   if (s.available_models?.length) {
-    const listPanel = panel("Available Models", { subtitle: `${s.available_models.length} in fallback chain` });
-    listPanel.body.append(sectionLabel("Fallback order"));
+    const listPanel = panel("Available Models", { subtitle: `${s.available_models.length} installed` });
+    listPanel.body.append(sectionLabel("Installed models"));
     const list = el("div", { class: "model-list" });
     s.available_models.forEach((m, i) =>
       list.append(

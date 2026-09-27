@@ -28,7 +28,7 @@ fn main() {
             commands::get_history,
             commands::get_settings,
             commands::save_settings,
-            commands::get_free_models,
+            commands::list_models,
             commands::describe_capabilities,
             commands::ai_status,
             system::system_info,

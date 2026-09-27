@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AI Task Executor - Bridges AI-generated task plans with actual execution
-Provides unified execution for tasks from any AI provider (OpenRouter, Ollama, etc.)
+Provides unified execution for tasks planned by the local Ollama AI facade.
 """
 
 import os

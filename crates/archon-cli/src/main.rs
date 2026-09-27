@@ -67,7 +67,7 @@ enum Commands {
         action: DistroCommands,
     },
 
-    /// List available free AI models from OpenRouter.
+    /// List the AI models installed on the local Ollama server.
     Models,
 
     /// Print version information.

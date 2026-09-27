@@ -2,8 +2,8 @@
 Startup bootstrap: environment setup.
 
 :func:`load_env` folds a project ``.env`` into ``os.environ`` so every
-subsystem that reads ``os.getenv(...)`` (the AI model manager, OpenRouter
-integration, n8n bridge, …) sees the user's keys without any extra wiring.
+subsystem that reads ``os.getenv(...)`` (the Ollama backend, n8n bridge, …)
+sees the user's settings without any extra wiring.
 It is idempotent and safe to call from any entry point.
 """
 

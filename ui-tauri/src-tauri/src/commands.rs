@@ -150,7 +150,8 @@ pub async fn get_history(
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
-    pub openrouter_api_key: String,
+    pub ollama_url: String,
+    pub ollama_model: String,
     pub n8n_url: String,
     pub n8n_api_key: String,
     pub debug: bool,
@@ -162,11 +163,12 @@ pub async fn get_settings(
     state: State<'_, AppState>,
 ) -> Result<Settings, String> {
     Ok(Settings {
-        openrouter_api_key: state.config.ai.openrouter_api_key.clone(),
-        n8n_url:            state.config.n8n.url.clone(),
-        n8n_api_key:        state.config.n8n.api_key.clone(),
-        debug:              state.config.debug,
-        safe_mode:          state.config.safe_mode,
+        ollama_url:   state.config.ai.ollama_url.clone(),
+        ollama_model: state.config.ai.ollama_model.clone(),
+        n8n_url:      state.config.n8n.url.clone(),
+        n8n_api_key:  state.config.n8n.api_key.clone(),
+        debug:        state.config.debug,
+        safe_mode:    state.config.safe_mode,
     })
 }
 
@@ -188,7 +190,7 @@ pub async fn save_settings(
 // ── Models ─────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn get_free_models(
+pub async fn list_models(
     state: State<'_, AppState>,
 ) -> Result<Vec<HashMap<String, String>>, String> {
     let payload = serde_json::json!({ "action": "models" });

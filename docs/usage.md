@@ -1223,14 +1223,19 @@ Bot> Triggered execution of xYz123. Check status with /n8n status xYz123.
 ### Special chatbot commands
 
 ```
-/status        — current AI model, connection state, token count
-/history       — list of commands run this session
-/context       — active conversation context window
+/help          — show available commands
+/status        — current AI model and session status
+/model         — list / switch the local Ollama model
+/plugins       — list loaded plugins
+/config        — config directory and AI settings
+/history       — recent messages this session
+/context       — session context
 /cd ~/Projects — change working directory
 /pwd           — print current directory
-/ls            — list files in current directory
-/clear         — reset conversation context (keeps history)
-exit           — quit
+/ls [path]     — list a directory
+/explain       — explain the last command
+/clear         — redraw the console (keeps history)
+/exit          — quit (or Ctrl+D)
 ```
 
 ---
@@ -1332,10 +1337,10 @@ archon chatbot
 # then copy them into a batch file for repeatable execution
 ```
 
-**Model selection** — Archon auto-picks the best free model. Override only when you need a specific capability:
+**Model selection** — Archon uses the model configured for Ollama. Override only when you need a specific model:
 
 ```bash
-archon run "translate this to French" -m openai/gpt-4o
+archon run "translate this to French" -m qwen3.5:9b
 ```
 
 **Refer back to previous results in chatbot mode** — the context window remembers the whole session:

@@ -1,0 +1,146 @@
+/* Archon TUI theme — graphite + warm gold, restrained and technical. */
+
+Screen {
+    background: #0d0f12;
+    color: #d7dae0;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+#header {
+    height: 1;
+    dock: top;
+    background: #16191e;
+    padding: 0 2;
+}
+#header-brand {
+    width: 1fr;
+    content-align: left middle;
+}
+#header-state {
+    width: 1fr;
+    content-align: right middle;
+}
+
+/* ── Body: sidebar + content ────────────────────────────────────────────── */
+#body {
+    height: 1fr;
+}
+#sidebar {
+    width: 30;
+    min-width: 26;
+    background: #101317;
+    border-right: solid #26292f;
+    padding: 1 2;
+}
+#content {
+    width: 1fr;
+}
+#conversation {
+    height: 1fr;
+    padding: 1 2;
+}
+
+/* ── Conversation turns ─────────────────────────────────────────────────── */
+.turn {
+    height: auto;
+    margin: 0 0 1 0;
+}
+.turn-label {
+    height: 1;
+    margin: 0 0 0 0;
+}
+.turn-body {
+    height: auto;
+    padding: 0 0 0 2;
+}
+.system-line, .status-line {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+/* ── Execution view ─────────────────────────────────────────────────────── */
+.execution {
+    height: auto;
+    margin: 0 0 1 0;
+    border: round #26292f;
+    background: #101317;
+}
+.execution CollapsibleTitle {
+    color: #8a6d3b;
+    text-style: bold;
+}
+.tool-row {
+    height: auto;
+    padding: 0 0 0 1;
+}
+.exec-summary {
+    height: auto;
+    padding: 0 0 0 1;
+}
+#exec-rows {
+    height: auto;
+}
+
+/* ── Plan view ──────────────────────────────────────────────────────────── */
+.plan {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+/* ── Activity log ───────────────────────────────────────────────────────── */
+.activity {
+    height: 10;
+    dock: bottom;
+    background: #101317;
+    border-top: solid #26292f;
+    border-title-color: #8a6d3b;
+    padding: 0 2;
+}
+
+/* ── Status bar + input ─────────────────────────────────────────────────── */
+#status-bar {
+    height: 1;
+    dock: bottom;
+    background: #16191e;
+    padding: 0 2;
+}
+.command-input {
+    height: auto;
+    max-height: 8;
+    dock: bottom;
+    background: #101317;
+    border: round #8a6d3b;
+    border-title-color: #8a6d3b;
+    padding: 0 1;
+}
+
+/* ── Startup splash ─────────────────────────────────────────────────────── */
+StartupScreen {
+    align: center middle;
+    background: #0d0f12;
+}
+.startup-body {
+    width: auto;
+    height: auto;
+}
+
+/* ── Confirm modal ──────────────────────────────────────────────────────── */
+ConfirmScreen {
+    align: center middle;
+    background: #0d0f12 80%;
+}
+.confirm-box {
+    width: auto;
+    max-width: 70;
+    height: auto;
+    padding: 1 2;
+    background: #16191e;
+    border: round #8a6d3b;
+}
+.confirm-text {
+    height: auto;
+    margin: 0 0 1 0;
+}
+ConfirmScreen Button {
+    margin: 0 1;
+}

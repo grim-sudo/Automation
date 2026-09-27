@@ -139,7 +139,7 @@ def test_chat_routes_question_to_conversation(engine, monkeypatch):
         def converse(self, msg, history=None):
             return "I can build operating systems and projects."
 
-    monkeypatch.setattr(engine.ai_parser, "openrouter_ai", _AI())
+    monkeypatch.setattr(engine.ai_parser, "ai", _AI())
 
     res = engine.chat("what can you build?")
     assert res["kind"] == "conversation"
@@ -161,7 +161,7 @@ def test_chat_conversation_without_ai_gives_guidance(engine, monkeypatch):
     class _AI:
         is_available = False
 
-    monkeypatch.setattr(engine.ai_parser, "openrouter_ai", _AI())
+    monkeypatch.setattr(engine.ai_parser, "ai", _AI())
     res = engine.chat("how do I get started?")
     assert res["kind"] == "conversation"
-    assert "OPENROUTER_API_KEY" in res["reply"]
+    assert "Ollama" in res["reply"]

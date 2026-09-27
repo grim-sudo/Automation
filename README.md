@@ -55,9 +55,9 @@ system telemetry in Rust and drives the Python engine over an IPC bridge).
   validated `TaskPlan` (Pydantic v2) before anything runs. Malformed model
   output is repaired or falls back to a safe empty plan — it never crashes the
   run.
-- **No hardcoded models.** The free-model resolver queries OpenRouter at
-  runtime and builds a priority-ordered fallback chain, so you are never pinned
-  to a model that has been deprecated or rate-limited.
+- **Local-first AI.** Archon runs its planning core on a local LLM through
+  [Ollama](https://ollama.com) (`qwen3.5:9b`) — no API key, no cloud
+  dependency.
 - **Secure by construction.** Every shell interaction goes through a list-form
   `safe_run()` — there is no `shell=True` anywhere in the codebase. Paths are
   validated against traversal and null-byte injection before use.
@@ -81,8 +81,8 @@ system telemetry in Rust and drives the Python engine over an IPC bridge).
                 │  IntentResult
                 ▼
    ┌───────────────────────────┐
-   │  AI planning layer         │  OpenRouter (async httpx + SSE),
-   │  (model resolver + planner)│  structured TaskPlan with JSON repair
+   │  AI planning layer         │  local Ollama model;
+   │  (provider + planner)      │  structured TaskPlan with JSON repair
    └───────────────────────────┘
                 │  TaskPlan(steps=[…])
                 ▼
@@ -110,8 +110,8 @@ cd Automation
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# 2. Add an API key (free tier at openrouter.ai)
-echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
+# 2. Set up the local AI model (default backend)
+ollama pull qwen3.5:9b        # requires https://ollama.com
 
 # 3. Run your first command
 python archon.py run "create a folder named my-project"
@@ -131,6 +131,7 @@ Full installation and configuration details are in **[SETUP.md](SETUP.md)**.
 | `archon batch FILE` | Run a file of commands, one per line |
 | `archon n8n …` | Manage n8n workflows — `list`, `create`, `run`, `status` |
 | `archon distro …` | Build custom Linux ISOs — `profiles`, `estimate`, `build` |
+| `archon mcp …` | Expose Archon as MCP tools (`serve`) or drive a local model against them (`agent`) |
 | `archon --version` | Print the installed version |
 
 Global flags apply to any command: `--debug` (verbose logging), `--safe-mode`
@@ -192,6 +193,7 @@ pip install -e ".[distro]"                 # Linux ISO builder
 pip install -e ".[web]"                    # Selenium / Playwright browser automation
 pip install -e ".[gui]"                    # desktop automation (screen/input control)
 pip install -e ".[data]"                   # numpy, pandas, matplotlib, seaborn
+pip install -e ".[mcp]"                    # FastMCP server + local agent
 pip install -e ".[dev,n8n,distro,web]"     # a full working set
 ```
 
@@ -202,6 +204,7 @@ pip install -e ".[dev,n8n,distro,web]"     # a full working set
 | `distro` | kconfiglib (kernel config helpers) |
 | `web` | selenium, playwright, webdriver-manager |
 | `gui` | pyautogui, pynput, pillow, psutil (screen / input automation) |
+| `mcp` | fastmcp (MCP server + local Ollama agent) |
 | `data` | numpy, pandas, matplotlib, seaborn |
 
 The desktop command center has its own toolchain — see
@@ -220,7 +223,8 @@ CLI flag  →  SECTION__FIELD env var  →  flat env var  →  .env file  →  ~
 **Minimal `.env`:**
 
 ```dotenv
-OPENROUTER_API_KEY=sk-or-v1-...
+# Local AI — no key needed. Just run Ollama:
+#   ollama pull qwen3.5:9b
 
 # n8n (optional — only for `archon n8n` commands)
 N8N_URL=http://localhost:5678
@@ -231,8 +235,9 @@ N8N_API_KEY=your-n8n-key
 
 ```toml
 [ai]
-openrouter_api_key = ""   # or set OPENROUTER_API_KEY in the environment
-model       = ""          # blank = auto-select best free model at runtime
+ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
+ollama_model = "qwen3.5:9b"                # default local model
+model       = ""          # pin a model; blank uses ollama_model
 max_tokens  = 8000
 timeout     = 30
 max_retries = 3
@@ -289,6 +294,46 @@ npm run tauri build     # produce a release binary, then `archon gui` finds it
 **Prerequisites:** Node.js, a Rust toolchain, and the Tauri system
 dependencies for your platform (on Linux: `webkit2gtk-4.1` and `gtk3`). See the
 [Tauri prerequisites guide](https://tauri.app/start/prerequisites/).
+
+---
+
+## MCP & autonomous agent
+
+Archon exposes its whole capability surface over the
+[Model Context Protocol](https://modelcontextprotocol.io) and can let your local
+Ollama model drive those tools autonomously.
+
+Install the optional extra (pulls in FastMCP):
+
+```bash
+pip install -e ".[mcp]"
+```
+
+**Serve Archon as MCP tools** for any MCP client (Claude Desktop, etc.):
+
+```bash
+archon mcp serve                       # stdio transport (default)
+archon mcp serve --transport http --port 8000
+```
+
+The server publishes three tools: `list_capabilities`, `run_automation` (plain
+natural language → every capability, including the OS builder), and
+`dispatch_action` (a precise `capability`/`action`/`params` call). It enforces
+Archon's permission policy but adds no per-call confirmation — only expose it to
+trusted clients.
+
+**Let the local model drive the tools** with a confirmation gate:
+
+```bash
+archon mcp agent "create a folder named reports on the desktop"
+archon mcp agent                       # interactive session
+```
+
+The model (default `qwen3.5:9b`) plans and calls tools itself. Low/medium-risk
+actions run automatically; **high-risk or destructive actions** (deleting data,
+killing processes, changing system settings, building an OS) pause for explicit
+confirmation. Pass `--yes` to auto-approve them (use with care). The model never
+reaches a raw shell — every action goes through the capability registry.
 
 ---
 
@@ -355,9 +400,8 @@ Automation/
 │   │   ├── engine.py             Main orchestrator (chat / execute / history / status)
 │   │   └── plugin_manager.py     Plugin discovery and dispatch
 │   ├── ai/
-│   │   ├── model_resolver.py     Runtime free-model resolution (OpenRouter)
-│   │   ├── model_manager.py      Priority-ordered fallback chain (tenacity)
-│   │   ├── openrouter_integration.py   Async httpx client + SSE streaming
+│   │   ├── ollama_integration.py  Local Ollama backend
+│   │   ├── automation_ai.py       Ollama-only AI facade
 │   │   ├── context_manager.py    Sliding-window context (tiktoken)
 │   │   ├── response_parser.py    Pydantic v2 TaskPlan / IntentResult + JSON repair
 │   │   └── task_planner.py       High-level planning orchestration
@@ -375,6 +419,7 @@ Automation/
 │   │   └── n8n_bridge/               n8n REST API async client
 │   ├── os_adapters/              Linux / macOS / Windows / Arch adapters + factory
 │   ├── distro_builder/           Multi-stage async ISO build pipeline
+│   ├── mcp/                       FastMCP server + local Ollama tool-calling agent
 │   ├── security/                 safe_run(), PathValidator, permission manager
 │   ├── config.py                 pydantic-settings (TOML + env vars + .env)
 │   └── ui/                       Terminal interfaces: cli.py, chatbot.py
@@ -384,7 +429,7 @@ Automation/
 ├── ui-tauri/                     Desktop command center (Tauri v2 + Vite + TypeScript)
 ├── userguide.md                  End-to-end user guide (every interface and flag)
 ├── docs/                         usage.md
-└── tests/                        pytest suite (275 tests)
+└── tests/                        pytest suite (306 tests)
 ```
 
 **Entry points**
@@ -409,9 +454,9 @@ engine.shutdown()
 
 # Async AI planning directly
 import asyncio
-from archon.ai.openrouter_integration import OpenRouterAutomationAI
+from archon.ai.automation_ai import OllamaAutomationAI
 
-ai = OpenRouterAutomationAI()
+ai = OllamaAutomationAI()
 plan = asyncio.run(ai.analyze_automation_request_async("setup a Python project"))
 for step in plan.steps:
     print(step.action, step.params)
@@ -485,7 +530,7 @@ dependencies.
 | Problem | Fix |
 |---------|-----|
 | `archon: command not found` | Activate the venv (`source .venv/bin/activate`) or call `python archon.py` |
-| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `archon --debug run "hello"` |
+| AI not responding | Verify Ollama: `curl http://127.0.0.1:11434/api/tags` and `ollama pull qwen3.5:9b`; run `archon --debug run "hello"` |
 | n8n returns 401 | Ensure `N8N_URL` and `N8N_API_KEY` are set in `.env` (flat names, not `N8N__URL`) |
 | GUI won't launch | Build it once: `cd ui-tauri && npm install && npm run tauri build`, or `npm run tauri dev` |
 | Distro: permission denied | Run `distro build` with `sudo` |
@@ -508,5 +553,5 @@ More detailed troubleshooting is in **[SETUP.md](SETUP.md)**.
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/grim-sudo/Automation/issues)
-- **API keys:** [openrouter.ai](https://openrouter.ai) (free tier available)
+- **Local model:** [ollama.com](https://ollama.com) (`ollama pull qwen3.5:9b`)
 </content>

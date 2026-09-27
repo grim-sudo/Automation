@@ -192,11 +192,12 @@ if "--tauri-ipc" in sys.argv:
             return _json.dumps(eng.get_ai_status())
 
         if action == "models":
-            from archon.ai.model_resolver import FreeModelResolver
+            from archon.core.engine import Archon as _Archon
 
-            resolver = FreeModelResolver()
-            models = _asyncio.run(resolver.resolve()) if hasattr(resolver, "resolve") else []
-            return _json.dumps([{"id": m} if isinstance(m, str) else m for m in models])
+            eng = _Archon()
+            ai = getattr(getattr(eng, "ai_parser", None), "ai", None)
+            models = list(ai.get_available_models().keys()) if ai is not None else []
+            return _json.dumps([{"id": m} for m in models])
 
         if action == "save_settings":
             # Persisting settings is handled by the config module at runtime.

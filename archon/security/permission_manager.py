@@ -4,6 +4,7 @@ Permission and security management for automation operations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -203,12 +204,24 @@ class PermissionManager:
         "parted",
     )
 
+    # Word-boundary matcher for DANGEROUS_KEYWORDS. Lookarounds (not \b) so a
+    # keyword ending in a non-word char like "dd if=" still matches when a path
+    # follows, while single words like "format" only match as whole tokens.
+    _DANGEROUS_RE = re.compile(
+        "|".join(rf"(?<!\w){re.escape(k)}(?!\w)" for k in DANGEROUS_KEYWORDS)
+    )
+
     def is_dangerous_command(self, command: str) -> bool:
-        """Heuristic screen for destructive raw command strings."""
+        """Heuristic screen for destructive raw command strings.
+
+        Matches keywords on word boundaries, not raw substrings: a bare
+        ``in`` check flags "in**format**ion" as ``format`` and "**reboot**"
+        inside prose, turning a harmless "create documentation about..."
+        request into a false DESTRUCTIVE gate.
+        """
         if not command:
             return False
-        command_lower = command.lower()
-        return any(keyword in command_lower for keyword in self.DANGEROUS_KEYWORDS)
+        return self._DANGEROUS_RE.search(command.lower()) is not None
 
     def check_permission(self, parsed_command: dict[str, Any]) -> bool:
         """Check if a parsed command is allowed to execute"""
@@ -330,6 +343,8 @@ class PermissionManager:
             ("filesystem", "list"): ActionCategory.FILESYSTEM_READ,
             ("filesystem", "list_folders"): ActionCategory.FILESYSTEM_READ,
             ("filesystem", "list_files"): ActionCategory.FILESYSTEM_READ,
+            ("filesystem", "read_file"): ActionCategory.FILESYSTEM_READ,
+            ("filesystem", "read"): ActionCategory.FILESYSTEM_READ,
             ("filesystem", "get_info"): ActionCategory.FILESYSTEM_READ,
             ("filesystem", "create_folder"): ActionCategory.FILESYSTEM_WRITE,
             ("filesystem", "create_file"): ActionCategory.FILESYSTEM_WRITE,

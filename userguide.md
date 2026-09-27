@@ -22,10 +22,11 @@ set. For a conceptual overview and architecture, see
 7. [Desktop command center](#desktop-command-center)
 8. [n8n workflows](#n8n-workflows)
 9. [Linux distro builder](#linux-distro-builder)
-10. [Global flags](#global-flags)
-11. [Environment variables](#environment-variables)
-12. [Configuration file reference](#configuration-file-reference)
-13. [Troubleshooting](#troubleshooting)
+10. [MCP server & autonomous agent](#mcp-server--autonomous-agent)
+11. [Global flags](#global-flags)
+12. [Environment variables](#environment-variables)
+13. [Configuration file reference](#configuration-file-reference)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -56,6 +57,7 @@ pip install -e ".[distro]"                 # Linux ISO builder (Linux only)
 pip install -e ".[web]"                    # Selenium / Playwright browser automation
 pip install -e ".[gui]"                    # desktop automation (screen / input control)
 pip install -e ".[data]"                   # numpy, pandas, matplotlib, seaborn
+pip install -e ".[mcp]"                    # FastMCP server + local agent
 pip install -e ".[dev,n8n,distro,web]"     # a full working set
 ```
 
@@ -67,6 +69,7 @@ pip install -e ".[dev,n8n,distro,web]"     # a full working set
 | `web` | selenium, playwright, webdriver-manager |
 | `gui` | pyautogui, pynput, pillow, psutil (screen / input automation) |
 | `data` | numpy, pandas, matplotlib, seaborn |
+| `mcp` | fastmcp (MCP server + local Ollama agent) |
 
 **Verify:**
 
@@ -83,16 +86,24 @@ archon --version
 
 ## First run
 
-Archon needs an OpenRouter API key for its AI planning core. A free tier is
-available at [openrouter.ai](https://openrouter.ai).
+By default Archon runs its AI planning core on a **local LLM through
+[Ollama](https://ollama.com)** — no API key, no cloud dependency. The default
+model is `qwen3.5:9b`.
 
 ```bash
-# Add your key to a local .env file
-echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
+# One-time: install Ollama, then pull the default model
+ollama pull qwen3.5:9b
+
+# Make sure the Ollama server is running (usually automatic)
+ollama serve   # if not already running
 
 # Run your first command
 archon run "create a folder named my-project"
 ```
+
+Archon talks to Ollama at `http://127.0.0.1:11434` by default. Override the
+URL or model with the `OLLAMA_URL` / `OLLAMA_MODEL` env vars or the `[ai]`
+config section.
 
 Running `archon` with no sub-command drops you straight into the interactive
 chatbot.
@@ -109,7 +120,7 @@ CLI flag  →  SECTION__FIELD env var  →  flat env var  →  .env file  →  ~
 
 The two nested-section env forms are, for example, `AI__MODEL` (double
 underscore, section-scoped) and the flat convenience aliases like
-`OPENROUTER_API_KEY` and `N8N_URL`. Use the flat names in `.env`; the
+`OLLAMA_MODEL` and `N8N_URL`. Use the flat names in `.env`; the
 double-underscore names are for section-scoped overrides.
 
 Generate a commented example config with:
@@ -175,31 +186,26 @@ automatic. The session also supports slash-commands:
 | `/ls [path]` | List directory contents |
 | `/explain` | Explain the most recent command |
 | `/undo` | Undo the last operation (not yet implemented) |
-| `/model [n\|id]` | List available free models and switch the active one |
+| `/model [n\|id]` | List installed Ollama models and switch the active one |
 | `/clear` | Clear the screen |
 | `/exit`, `/quit` | Quit the session |
 
 ### Switching the AI model
 
-Archon never hardcodes a model — it resolves the free OpenRouter models at
-runtime. The `/model` command lets you see and change the active one:
+The `/model` command lets you see and change the active Ollama model:
 
-- **`/model`** — prints a numbered menu of all available free models
-  (best-context-first, the current one marked `● current`) and prompts you to
-  pick one by number.
+- **`/model`** — prints a numbered menu of the models installed on your local
+  Ollama server, with the current one marked `● current`.
 - **`/model <n>`** — switch directly by menu number.
 - **`/model <id-or-substring>`** — switch by exact model id or a unique
   substring of the id or display name. Ambiguous or missing matches are
   rejected with no change.
 
 The switch takes effect immediately for the rest of the session. It is not
-persisted to disk — the next launch reverts to the auto-selected default. To
-pin a model across launches, set `OPENROUTER_MODEL` (or `[ai] model` in
-`config.toml`).
+persisted to disk — the next launch reverts to the configured default. To pin
+a model across launches, set `OLLAMA_MODEL` or `[ai] model` in `config.toml`.
 
-> The free-model list comes straight from OpenRouter's zero-price filter, so it
-> may include a few non-chat models (e.g. an audio/image model). Selecting one
-> of those will break chat until you switch back to a text model.
+> Only models you have pulled (`ollama pull <name>`) appear in the menu.
 
 ---
 
@@ -312,6 +318,57 @@ Profiles are searched in, in order:
 
 ---
 
+## MCP server & autonomous agent
+
+Archon can expose its capabilities over the
+[Model Context Protocol](https://modelcontextprotocol.io) and let a local Ollama
+model call those tools autonomously. Install the optional extra first:
+
+```bash
+pip install -e ".[mcp]"                  # pulls in FastMCP
+```
+
+### Serve Archon as MCP tools
+
+```bash
+archon mcp serve                         # stdio transport (default)
+archon mcp serve --transport http --port 8000
+```
+
+Any MCP client (Claude Desktop, another agent, etc.) can then call three tools:
+
+| Tool | Purpose |
+|------|---------|
+| `list_capabilities` | Discover every capability, its actions, and risk level |
+| `run_automation` | Run a plain natural-language command; reaches every capability, including the OS builder |
+| `dispatch_action` | Invoke a specific `capability` / `action` / `params` directly |
+
+> **Security:** the server enforces Archon's permission policy but adds no
+> per-call confirmation prompt. Only expose it to trusted clients. For a
+> confirmation-gated local model, use `archon mcp agent` instead.
+
+### Drive the local model against the tools
+
+```bash
+archon mcp agent "create a folder named reports on the desktop"
+archon mcp agent                         # interactive session
+```
+
+The model (default `qwen3.5:9b`) plans and calls tools on its own. Low and
+medium-risk actions run automatically; high-risk or destructive ones (deleting
+data, killing processes, changing system settings, building an OS) pause for a
+`y/n` confirmation.
+
+| Flag | Effect |
+|------|--------|
+| `-y`, `--yes` | Auto-approve high-risk actions without prompting (use with care) |
+| `--debug` | Verbose logging |
+
+The model never reaches a raw shell — every action is routed through Archon's
+capability registry and permission manager.
+
+---
+
 ## Global flags
 
 These apply to any command and can be placed before the sub-command:
@@ -335,8 +392,8 @@ archon --log-file ~/archon.jsonl batch tasks.txt
 
 | Variable | Purpose |
 |----------|---------|
-| `OPENROUTER_API_KEY` | OpenRouter API key for AI planning (required) |
-| `OPENROUTER_MODEL` | Pin a specific model instead of auto-selecting |
+| `OLLAMA_URL` | Local Ollama server URL (default `http://127.0.0.1:11434`) |
+| `OLLAMA_MODEL` | Local model name (default `qwen3.5:9b`) |
 | `N8N_URL` | n8n instance base URL (e.g. `http://localhost:5678`) |
 | `N8N_API_KEY` | n8n REST API key |
 | `ARCHON_DEBUG` | Enable debug logging (`1`/`true`) |
@@ -355,11 +412,12 @@ Archon reads `~/.archon/config.toml`. Key settings:
 
 ```toml
 [ai]
-openrouter_api_key = ""   # or set OPENROUTER_API_KEY in the environment
-model       = ""          # blank = auto-select best free model at runtime
-max_tokens  = 8000
-timeout     = 30
-max_retries = 3
+ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
+ollama_model = "qwen3.5:9b"                # default local model
+model        = ""         # pin a model; blank uses ollama_model
+max_tokens   = 8000
+timeout      = 30
+max_retries  = 3
 
 [n8n]
 url     = "http://localhost:5678"
@@ -380,8 +438,9 @@ safe_mode = false
 | Problem | Fix |
 |---------|-----|
 | `archon: command not found` | Activate the venv (`source .venv/bin/activate`) or call `python archon.py` |
-| AI not responding | Check `echo $OPENROUTER_API_KEY`; run `archon --debug run "hello"` |
-| A large nested command only ran partially | The chosen free model may be flaky. Try `/model` to switch to a more reliable one |
+| AI not responding | Check Ollama is running: `curl http://127.0.0.1:11434/api/tags`. Pull the model with `ollama pull qwen3.5:9b`. Run `archon --debug run "hello"` |
+| First AI request is slow / times out | Local models are slow to load on first use; Archon uses a 120s floor for the local timeout. Larger models need more RAM/VRAM |
+| A large nested command only ran partially | The chosen model may be flaky. Try `/model` to switch to a more reliable one |
 | n8n returns 401 | Ensure `N8N_URL` and `N8N_API_KEY` are set in `.env` (flat names, not `N8N__URL`) |
 | GUI won't launch | Build it once: `cd ui-tauri && npm install && npm run tauri build`, or `npm run tauri dev` |
 | Distro: permission denied | Run the build as `sudo .venv/bin/archon distro build …` |

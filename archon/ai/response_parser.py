@@ -184,7 +184,7 @@ class IntentResult(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
     original_command: str = Field(default="")
 
-    # ── Backward-compat extras used by openrouter_integration.py ─────────────
+    # ── Backward-compat extras used by the AI facade (automation_ai.py) ──────
     enhanced_understanding: str = Field(default="")
     suggestions: list[str] = Field(default_factory=list)
     clarifications_needed: list[str] = Field(default_factory=list)

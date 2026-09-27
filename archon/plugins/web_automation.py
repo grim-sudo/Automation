@@ -5,15 +5,12 @@ Web automation plugin using Selenium
 import contextlib
 import os
 import re
-import sys
 import time as time_module
 from typing import Any
 
 from loguru import logger
 
 from archon.core.plugin_manager import AutomationPlugin
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from bs4 import BeautifulSoup

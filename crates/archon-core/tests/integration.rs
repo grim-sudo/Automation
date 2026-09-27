@@ -65,8 +65,8 @@ fn test_config_load_defaults() {
 #[test]
 fn test_config_env_override() {
     // Set a predictable env var and verify it overrides the default.
-    std::env::set_var("OPENROUTER_API_KEY", "test-key-12345");
+    std::env::set_var("OLLAMA_MODEL", "test-model-12345");
     let cfg = Config::load().unwrap_or_default();
-    assert_eq!(cfg.ai.openrouter_api_key, "test-key-12345");
-    std::env::remove_var("OPENROUTER_API_KEY");
+    assert_eq!(cfg.ai.ollama_model, "test-model-12345");
+    std::env::remove_var("OLLAMA_MODEL");
 }

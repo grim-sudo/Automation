@@ -31,6 +31,7 @@ async def build_distro(
     profile: DistroProfile,
     output_dir: Path,
     jobs: int = 0,
+    work_dir: Path | None = None,
 ) -> BuildResult:
     """
     Orchestrate the full distro build pipeline.
@@ -62,7 +63,8 @@ async def build_distro(
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    work_dir = Path(f"/tmp/omni_distro_{profile.name}_{int(time.time())}").resolve()
+    base_work = Path(work_dir) if work_dir else Path("/tmp")
+    work_dir = (base_work / f"omni_distro_{profile.name}_{int(time.time())}").resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
 
     rootfs_path = work_dir / "rootfs"
@@ -236,7 +238,9 @@ async def build_distro(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-async def build_from_nl(nl_command: str, output_dir: Path) -> BuildResult:
+async def build_from_nl(
+    nl_command: str, output_dir: Path, work_dir: Path | None = None
+) -> BuildResult:
     """
     Build a distro ISO from a natural language command string.
 
@@ -253,7 +257,7 @@ async def build_from_nl(nl_command: str, output_dir: Path) -> BuildResult:
     profile = nl_to_profile(nl_command)
     console.print(f"Parsed profile: [bold]{profile.name}[/bold] (base={profile.base})")
     logger.info(f"Parsed NL profile:\n{profile.model_dump_json(indent=2)}")
-    return await build_distro(profile, output_dir)
+    return await build_distro(profile, output_dir, work_dir=work_dir)
 
 
 def estimate_build_time(profile: DistroProfile) -> str:

@@ -10,10 +10,6 @@ from enum import Enum
 
 from loguru import logger
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from archon.ai.model_manager import get_ai_manager
 from archon.ai.task_executor import get_ai_task_executor
 from archon.core.engine import Archon
 from archon.nlp.flexible_processor import get_nlp_processor
@@ -38,7 +34,6 @@ class EnhancedCLI:
         self.base_engine = Archon()
         self.executor = get_ai_task_executor()
         self.mode = mode
-        self.ai_manager = get_ai_manager()
         self.nlp_processor = get_nlp_processor()
         self.semantic_nlp = get_semantic_nlp()
         self.running = True

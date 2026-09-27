@@ -1,11 +1,7 @@
 """Project generator plugin for creating programming projects with templates"""
 
 import os
-import sys
 from typing import Any
-
-# Ensure the project root is on sys.path so core imports work
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from archon.core.plugin_manager import AutomationPlugin
 

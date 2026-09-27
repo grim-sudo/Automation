@@ -4,7 +4,7 @@ Archon configuration module.
 Priority order (highest to lowest):
   1. Programmatic overrides (init_settings / CLI flag injection)
   2. Environment variables with OMNI__ prefix and nested delimiter __
-  3. Backward-compat flat env vars (OPENROUTER_API_KEY, OPENAI_API_KEY, …)
+  3. Backward-compat flat env vars (OLLAMA_URL, OLLAMA_MODEL, N8N_API_KEY, …)
   4. ~/.archon/config.toml
   5. Hardcoded defaults
 
@@ -95,11 +95,10 @@ class _TomlFileSource(PydanticBaseSettingsSource):
 
 # Maps bare env var names -> (nested_section, field_name_within_section)
 _COMPAT_MAP: dict[str, tuple[str, str]] = {
-    "OPENROUTER_API_KEY": ("ai", "openrouter_api_key"),
-    "OPENROUTER_MODEL": ("ai", "model"),
-    "OPENAI_API_KEY": ("ai", "openai_api_key"),
-    "ANTHROPIC_API_KEY": ("ai", "anthropic_api_key"),
     "MAX_RETRIES": ("ai", "max_retries"),
+    # Local Ollama backend flat env vars
+    "OLLAMA_URL": ("ai", "ollama_url"),
+    "OLLAMA_MODEL": ("ai", "ollama_model"),
     # n8n flat env vars
     "N8N_API_KEY": ("n8n", "api_key"),
     "N8N_URL": ("n8n", "url"),
@@ -137,32 +136,25 @@ class _CompatEnvSource(PydanticBaseSettingsSource):
 
 
 class AISettings(BaseModel):
-    """AI provider and model configuration."""
+    """AI provider and model configuration.
 
-    openrouter_api_key: str = Field(
-        default="",
-        description="OpenRouter API key",
+    Archon runs entirely against a local Ollama server; there is no cloud
+    backend and no API key is required.
+    """
+
+    ollama_url: str = Field(
+        default="http://127.0.0.1:11434",
+        description="Base URL of the local Ollama server.",
     )
-    openai_api_key: str = Field(
-        default="",
-        description="OpenAI API key",
-    )
-    anthropic_api_key: str = Field(
-        default="",
-        description="Anthropic API key",
+    ollama_model: str = Field(
+        default="qwen3.5:9b",
+        description="Default model served by Ollama when 'model' is unset.",
     )
     model: str = Field(
         default="",
         description=(
-            "Default AI model in provider/model-id format. "
-            "Leave empty to resolve automatically from the OpenRouter free-model list at runtime."
-        ),
-    )
-    fallback_chain: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Ordered list of fallback models when the primary is unavailable. "
-            "Leave empty to resolve automatically from the OpenRouter free-model list at runtime."
+            "Ollama model to use (overrides 'ollama_model'). "
+            "Leave empty to use the configured 'ollama_model'."
         ),
     )
     max_tokens: int = Field(
@@ -304,7 +296,7 @@ class Settings(BaseSettings):
 
     1. Programmatic init overrides (highest priority)
     2. ``OMNI__`` prefixed env vars (e.g. ``OMNI__AI__MODEL``)
-    3. Backward-compat flat env vars (``OPENROUTER_API_KEY``, etc.)
+    3. Backward-compat flat env vars (``OLLAMA_URL``, ``OLLAMA_MODEL``, etc.)
     4. ``~/.archon/config.toml``
     5. Hardcoded defaults (lowest priority)
     """
@@ -403,12 +395,11 @@ def generate_example_config(path: Path | None = None) -> Path:
 #   CLI flag > environment variable > this file > hardcoded default
 #
 # Nested env var delimiter: "__"
-#   e.g. export OMNI__AI__MODEL="openai/gpt-4o"
+#   e.g. export OMNI__AI__MODEL="qwen3.5:9b"
 #        export OMNI__DEBUG=true
 #
 # Backward-compat flat env vars (no prefix required):
-#   OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENAI_API_KEY,
-#   ANTHROPIC_API_KEY, MAX_RETRIES
+#   MAX_RETRIES, OLLAMA_URL, OLLAMA_MODEL, N8N_URL, N8N_API_KEY
 
 # ── Global ───────────────────────────────────────────────────────────────────
 
@@ -427,22 +418,16 @@ def generate_example_config(path: Path | None = None) -> Path:
 # ── AI ───────────────────────────────────────────────────────────────────────
 
 [ai]
-# OpenRouter API key  (env: OPENROUTER_API_KEY)
-openrouter_api_key = ""
+# Archon runs entirely against a local Ollama server; no API key is required.
 
-# OpenAI direct API key  (env: OPENAI_API_KEY)
-openai_api_key = ""
+# Local Ollama server base URL  (env: OLLAMA_URL)
+ollama_url = "http://127.0.0.1:11434"
 
-# Anthropic direct API key  (env: ANTHROPIC_API_KEY)
-anthropic_api_key = ""
+# Default Ollama model, used when "model" is unset.  (env: OLLAMA_MODEL)
+ollama_model = "qwen3.5:9b"
 
-# Default model in "provider/model-id" format  (env: OPENROUTER_MODEL)
-# Leave blank to resolve dynamically from the OpenRouter free-model list.
+# Ollama model override (leave blank to use ollama_model).
 # model = ""
-
-# Ordered fallback chain when the primary model is unavailable.
-# Leave blank to resolve dynamically from the OpenRouter free-model list.
-# fallback_chain = []
 
 # Maximum number of tokens to include in a single request
 max_tokens = 8000

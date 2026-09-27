@@ -33,14 +33,12 @@ pub enum ConfigError {
 /// AI provider and model errors.
 #[derive(Debug, Error)]
 pub enum AiError {
-    #[error(
-        "OpenRouter API key not set. Add OPENROUTER_API_KEY to .env or ~/.archon/config.toml"
-    )]
-    ApiKeyMissing,
+    #[error("Cannot reach the local Ollama server. Start it with `ollama serve`")]
+    OllamaUnavailable,
     #[error("Network error calling AI provider: {0}")]
     NetworkError(String),
-    #[error("No free models available from OpenRouter")]
-    NoFreeModels,
+    #[error("No models installed. Pull one with `ollama pull qwen3.5:9b`")]
+    NoModels,
     #[error("Rate limited by AI provider. Retry after {retry_after_secs}s")]
     RateLimited { retry_after_secs: u64 },
     #[error("AI request timed out after {timeout_secs}s")]

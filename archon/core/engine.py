@@ -39,14 +39,8 @@ class Archon:
             self.command_parser = AdvancedCommandParser()
             self.advanced_parser = AdvancedCommandParser()
 
-            # Initialize AI parser with fallback
-            api_key = None
-            if config:
-                api_key = config.get("openrouter_api_key") or os.getenv("OPENROUTER_API_KEY")
-            else:
-                api_key = os.getenv("OPENROUTER_API_KEY")
-
-            self.ai_parser = AIEnhancedParser(api_key)
+            # Initialize AI parser (local Ollama backend; no API key required)
+            self.ai_parser = AIEnhancedParser()
             self.plugin_manager = PluginManager()
             # Optional category -> plugin name aliases for backward compatibility
             self.plugin_aliases = {
@@ -549,7 +543,7 @@ class Archon:
             return self.ai_parser.get_smart_suggestions(self._get_execution_context())
         else:
             return [
-                "Set OPENROUTER_API_KEY environment variable for AI-powered suggestions",
+                "Start the local Ollama server for AI-powered suggestions",
                 "Try 'examples' for command ideas",
                 "Use 'help' to see available commands",
             ]
@@ -562,7 +556,7 @@ class Archon:
             return {
                 "intent": "AI analysis not available",
                 "confidence": 0.0,
-                "suggestions": ["Enable AI by setting OPENROUTER_API_KEY environment variable"],
+                "suggestions": ["Start the local Ollama server to enable AI analysis"],
                 "complexity": "unknown",
             }
 
@@ -606,15 +600,15 @@ class Archon:
             return {"kind": "conversation", "success": False, "reply": "Say something first."}
 
         if self._is_conversational(message):
-            ai = getattr(self.ai_parser, "openrouter_ai", None)
+            ai = getattr(self.ai_parser, "ai", None)
             if ai is not None and ai.is_available:
                 reply = ai.converse(message, history)
             else:
                 reply = (
-                    "AI is not configured, so I can't chat freely yet — set "
-                    "OPENROUTER_API_KEY in your .env. I can still run automation "
-                    "commands like 'create a python project called scraper' or "
-                    "'take a screenshot'."
+                    "AI is not available — start the local Ollama server "
+                    "('ollama serve') and pull the model. I can still run "
+                    "automation commands like 'create a python project called "
+                    "scraper' or 'take a screenshot'."
                 )
             return {"kind": "conversation", "success": True, "reply": reply}
 
@@ -817,28 +811,13 @@ class Archon:
         """Get AI integration status"""
         return self.ai_parser.get_ai_status()
 
-    def set_openrouter_api_key(self, api_key: str) -> bool:
-        """Set OpenRouter API key for AI features"""
-        success = self.ai_parser.set_api_key(api_key)
-        if success:
-            self.logger.info("OpenRouter AI enabled successfully")
-        else:
-            self.logger.error("Failed to enable OpenRouter AI")
-        return success
-
     def switch_ai_model(self, model_name: str) -> bool:
-        """Switch the active AI model by name."""
+        """Switch the active local Ollama model by name."""
         try:
-            ai_manager = getattr(self, "ai_manager", None)
-            if ai_manager is None:
-                from ..ai.model_manager import get_ai_manager
-
-                ai_manager = get_ai_manager()
-                self.ai_manager = ai_manager
-            if ai_manager.switch_model(model_name):
+            if self.ai_parser.set_model(model_name):
                 self.logger.info(f"Switched AI model to: {model_name}")
                 return True
-            self.logger.warning(f"AI model not found: {model_name}")
+            self.logger.warning(f"Failed to switch AI model: {model_name}")
             return False
         except Exception as e:
             self.logger.error(f"switch_ai_model failed: {e}")

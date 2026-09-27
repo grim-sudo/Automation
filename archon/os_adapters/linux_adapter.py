@@ -59,11 +59,42 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
             return False
         elif action == "list":
             return self.list_directory(params.get("path", "."))
+        elif action in ("read_file", "read"):
+            return self.read_file(
+                params.get("path") or params.get("name") or params.get("file_path")
+            )
         else:
             raise ValueError(f"Unknown filesystem action: {action}")
 
     def get_capabilities(self) -> list[str]:
-        return ["create_folder", "create_file", "delete", "copy", "move", "rename", "list"]
+        return [
+            "create_folder",
+            "create_file",
+            "read_file",
+            "delete",
+            "copy",
+            "move",
+            "rename",
+            "list",
+        ]
+
+    def read_file(self, path: str) -> dict[str, Any]:
+        """Read a text file and return ``{success, path, content}``.
+
+        Structured output mirrors the other filesystem actions so the MCP
+        layer and the agent's verify-what-I-wrote step get a consistent shape.
+        """
+        if not path:
+            return {"success": False, "error": "read_file requires a path"}
+        try:
+            with open(path, encoding="utf-8") as f:
+                return {"success": True, "path": path, "content": f.read()}
+        except FileNotFoundError:
+            return {"success": False, "error": f"File not found: {path}"}
+        except PermissionError:
+            return {"success": False, "error": f"Permission denied reading: {path}"}
+        except Exception as e:
+            return {"success": False, "error": f"Failed to read {path}: {e}"}
 
     def create_folder(self, name: str, location: str = None) -> bool:
         path = os.path.join(location, name) if location else name

@@ -17,14 +17,14 @@ export function renderSettings(root: HTMLElement): void {
 
   const provider = kv("AI provider");
   const model = kv("Active model");
-  const key = kv("API key");
-  p.body.append(provider.row, model.row, key.row);
+  const url = kv("Server URL");
+  p.body.append(provider.row, model.row, url.row);
 
   aiStatus()
     .then((s) => {
       provider.set(s.provider || "—");
       model.set(s.model || "—");
-      key.set(s.has_api_key ? "Present" : "Missing", s.has_api_key ? "var(--success)" : "var(--warning)");
+      url.set(s.url || "—");
     })
     .catch((err) => {
       p.body.replaceChildren(

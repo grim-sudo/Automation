@@ -1,21 +1,22 @@
 """
-AI-Enhanced command parser using DeepSeek R1 T2 Chimera for intelligent interpretation
+AI-Enhanced command parser using the local Ollama model for intelligent interpretation
 """
 
+import re
 from typing import Any
 
-from ..ai.openrouter_integration import AITaskPlan, OpenRouterAutomationAI
+from ..ai.automation_ai import AITaskPlan, OllamaAutomationAI
 from ..utils.logger import get_logger
 from .command_parser import AdvancedCommandParser, CommandComplexity, ComplexCommand, ParsedStep
 
 
 class AIEnhancedParser:
-    """Command parser enhanced with OpenRouter AI for superior natural language understanding"""
+    """Command parser enhanced with local Ollama AI for natural language understanding"""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, model: str | None = None):
         self.logger = get_logger("AIEnhancedParser")
         self.fallback_parser = AdvancedCommandParser()
-        self.openrouter_ai = OpenRouterAutomationAI(api_key)
+        self.ai = OllamaAutomationAI(model)
 
         # Learning and adaptation
         self.user_patterns = {}
@@ -29,28 +30,32 @@ class AIEnhancedParser:
         if len(self.command_history) > 50:  # Keep last 50 commands
             self.command_history = self.command_history[-50:]
 
-        if self.openrouter_ai.is_openrouter_available():
-            return self._parse_with_openrouter(command, context)
+        if self.ai.is_ready():
+            return self._parse_with_ai(command, context)
         else:
-            self.logger.info("OpenRouter AI not available, using fallback parser")
+            self.logger.info("Ollama AI not available, using fallback parser")
             return self.fallback_parser.parse_complex_command(command)
 
-    def _parse_with_openrouter(
+    def _parse_with_ai(
         self, command: str, context: dict[str, Any] = None
     ) -> ComplexCommand:
-        """Parse command using OpenRouter AI"""
+        """Parse command using the local Ollama AI"""
 
         try:
             # For very long commands, check if AI can handle it
             # If command is very long and complex, use fallback parser directly
-            if len(command) > 200 and self._is_complex_structure(command):
+            if (
+                len(command) > 200
+                and self._is_complex_structure(command)
+                and not self._looks_like_document_request(command)
+            ):
                 self.logger.info(
                     "Complex command detected, using fallback parser for better accuracy"
                 )
                 return self.fallback_parser.parse_complex_command(command)
 
             # Enhance command understanding with AI
-            enhancement = self.openrouter_ai.enhance_command_understanding(
+            enhancement = self.ai.enhance_command_understanding(
                 command,
                 self.command_history[-5:],  # Recent history for context
             )
@@ -59,7 +64,7 @@ class AIEnhancedParser:
             self.logger.info(f"AI enhanced command: {enhanced_command}")
 
             # Get AI task plan
-            ai_plan = self.openrouter_ai.analyze_automation_request(enhanced_command, context)
+            ai_plan = self.ai.analyze_automation_request(enhanced_command, context)
 
             # The model intermittently returns an empty plan (timeout / a
             # malformed JSON body it couldn't parse). One retry recovers most of
@@ -68,7 +73,7 @@ class AIEnhancedParser:
             # just the "bread" folder and dropped the 15 nested folders + files).
             if not ai_plan.execution_steps:
                 self.logger.warning("AI returned empty steps, retrying once")
-                ai_plan = self.openrouter_ai.analyze_automation_request(enhanced_command, context)
+                ai_plan = self.ai.analyze_automation_request(enhanced_command, context)
 
             # Check if AI plan has valid steps
             if not ai_plan.execution_steps or len(ai_plan.execution_steps) == 0:
@@ -93,10 +98,16 @@ class AIEnhancedParser:
             # Convert AI plan to ComplexCommand format
             complex_command = self._convert_ai_plan_to_complex_command(ai_plan)
 
+            # The model plans a create_file step but rarely inlines a full
+            # document body into a JSON param, so "write documentation about X"
+            # produced an empty file. Generate the prose for document-type files
+            # from the original request before the write handlers run.
+            self._fill_document_content(complex_command, command)
+
             # Optimize workflow if it's complex
             if len(complex_command.steps) > 2:
                 try:
-                    optimization = self.openrouter_ai.optimize_workflow(
+                    optimization = self.ai.optimize_workflow(
                         [
                             {
                                 "action": step.action,
@@ -142,6 +153,7 @@ class AIEnhancedParser:
         "create_plain_text_file": "create_file",
         "create_text_file": "create_file",
         "create_txt_file": "create_file",
+        "create_file_with_content": "create_file",
         "write_file": "create_file",
         "write_text_file": "create_file",
         "save_file": "create_file",
@@ -244,6 +256,37 @@ class AIEnhancedParser:
                 params["path"] = _os.path.join(loc, params["name"])
 
         return action, params
+
+    # File extensions whose "create" means "write prose", not code. Content for
+    # these is generated from the request when the plan leaves it empty.
+    _DOC_EXTENSIONS = (".md", ".markdown", ".txt", ".rst", ".text")
+
+    def _fill_document_content(self, command: ComplexCommand, request: str) -> None:
+        """Generate body text for document-file steps the plan left empty.
+
+        The model reliably plans *where* a document goes but seldom inlines its
+        full body into a JSON param, so document requests wrote empty files.
+        For each filesystem create step targeting a document extension with no
+        meaningful content, generate the prose from the original request. Best
+        effort: on any failure the step keeps its (empty) content and the file
+        is still created.
+        """
+        if not self.ai.is_ready():
+            return
+        for step in command.steps:
+            if step.category != "filesystem" or step.action not in ("create_file", "write_file"):
+                continue
+            params = step.params or {}
+            if (params.get("content") or "").strip():
+                continue
+            name = params.get("name") or params.get("path") or params.get("file_path") or ""
+            if not name.lower().endswith(self._DOC_EXTENSIONS):
+                continue
+            content = self.ai.generate_document(request, filename=name)
+            if content:
+                params["content"] = content
+                step.params = params
+                self.logger.info(f"Generated {len(content)} chars of content for {name}")
 
     def _convert_ai_plan_to_complex_command(self, ai_plan: AITaskPlan) -> ComplexCommand:
         """Convert AI task plan to ComplexCommand format"""
@@ -421,9 +464,9 @@ class AIEnhancedParser:
     def get_smart_suggestions(self, context: dict[str, Any] = None) -> list[str]:
         """Get AI-powered smart suggestions"""
 
-        if not self.openrouter_ai.is_openrouter_available():
+        if not self.ai.is_ready():
             return [
-                "Set OPENROUTER_API_KEY environment variable for AI suggestions",
+                "Start Ollama to enable AI suggestions",
                 "Try 'examples' for command ideas",
                 "Use 'help' to see available commands",
             ]
@@ -433,20 +476,20 @@ class AIEnhancedParser:
         suggestion_context["recent_commands"] = self.command_history[-10:]
         suggestion_context["user_patterns"] = self.user_patterns
 
-        return self.openrouter_ai.generate_smart_suggestions(suggestion_context)
+        return self.ai.generate_smart_suggestions(suggestion_context)
 
     def analyze_command_intent(self, command: str) -> dict[str, Any]:
         """Analyze command intent using AI"""
 
-        if not self.openrouter_ai.is_openrouter_available():
+        if not self.ai.is_ready():
             return {
                 "intent": "Basic parsing only",
                 "confidence": 0.1,
-                "suggestions": ["Enable OpenRouter AI for better analysis"],
+                "suggestions": ["Start Ollama for better analysis"],
             }
 
         try:
-            ai_plan = self.openrouter_ai.analyze_automation_request(command)
+            ai_plan = self.ai.analyze_automation_request(command)
 
             return {
                 "intent": ai_plan.interpreted_intent,
@@ -463,10 +506,10 @@ class AIEnhancedParser:
     def handle_execution_error(self, error_info: dict[str, Any]) -> dict[str, Any]:
         """Get AI suggestions for handling execution errors"""
 
-        if not self.openrouter_ai.is_openrouter_available():
+        if not self.ai.is_ready():
             return {"suggestions": ["Check logs and try again"], "confidence": 0.1}
 
-        return self.openrouter_ai.suggest_error_resolution(error_info)
+        return self.ai.suggest_error_resolution(error_info)
 
     def learn_from_execution(self, command: str, result: dict[str, Any]):
         """Learn from command execution results"""
@@ -489,10 +532,33 @@ class AIEnhancedParser:
             pattern_key = f"uses_{complexity}_commands"
             self.user_patterns[pattern_key] = self.user_patterns.get(pattern_key, 0) + 1
 
+    # A single "create/write a document with <prose>" request. The prose often
+    # contains its own "and"s ("ham and pineapple", "temperature and time"),
+    # which must not be mistaken for multiple file operations.
+    _DOC_REQUEST_RE = re.compile(
+        r"\b(create|write|make|generate|save|produce)\b.{0,40}?"
+        r"(file|document|doc|readme|guide|notes?|report|manual|"
+        r"\.md|\.markdown|\.txt|\.rst|\.text)",
+        re.IGNORECASE,
+    )
+
+    def _looks_like_document_request(self, command: str) -> bool:
+        """True when the command is one document-write, not multi-file work.
+
+        The >200-char complexity heuristic routes to the regex fallback, which
+        mangles a single ``create file /path/x.md with <long prose>`` into a
+        bogus nested path. Document requests plan cleanly as one ``create_file``
+        step under the AI parser, so keep them there. Genuine multi-file work
+        (two or more document targets) still falls through to normal routing.
+        """
+        if not self._DOC_REQUEST_RE.search(command):
+            return False
+        targets = len(re.findall(r"\.(?:md|markdown|txt|rst|text)\b", command, re.IGNORECASE))
+        return targets <= 1
+
     def _is_complex_structure(self, command: str) -> bool:
         """Detect if command has complex nested structure"""
         import re
-
         # Check for loop/nesting indicators
         nested_patterns = [
             r"in\s+(?:that|those|each|every)",
@@ -512,13 +578,12 @@ class AIEnhancedParser:
 
     def get_ai_status(self) -> dict[str, Any]:
         """Get AI integration status"""
-        return self.openrouter_ai.get_ai_status()
+        return self.ai.get_ai_status()
 
-    def set_api_key(self, api_key: str) -> bool:
-        """Set OpenRouter API key and reinitialize"""
+    def set_model(self, model_name: str) -> bool:
+        """Switch the active Ollama model."""
         try:
-            self.openrouter_ai = OpenRouterAutomationAI(api_key)
-            return self.openrouter_ai.is_openrouter_available()
+            return self.ai.set_model(model_name)
         except Exception as e:
-            self.logger.error(f"Failed to set API key: {e}")
+            self.logger.error(f"Failed to set model: {e}")
             return False

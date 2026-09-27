@@ -53,8 +53,15 @@ distro_app = typer.Typer(
     rich_markup_mode="rich",
 )
 
+mcp_app = typer.Typer(
+    name="mcp",
+    help="Model Context Protocol server and local Ollama agent",
+    rich_markup_mode="rich",
+)
+
 app.add_typer(n8n_app, name="n8n")
 app.add_typer(distro_app, name="distro")
+app.add_typer(mcp_app, name="mcp")
 
 console = Console()
 
@@ -158,14 +165,12 @@ def _build_engine(safe_mode: bool = False, debug: bool = False):
 
         settings = get_settings()
         config = {
-            "openrouter_api_key": settings.ai.openrouter_api_key,
             "safe_mode": safe_mode or settings.safe_mode,
             "continue_on_error": settings.continue_on_error,
             "debug": debug or settings.debug,
         }
     except Exception:
         config = {
-            "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", ""),
             "safe_mode": safe_mode,
             "continue_on_error": False,
         }
@@ -187,12 +192,46 @@ def _print_result_dict(data: dict) -> None:
 
 def _launch_chatbot(debug: bool = False) -> None:
     """Start the chatbot interactive session."""
+    # Quiet the console in interactive mode: noisy INFO init logs from the
+    # engine/plugins/adapters must not dominate the transcript. Structured
+    # logging still flows to a file sink at DEBUG so nothing is lost. Debug
+    # mode keeps the verbose console behaviour.
+    if not (debug or _global_debug):
+        with contextlib.suppress(Exception):
+            from pathlib import Path
+
+            from archon.utils.logger import configure_logging
+
+            log_file = _global_log_file or str(Path.home() / ".archon" / "archon.log")
+            configure_logging(debug=False, log_file=log_file, console_level="ERROR")
+
     # Build the engine up front so the chatbot executes real commands.
     engine = None
     with contextlib.suppress(Exception):
         engine = _build_engine(safe_mode=_global_safe_mode, debug=debug or _global_debug)
 
-    # Try the modern ChatbotMode class first, then fall back to get_chatbot()
+    # Preferred path: the full-screen Textual TUI. It only makes sense on an
+    # interactive terminal, so pipes/redirects (and terminals where Textual is
+    # unavailable) fall back to the classic Rich REPL below.
+    import sys
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            from archon.ui.tui import run_tui
+
+            run_tui(engine=engine)
+            return
+        except ImportError:
+            pass  # Textual not installed — fall back to the REPL.
+        except Exception as exc:
+            console.print(f"[bold red]TUI error:[/bold red] {exc}")
+            if debug or _global_debug:
+                import traceback
+
+                traceback.print_exc()
+            raise typer.Exit(1) from None
+
+    # Fallback: the classic Rich REPL (also used for non-TTY sessions).
     bot = None
     try:
         from archon.ui.chatbot import ChatbotMode
@@ -847,6 +886,12 @@ def distro_build(
         "./distro_output", "--output", "-o", help="Output directory for ISO artifacts."
     ),
     jobs: int = typer.Option(0, "--jobs", "-j", help="Parallel build jobs (0 = auto-detect)."),
+    work_dir_opt: str | None = typer.Option(
+        None,
+        "--work-dir",
+        "-w",
+        help="Scratch build directory (needs ~15 GB, disk-backed). Defaults to config/tmp.",
+    ),
 ) -> None:
     """Build a custom Linux distribution ISO.
 
@@ -967,6 +1012,8 @@ def distro_build(
 
     output_path = Path(output).expanduser().resolve()
     output_path.mkdir(parents=True, exist_ok=True)
+    if work_dir_opt:
+        work_dir = work_dir_opt
     work_path = Path(work_dir).expanduser().resolve()
     work_path.mkdir(parents=True, exist_ok=True)
 
@@ -981,9 +1028,11 @@ def distro_build(
         console.print("[bold yellow]Starting build — this will take a long time...[/bold yellow]")
         if profile and "description" not in build_config:
             dp = DistroProfile.model_validate(build_config)
-            result = asyncio.run(build_distro(dp, output_path, jobs=build_jobs))
+            result = asyncio.run(build_distro(dp, output_path, jobs=build_jobs, work_dir=work_path))
         else:
-            result = asyncio.run(build_from_nl(build_config.get("description", ""), output_path))
+            result = asyncio.run(
+                build_from_nl(build_config.get("description", ""), output_path, work_dir=work_path)
+            )
 
         if result.success:
             iso_path = getattr(result, "iso_path", str(output_path))
@@ -1165,6 +1214,157 @@ def distro_estimate(
         "Rough estimate only; actual time depends on mirror speed and hardware.",
     )
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# mcp commands
+# ---------------------------------------------------------------------------
+
+
+@mcp_app.command("serve")
+def mcp_serve(
+    transport: str = typer.Option(
+        "stdio", "--transport", "-t", help="Transport: stdio or http."
+    ),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host for http transport."),
+    port: int = typer.Option(8000, "--port", "-p", help="Port for http transport."),
+) -> None:
+    """Run the Archon MCP server so any MCP client can drive its capabilities.
+
+    Exposes ``list_capabilities``, ``run_automation``, and ``dispatch_action``.
+
+    [bold yellow]Security:[/bold yellow] the server enforces Archon's permission
+    policy but adds no per-call human confirmation. Only expose it to trusted
+    MCP clients. For a confirmation-gated local model, use
+    [bold]archon mcp agent[/bold] instead.
+    """
+    try:
+        from archon.mcp import require_fastmcp
+        from archon.mcp.server import build_mcp_server
+
+        require_fastmcp()
+    except ImportError as exc:
+        console.print(f"[bold red]Error:[/bold red] {exc}")
+        raise typer.Exit(1) from None
+
+    console.print(
+        Panel(
+            f"[bold]Archon MCP server[/bold]\nTransport: {transport}"
+            + (f"  {host}:{port}" if transport == "http" else ""),
+            border_style="cyan",
+        )
+    )
+    server = build_mcp_server(safe_mode=_global_safe_mode)
+    try:
+        if transport == "http":
+            server.run(transport="http", host=host, port=port)
+        else:
+            server.run(transport="stdio")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Server stopped.[/yellow]")
+
+
+@mcp_app.command("agent")
+def mcp_agent(
+    message: str | None = typer.Argument(
+        None, help="One-shot instruction. Omit for an interactive session."
+    ),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Auto-approve high-risk actions (dangerous)."
+    ),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logging."),
+) -> None:
+    """Drive a local Ollama model against Archon's tools with confirmation gating.
+
+    The model plans and calls tools autonomously; low/medium-risk actions run
+    automatically, while high-risk/destructive ones (deletes, process kills,
+    system settings, OS builds) prompt for confirmation unless [bold]--yes[/bold]
+    is given.
+
+    Examples:
+
+        archon mcp agent "create a folder named reports on the desktop"
+
+        archon mcp agent   # interactive
+    """
+    try:
+        from archon.utils.logger import configure_logging
+
+        configure_logging(debug=debug or _global_debug, log_file=_global_log_file)
+    except Exception:
+        pass
+
+    try:
+        from archon.mcp import require_fastmcp
+        from archon.mcp.agent import OllamaMCPAgent
+
+        require_fastmcp()
+    except ImportError as exc:
+        console.print(f"[bold red]Error:[/bold red] {exc}")
+        raise typer.Exit(1) from None
+
+    def _confirm(name: str, args: dict, risk) -> bool:
+        if yes:
+            console.print(f"[yellow]Auto-approving {risk.value}-risk[/yellow] {name}({args})")
+            return True
+        console.print(
+            Panel(
+                f"[bold]{name}[/bold]({args})",
+                title=f"[red]{risk.value.upper()}-risk action — approve?[/red]",
+                border_style="red",
+            )
+        )
+        return typer.confirm("Run this action?", default=False)
+
+    try:
+        engine = _build_engine(safe_mode=_global_safe_mode, debug=debug)
+    except Exception as exc:
+        console.print(f"[bold red]Error:[/bold red] Failed to initialise engine: {exc}")
+        raise typer.Exit(1) from None
+
+    agent = OllamaMCPAgent(engine=engine, confirmer=_confirm)
+    status = engine.get_ai_status()
+    if not status.get("available"):
+        console.print(
+            f"[yellow]Warning:[/yellow] AI backend not ready: "
+            f"{status.get('last_error') or 'unknown'}. Is Ollama running?"
+        )
+
+    def _run_once(text: str) -> None:
+        with console.status(f"[cyan]{text}[/cyan]"):
+            reply = asyncio.run(agent.run(text))
+        console.print(Panel(reply, title="[green]Archon[/green]", border_style="green"))
+
+    try:
+        if message:
+            _run_once(message)
+        else:
+            console.print(
+                Panel(
+                    f"Model: [cyan]{status.get('model') or 'ollama'}[/cyan]  •  "
+                    "type a request, or 'exit' to quit.",
+                    title="[cyan]Archon MCP agent[/cyan]",
+                    border_style="cyan",
+                )
+            )
+            while True:
+                text = console.input("[bold cyan]›[/bold cyan] ").strip()
+                if text.lower() in {"exit", "quit", ":q"}:
+                    break
+                if text:
+                    _run_once(text)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Session ended.[/yellow]")
+    except Exception as exc:
+        console.print(f"[bold red]Agent error:[/bold red] {exc}")
+        if debug or _global_debug:
+            import traceback
+
+            traceback.print_exc()
+        raise typer.Exit(1) from None
+    finally:
+        with contextlib.suppress(Exception):
+            engine.shutdown()
 
 
 # ---------------------------------------------------------------------------

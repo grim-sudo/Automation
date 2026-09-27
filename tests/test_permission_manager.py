@@ -94,6 +94,10 @@ def test_dangerous_commands_flagged(pm, command):
         "create a folder named reports",
         "list all files in ~/Projects",
         "install nginx",
+        # Substring false-positives: these embed a keyword inside a longer
+        # word ("in-format-ion", "re-format-ting") and must NOT be flagged.
+        "create documentation about pizza information at /home/grim/test",
+        "write guidelines on formatting the report",
         "",
     ],
 )

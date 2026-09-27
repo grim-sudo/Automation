@@ -104,9 +104,9 @@ export type Capabilities = Record<string, Capability>;
 
 export interface AiStatus {
   available: boolean;
-  has_api_key: boolean;
   model: string | null;
   provider: string | null;
+  url: string | null;
   last_error: string | null;
   available_models: string[];
 }
@@ -152,7 +152,7 @@ export const aiStatus = () => call<AiStatus>("ai_status");
 export const getHistory = () => call<HistoryEntry[]>("get_history");
 export const n8nListWorkflows = () => call<Workflow[]>("n8n_list_workflows");
 export const distroListProfiles = () => call<string[]>("distro_list_profiles");
-export const getFreeModels = () => call<Record<string, string>[]>("get_free_models");
+export const listModels = () => call<Record<string, string>[]>("list_models");
 
 /** Some Python actions return a JSON string; parse it, else wrap as reply. */
 function parseMaybeJson<T>(raw: string): T {

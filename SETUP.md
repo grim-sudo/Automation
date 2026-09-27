@@ -18,7 +18,8 @@
 - Python 3.12+
 - 4 GB available RAM
 - 2 GB free disk space (much more for distro builds — see [Distro Builder](#custom-linux-distro-builder))
-- An [OpenRouter](https://openrouter.ai) API key — free tier available
+- An AI backend: local via [Ollama](https://ollama.com) — install
+  Ollama and pull `qwen3.5:9b` (no API key required).
 
 ---
 
@@ -82,23 +83,26 @@ pip install -e ".[dev,n8n,distro,web]"  # a full working set
 
 ---
 
-## Step 4 — Configure Your API Key
+## Step 4 — Set Up the AI Backend
 
-Archon uses [OpenRouter](https://openrouter.ai) to discover and call free AI models at
-runtime. At least one API key is required for AI-enhanced features.
+Archon runs its AI planning core on a **local LLM through Ollama** — no API key
+required.
 
-### Option A — `.env` file (recommended)
+1. Install [Ollama](https://ollama.com/download) for your platform.
+2. Pull the default model and make sure the server is running:
 
-Create a `.env` file in the project root:
+```bash
+ollama pull qwen3.5:9b
+ollama serve          # usually starts automatically after install
+```
+
+Archon talks to Ollama at `http://127.0.0.1:11434`. That's it — no `.env`
+needed for AI. To use a different local model or URL:
 
 ```dotenv
-# AI provider (at least one required for AI features)
-OPENROUTER_API_KEY=sk-or-v1-...
-# OPENAI_API_KEY=sk-...           # optional direct OpenAI access
-# ANTHROPIC_API_KEY=sk-ant-...    # optional direct Anthropic access
-
-# Leave OPENROUTER_MODEL blank — Archon auto-selects the best free model
-# OPENROUTER_MODEL=
+# .env (all optional; these are the defaults)
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen3.5:9b
 
 # n8n integration (optional — only needed for archon n8n commands)
 N8N_URL=http://localhost:5678
@@ -110,24 +114,7 @@ N8N_API_KEY=your-n8n-api-key
 
 Archon reads `.env` automatically on startup.
 
-### Option B — Environment variables
-
-```bash
-# Linux / macOS — current session
-export OPENROUTER_API_KEY="sk-or-v1-..."
-
-# Linux / macOS — permanent (add to ~/.bashrc or ~/.zshrc)
-echo 'export OPENROUTER_API_KEY="sk-or-v1-..."' >> ~/.zshrc
-source ~/.zshrc
-
-# Windows PowerShell — current session
-$env:OPENROUTER_API_KEY="sk-or-v1-..."
-
-# Windows — permanent (restart terminal after this)
-setx OPENROUTER_API_KEY "sk-or-v1-..."
-```
-
-### Option C — Config file
+### Config file
 
 Generate an example config:
 
@@ -144,7 +131,8 @@ cp ~/.archon/config.example.toml ~/.archon/config.toml
 
 ```toml
 [ai]
-openrouter_api_key = "sk-or-v1-..."
+ollama_url   = "http://127.0.0.1:11434"
+ollama_model = "qwen3.5:9b"
 
 [n8n]
 url     = "http://localhost:5678"
@@ -191,7 +179,7 @@ python archon.py run "show disk usage on /"
 # Per-command flags
 python archon.py run "delete all logs" --safe-mode      # confirm before destructive ops
 python archon.py run "build the project" --debug        # verbose output
-python archon.py run "summarise this" -m openai/gpt-4o  # force a specific model
+python archon.py run "summarise this" -m qwen3.5:9b  # force a specific model
 ```
 
 ### `archon chatbot` — Interactive Mode
@@ -206,15 +194,25 @@ Special commands inside the chatbot:
 
 ```
 /help       — show available commands
-/status     — show current model and connection status
-/history    — show command history
-/context    — show active conversation context
+/status     — show current model and session status
+/model      — list / switch the local Ollama model
+/plugins    — list loaded plugins
+/config     — show config directory and AI settings
+/history    — show recent messages
+/context    — show session context
 /cd <path>  — change working directory
 /pwd        — print working directory
-/ls         — list files in current directory
-/clear      — clear conversation context
-exit        — quit
+/ls [path]  — list a directory
+/explain    — explain the last command
+/clear      — redraw the console
+/exit       — quit (or Ctrl+D)
 ```
+
+Input is a keyboard-first composer (arrow-key history, slash-command and path
+completion, multiline via Alt+Enter). Tool execution streams into a live
+operational view, replies render as Markdown with syntax-highlighted code, and
+errors read as short sentences. Set `ARCHON_ASCII=1` to force plain-ASCII
+glyphs on terminals without full Unicode support.
 
 ### `archon gui` — Desktop Command Center
 
@@ -380,7 +378,7 @@ desktop  = ""
 
 1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
 2. `SECTION__FIELD` env vars — e.g. `AI__MAX_TOKENS=16000`
-3. Flat legacy env vars — `OPENROUTER_API_KEY`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
+3. Flat legacy env vars — `OLLAMA_URL`, `OLLAMA_MODEL`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
 4. `~/.archon/config.toml`
 5. Built-in defaults
 
@@ -395,16 +393,15 @@ continue_on_error = false    # keep going in batch mode after a failure
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 [ai]
-openrouter_api_key = ""   # or OPENROUTER_API_KEY env var
-openai_api_key     = ""   # optional direct OpenAI access
-anthropic_api_key  = ""   # optional direct Anthropic access
+ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
+ollama_model = "qwen3.5:9b"                # default local model
 
-# Leave blank to auto-select best free model from OpenRouter at runtime
+# Pin a specific model; blank uses ollama_model
 model          = ""
 fallback_chain = []
 
 max_tokens  = 8000    # sliding-window token budget
-timeout     = 30      # per-request timeout (seconds)
+timeout     = 30      # per-request timeout (seconds); local Ollama floors this at 120
 max_retries = 3       # retries before advancing fallback chain
 retry_delay = 2.0     # base exponential back-off delay (seconds)
 
@@ -430,9 +427,8 @@ require_root_confirmation = true
 
 | Variable | Config field | Notes |
 |----------|-------------|-------|
-| `OPENROUTER_API_KEY` | `ai.openrouter_api_key` | Required for AI features |
-| `OPENAI_API_KEY` | `ai.openai_api_key` | Optional |
-| `ANTHROPIC_API_KEY` | `ai.anthropic_api_key` | Optional |
+| `OLLAMA_URL` | `ai.ollama_url` | Default: `http://127.0.0.1:11434` |
+| `OLLAMA_MODEL` | `ai.ollama_model` | Default: `qwen3.5:9b` |
 | `MAX_RETRIES` | `ai.max_retries` | Default: 3 |
 | `N8N_API_KEY` | `n8n.api_key` | Required for n8n commands |
 | `N8N_URL` | `n8n.url` | Default: `http://localhost:5678` |
@@ -502,9 +498,15 @@ python archon.py --help
 ### AI not responding / empty responses
 
 ```bash
-echo $OPENROUTER_API_KEY          # check the key is set
-python archon.py --debug run "hello"   # see full HTTP traffic
+# Confirm Ollama is up and the model is pulled
+curl http://127.0.0.1:11434/api/tags
+ollama pull qwen3.5:9b
+
+python archon.py --debug run "hello"   # see full traffic
 ```
+
+> Local models can be slow to load on the first request. Archon floors the
+> local request timeout at 120s; very large models may need more RAM/VRAM.
 
 ### n8n returns 401 Unauthorized
 
