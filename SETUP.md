@@ -1,6 +1,6 @@
 # Archon — Setup & Installation Guide
 
-> **Quick links**: [README](README.md) | [Usage examples](docs/usage.md) | [Full CLI reference](docs/user_guide.md)
+> **Quick links**: [README](README.md) | [User guide](userguide.md) | [Usage examples](docs/usage.md)
 
 ---
 
@@ -446,9 +446,9 @@ require_root_confirmation = true
 ## Running the Test Suite
 
 ```bash
-# All 232 tests
+# All 275 tests
 pytest tests/ -v
-# Expected: 232 passed, 2 warnings
+# Expected: 275 passed, 2 warnings
 
 # Quiet summary
 pytest tests/ -q
@@ -575,5 +575,5 @@ python -m json.tool < /tmp/archon.jsonl   # pretty-print JSON logs
 
 1. Run `python archon.py chatbot` to explore capabilities interactively
 2. Read [docs/usage.md](docs/usage.md) for per-task command examples for every capability
-3. Read [docs/user_guide.md](docs/user_guide.md) for the full CLI and Python API reference
+3. Read [userguide.md](userguide.md) for the full CLI and interface reference
 4. Copy `~/.archon/config.example.toml` to `config.toml` and customise it

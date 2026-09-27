@@ -126,7 +126,7 @@ Full installation and configuration details are in **[SETUP.md](SETUP.md)**.
 | Command | Description |
 |---------|-------------|
 | `archon run "…"` | Execute one natural-language command and exit |
-| `archon chatbot` | Multi-turn conversational REPL with streaming and context |
+| `archon chatbot` | Multi-turn conversational REPL with streaming, context, and a `/model` switcher |
 | `archon gui` | Launch the desktop command center (Tauri app in `ui-tauri/`) |
 | `archon batch FILE` | Run a file of commands, one per line |
 | `archon n8n …` | Manage n8n workflows — `list`, `create`, `run`, `status` |
@@ -382,8 +382,9 @@ Automation/
 │   ├── archon-cli/               Optional compiled CLI (ARCHON_RUST_CLI=1)
 │   └── archon-core/              Shared Rust core (intent / security / config)
 ├── ui-tauri/                     Desktop command center (Tauri v2 + Vite + TypeScript)
-├── docs/                         usage.md, user_guide.md
-└── tests/                        pytest suite (232 tests)
+├── userguide.md                  End-to-end user guide (every interface and flag)
+├── docs/                         usage.md
+└── tests/                        pytest suite (275 tests)
 ```
 
 **Entry points**
@@ -446,7 +447,7 @@ workflows = asyncio.run(mgr.list_workflows())
 ```bash
 pip install -e ".[dev]"
 
-# Run the test suite (232 tests)
+# Run the test suite (275 tests)
 pytest tests/ -v -m "not integration and not slow"
 
 # Lint, format, and type-check
@@ -498,9 +499,9 @@ More detailed troubleshooting is in **[SETUP.md](SETUP.md)**.
 
 | Document | Contents |
 |----------|----------|
+| [userguide.md](userguide.md) | End-to-end user guide — every interface, command, and flag |
 | [SETUP.md](SETUP.md) | Installation, configuration, and development workflow |
 | [docs/usage.md](docs/usage.md) | Every capability with example commands |
-| [docs/user_guide.md](docs/user_guide.md) | Interface walkthrough and configuration reference |
 
 ---
 
