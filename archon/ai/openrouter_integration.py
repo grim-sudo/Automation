@@ -287,7 +287,11 @@ class OpenRouterAutomationAI:
 
         prompt = self._build_prompt(user_request, context or {})
         try:
-            raw = await self._call(prompt)
+            # Plans can enumerate many steps (e.g. "15 folders, a file in each");
+            # the default budget truncates those mid-JSON. Give the plan call
+            # more room — the salvage path in parse_task_plan is the backstop
+            # when even this is not enough.
+            raw = await self._call(prompt, max_tokens=4096)
             task_plan = parse_task_plan(raw, user_request)
             return self._task_plan_to_legacy(task_plan)
         except Exception as exc:

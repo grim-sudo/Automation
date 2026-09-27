@@ -70,6 +70,8 @@ class ChatbotMode:
             "quit": self.handle_exit,
             "explain": self.handle_explain,
             "undo": self.handle_undo,
+            "model": self.handle_model,
+            "models": self.handle_model,
         }
 
     # ── Engine ──────────────────────────────────────────────────────────────
@@ -420,6 +422,99 @@ class ChatbotMode:
         else:
             self.console.print("[dim]Nothing to undo.[/dim]")
 
+    # ── Model selection ─────────────────────────────────────────────────────────
+
+    def _openrouter_ai(self) -> Any:
+        """Return the live OpenRouter integration, or ``None`` when AI is off."""
+        ai = getattr(getattr(self.engine, "ai_parser", None), "openrouter_ai", None)
+        if ai is None or not ai.is_openrouter_available():
+            return None
+        return ai
+
+    @staticmethod
+    def _resolve_model_choice(arg: str, models: list[tuple[str, str]]) -> str | None:
+        """Map a user argument to a model id.
+
+        Accepts a 1-based menu number, an exact model id, or a case-insensitive
+        substring of the id or display name. Returns ``None`` when nothing (or
+        more than one thing, for substrings) unambiguously matches.
+        """
+        if arg.isdigit():
+            idx = int(arg)
+            return models[idx - 1][0] if 1 <= idx <= len(models) else None
+        if arg in (mid for mid, _ in models):
+            return arg
+        needle = arg.lower()
+        matches = [mid for mid, name in models if needle in mid.lower() or needle in name.lower()]
+        return matches[0] if len(matches) == 1 else None
+
+    def handle_model(self, args: str = "") -> None:
+        """List the available free models and switch the active one.
+
+        ``/model`` shows a numbered menu of the free OpenRouter models (best
+        context first, current one marked) and prompts for a selection.
+        ``/model <n|id|substring>`` switches directly without the menu.
+        """
+        ai = self._openrouter_ai()
+        if ai is None:
+            self.console.print(
+                "[yellow]AI is not available — set OPENROUTER_API_KEY to enable "
+                "model selection.[/yellow]"
+            )
+            return
+
+        models = list(ai.get_available_models().items())  # (id, name), best-first
+        if not models:
+            self.console.print(
+                "[yellow]No free models resolved. Check your API key and connection.[/yellow]"
+            )
+            return
+
+        current = ai.get_current_model()
+
+        # Direct switch when an argument is supplied.
+        if args:
+            chosen = self._resolve_model_choice(args.strip(), models)
+            if chosen is None:
+                self.console.print(f"[red]No single model matches:[/red] {args}")
+                return
+            ai.set_model(chosen)
+            self.console.print(f"[green]✓ Model switched to[/green] {chosen}")
+            return
+
+        # Otherwise render the selection menu.
+        table = Table(title="Free models (OpenRouter)", header_style="bold cyan")
+        table.add_column("#", justify="right", style="dim")
+        table.add_column("Model id")
+        table.add_column("Name")
+        table.add_column("", justify="center")
+        for i, (mid, name) in enumerate(models, 1):
+            marker = "[green]● current[/green]" if mid == current else ""
+            table.add_row(str(i), mid, str(name)[:40], marker)
+        self.console.print(table)
+
+        try:
+            answer = self.console.input(
+                "\nSelect a model number (Enter to cancel) › "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            self.console.print("\n[dim]No change.[/dim]")
+            return
+
+        if not answer:
+            self.console.print("[dim]No change.[/dim]")
+            return
+        if not answer.isdigit() or not (1 <= int(answer) <= len(models)):
+            self.console.print(f"[red]Invalid selection:[/red] {answer}")
+            return
+
+        chosen_id = models[int(answer) - 1][0]
+        if chosen_id == current:
+            self.console.print(f"[dim]Already using[/dim] {chosen_id}")
+            return
+        ai.set_model(chosen_id)
+        self.console.print(f"[green]✓ Model switched to[/green] {chosen_id}")
+
     # ── History persistence ─────────────────────────────────────────────────────
 
     def _load_history(self) -> None:
@@ -481,6 +576,7 @@ class ChatbotMode:
             "  [cyan]/ls[/cyan] \\[path] List directory\n"
             "  [cyan]/explain[/cyan]   Explain the last command\n"
             "  [cyan]/undo[/cyan]      Undo last operation\n"
+            "  [cyan]/model[/cyan] \\[n|id] List / switch the AI model\n"
             "  [cyan]/clear[/cyan]     Clear the screen\n"
             "  [cyan]/exit[/cyan]      Quit\n\n"
             "[dim]Spell-correction and multi-turn context are automatic.[/dim]"

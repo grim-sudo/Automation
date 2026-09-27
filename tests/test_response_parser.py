@@ -168,6 +168,35 @@ class TestTaskPlanParsing:
         result = parser.parse_task_plan(VALID_TASK_PLAN_JSON)
         assert result.execution_steps[0].action == "create_folder"
 
+    def test_salvages_steps_from_truncated_plan(self, parser: ResponseParser) -> None:
+        """A plan cut off by the token limit must still yield its complete steps.
+
+        Regression for the nested-folder failure: the model enumerated many
+        steps, the response was truncated mid-object, json.loads + generic
+        repair both failed, and the whole request collapsed to the naive
+        fallback (one bread folder). The salvage path recovers what survived.
+        """
+        truncated = (
+            '{"intent": "make folders", "confidence": 0.99, "steps": ['
+            '{"action": "create_directory", "category": "filesystem", '
+            '"params": {"path": "bread"}, "required": true},'
+            '{"action": "create_directory", "category": "filesystem", '
+            '"params": {"path": "bread/1"}, "required": true},'
+            '{"action": "create_directory", "category": "filesystem", '
+            '"params": {"path": "bread/2"}, "required": true},'
+            '{"action": "create_directory", "category": "files'  # cut off here
+        )
+        result = parser.parse_task_plan(truncated, "make folders")
+        assert len(result.execution_steps) == 3
+        assert result.execution_steps[0].params["path"] == "bread"
+        assert result.execution_steps[-1].params["path"] == "bread/2"
+
+    def test_truncated_with_no_complete_steps_is_empty(self, parser: ResponseParser) -> None:
+        # First object already truncated → nothing salvageable, empty plan.
+        truncated = '{"steps": [{"action": "create_direc'
+        result = parser.parse_task_plan(truncated, "x")
+        assert len(result.execution_steps) == 0
+
 
 # ─── IntentResult parsing ─────────────────────────────────────────────────────
 

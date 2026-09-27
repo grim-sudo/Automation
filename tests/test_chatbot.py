@@ -104,3 +104,92 @@ def test_lazy_engine_not_built_when_injected():
     bot = ChatbotMode(engine=engine)
     # Accessing the property returns the injected engine, no rebuild.
     assert bot.engine is engine
+
+
+# ─── Model switcher (/model) ─────────────────────────────────────────────────
+
+
+class _FakeAI:
+    """Minimal stand-in for the OpenRouter integration the switcher drives."""
+
+    def __init__(self, models: dict[str, str], current: str, available: bool = True) -> None:
+        self._models = models
+        self._current = current
+        self._available = available
+
+    def is_openrouter_available(self) -> bool:
+        return self._available
+
+    def get_available_models(self) -> dict[str, str]:
+        return dict(self._models)
+
+    def get_current_model(self) -> str:
+        return self._current
+
+    def set_model(self, model_id: str) -> bool:
+        self._current = model_id
+        return True
+
+
+def _bot_with_ai(ai: _FakeAI) -> ChatbotMode:
+    engine = MagicMock()
+    engine.ai_parser.openrouter_ai = ai
+    return ChatbotMode(engine=engine)
+
+
+_MODELS = {"prov/big:free": "Big", "prov/small:free": "Small", "prov/mid:free": "Mid"}
+
+
+def test_model_switch_by_number():
+    ai = _FakeAI(_MODELS, current="prov/big:free")
+    bot = _bot_with_ai(ai)
+
+    bot.handle_model("2")  # second entry, best-first order
+
+    assert ai.get_current_model() == "prov/small:free"
+
+
+def test_model_switch_by_id_substring():
+    ai = _FakeAI(_MODELS, current="prov/big:free")
+    bot = _bot_with_ai(ai)
+
+    bot.handle_model("mid")  # unique substring
+
+    assert ai.get_current_model() == "prov/mid:free"
+
+
+def test_model_switch_rejects_ambiguous_or_missing():
+    ai = _FakeAI(_MODELS, current="prov/big:free")
+    bot = _bot_with_ai(ai)
+
+    bot.handle_model("free")  # matches all three → ambiguous, no change
+    assert ai.get_current_model() == "prov/big:free"
+
+    bot.handle_model("nope")  # matches nothing → no change
+    assert ai.get_current_model() == "prov/big:free"
+
+
+def test_model_switch_out_of_range_number_no_change():
+    ai = _FakeAI(_MODELS, current="prov/big:free")
+    bot = _bot_with_ai(ai)
+
+    bot.handle_model("99")
+
+    assert ai.get_current_model() == "prov/big:free"
+
+
+def test_model_command_noop_when_ai_unavailable():
+    ai = _FakeAI(_MODELS, current="prov/big:free", available=False)
+    bot = _bot_with_ai(ai)
+
+    # Must not raise and must not switch.
+    bot.handle_model("2")
+
+    assert ai.get_current_model() == "prov/big:free"
+
+
+def test_resolve_model_choice_exact_id():
+    models = list(_MODELS.items())
+    assert ChatbotMode._resolve_model_choice("prov/mid:free", models) == "prov/mid:free"
+    assert ChatbotMode._resolve_model_choice("1", models) == "prov/big:free"
+    assert ChatbotMode._resolve_model_choice("0", models) is None

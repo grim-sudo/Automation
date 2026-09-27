@@ -264,7 +264,16 @@ class ResponseParser:
             try:
                 data = json.loads(repaired)
             except (json.JSONDecodeError, ValueError):
-                return TaskPlan.empty(original_request)
+                # Last resort: the plan was almost certainly truncated by the
+                # completion token limit (a long, fully-enumerated plan cut off
+                # mid-object). Generic repair can't close a dangling object, but
+                # every *complete* step before the cut is still valid — recover
+                # those so a big request degrades to a partial result instead of
+                # silently collapsing to the naive fallback (one bread folder).
+                salvaged = self._salvage_steps(json_str)
+                if not salvaged:
+                    return TaskPlan.empty(original_request)
+                data = {"steps": salvaged}
 
         if not isinstance(data, dict):
             return TaskPlan.empty(original_request)
@@ -460,6 +469,63 @@ class ResponseParser:
         text += "}" * max(0, open_braces)
 
         return text
+
+    def _salvage_steps(self, raw: str) -> list[dict[str, Any]]:
+        """Recover complete step objects from a truncated ``steps`` array.
+
+        When a plan is cut off by the completion-token limit the trailing object
+        is incomplete and the whole document fails to parse. Every balanced
+        ``{…}`` element before the cut is still valid JSON, though — walk the
+        array from the ``"steps"`` (or ``"execution_steps"``) key, collect each
+        depth-balanced element, and stop at the first one that runs off the end.
+
+        Returns the list of recovered step dicts (possibly empty).
+        """
+        match = re.search(r'"(?:steps|execution_steps)"\s*:\s*\[', raw)
+        if not match:
+            return []
+
+        i = match.end()  # first char after the opening '['
+        n = len(raw)
+        objs: list[dict[str, Any]] = []
+
+        while i < n:
+            while i < n and raw[i] in " \t\r\n,":
+                i += 1
+            if i >= n or raw[i] != "{":
+                break  # end of array (']'), or nothing more to parse
+
+            depth = 0
+            in_str = False
+            escape = False
+            start = i
+            complete = False
+            while i < n:
+                ch = raw[i]
+                if escape:
+                    escape = False
+                elif ch == "\\" and in_str:
+                    escape = True
+                elif ch == '"':
+                    in_str = not in_str
+                elif not in_str:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            i += 1
+                            complete = True
+                            break
+                i += 1
+
+            if not complete:
+                break  # object ran off the end → truncation point reached
+
+            with contextlib.suppress(json.JSONDecodeError, ValueError):
+                objs.append(json.loads(raw[start:i]))
+
+        return objs
 
 
 # ---------------------------------------------------------------------------
