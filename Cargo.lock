@@ -68,6 +68,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "archon-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "archon-core",
+ "clap",
+ "colored",
+ "dialoguer",
+ "indicatif",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "archon-core"
+version = "0.1.0"
+dependencies = [
+ "once_cell",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1634,39 +1667,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "archon-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "colored",
- "dialoguer",
- "indicatif",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "archon-core",
-]
-
-[[package]]
-name = "archon-core"
-version = "0.1.0"
-dependencies = [
- "once_cell",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "unicode-ident"

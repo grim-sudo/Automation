@@ -1,64 +1,101 @@
-/* Archon Design System — mirrors archon/ui/gui/theme.py */
+/* Archon Design System — command center.
+ * Mirrors archon/ui/gui/theme.py: a premium computing-control plane built from
+ * black metal + brushed steel + warm gold. Material stack runs
+ * void → obsidian → charcoal → graphite → steel → iron, with gold reserved
+ * strictly for active / selected / executing / primary. ~85% dark surfaces,
+ * ~10% neutral metal, ~5% accent + state. Borders over shadows. */
 
 :root {
-  /* ── Backgrounds ──────────────────────────────────────────────────────── */
-  --bg-deep: #080810;
-  --bg-surface: #0f0f1a;
-  --bg-raised: #1a1a2e;
+  /* ── Material stack ─────────────────────────────────────────────────────── */
+  --void: #050607;        /* deepest black — full-bleed backdrops */
+  --obsidian: #090b0d;    /* main window background */
+  --charcoal: #0e1114;    /* panels / surfaces */
+  --graphite: #14181c;    /* elevated surfaces, hover */
+  --steel: #1c2227;       /* selected / raised instrument */
+  --iron: #252c32;        /* top material — chips, strong hover */
 
-  /* ── Brand ────────────────────────────────────────────────────────────── */
-  --purple: #7c3aed;
-  --purple-light: #a78bfa;
-  --purple-dim: #1e1247;
-  --cyan: #06b6d4;
-  --cyan-dim: #061e24;
+  /* Semantic background aliases */
+  --bg-deep: var(--obsidian);
+  --bg-surface: var(--charcoal);
+  --bg-raised: var(--graphite);
+  --bg-highlight: var(--steel);
 
-  /* ── Text ─────────────────────────────────────────────────────────────── */
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-accent: #a78bfa;
-  --text-muted: #475569;
+  /* ── Brand accent — Archon gold ─────────────────────────────────────────── */
+  --gold: #d6a84f;        /* active nav, key actions, executing */
+  --gold-light: #f0c96a;
+  --gold-dark: #806027;
+  --gold-dim: #c2953f;    /* hover */
+  --gold-glow: #2a2113;   /* ~25% gold over obsidian (pre-blended) */
 
-  /* ── Semantic ─────────────────────────────────────────────────────────── */
-  --success: #10b981;
-  --success-dim: #0a2e20;
-  --error: #ef4444;
-  --error-dim: #3d1010;
-  --warning: #f59e0b;
+  /* Historical accent aliases (kept so component code reads cleanly) */
+  --accent: var(--gold);
+  --accent-hover: var(--gold-dim);
+  --accent-muted: var(--gold-dark);
 
-  /* ── Borders ──────────────────────────────────────────────────────────── */
-  --border-subtle: #1e293b;
-  --border-accent: #2d1b69;
-  --border-cyan: #083d4a;
+  /* ── Cool counterpoint — steel-blue (info / code / readouts) ────────────── */
+  --cyan: #7899ba;
+  --cyan-light: #9ab4d0;
+  --cyan-dim: #4f647d;
+  --cyan-glow: #141a22;
 
-  /* ── Spacing ──────────────────────────────────────────────────────────── */
+  /* ── Text — soft silver on obsidian ─────────────────────────────────────── */
+  --text-primary: #eceae5;
+  --text-secondary: #b9bbb9;
+  --text-accent: #f0c96a;
+  --text-cyan: #9ab4d0;
+  --text-muted: #73787b;
+  --text-dim: #4d5255;
+
+  /* ── Semantic state — restrained, calm on obsidian ──────────────────────── */
+  --success: #78b88a;
+  --success-glow: #12211a;
+  --warning: #d2a85c;
+  --warning-dim: #8a6d34;
+  --error: #c96868;
+  --error-glow: #2a1616;
+  --error-dim: #7f3a3a;
+  --info: var(--cyan);
+
+  /* ── Borders (preferred over shadows) ───────────────────────────────────── */
+  --border-subtle: #20262b;   /* hairline panel rule */
+  --border-strong: #30373d;   /* visible divider */
+  --border-accent: #4d4020;   /* thin engraved gold rule */
+  --border-cyan: #243139;
+
+  /* ── Spacing ────────────────────────────────────────────────────────────── */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
   --space-lg: 16px;
   --space-xl: 20px;
   --space-2xl: 32px;
+  --pad-page: 24px;
 
-  /* ── Radius ───────────────────────────────────────────────────────────── */
-  --radius-sm: 6px;
+  /* ── Radius (8–12px, restrained) ────────────────────────────────────────── */
+  --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-card: 10px;
+  --radius-lg: 12px;
   --radius-input: 8px;
+  --radius-btn: 8px;
 
-  /* ── Typography ───────────────────────────────────────────────────────── */
-  --font-family: "Inter", "JetBrains Mono", system-ui, monospace;
-  --font-size-xs: 11px;
+  /* ── Typography ─────────────────────────────────────────────────────────── */
+  --font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --font-size-xs: 10px;
   --font-size-sm: 12px;
   --font-size-body: 13px;
   --font-size-subheading: 15px;
   --font-size-heading: 18px;
+  --font-size-display: 26px;
 
-  /* ── Sidebar ──────────────────────────────────────────────────────────── */
+  /* ── Shell dimensions ───────────────────────────────────────────────────── */
   --sidebar-width: 240px;
   --sidebar-width-collapsed: 64px;
-  --topbar-height: 52px;
+  --topbar-height: 56px;
+  --statusbar-height: 30px;
 
-  /* ── Transitions ──────────────────────────────────────────────────────── */
+  /* ── Transitions ────────────────────────────────────────────────────────── */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
   --transition-slow: 400ms ease;
@@ -73,9 +110,10 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: var(--bg-deep);
+  background: var(--obsidian);
   color: var(--text-primary);
   font-family: var(--font-family);
   font-size: var(--font-size-body);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }

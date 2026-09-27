@@ -46,7 +46,7 @@ enum Commands {
         interactive: bool,
     },
 
-    /// Launch the GUI (delegates to Python; use ARCHON_GUI=tauri for Tauri).
+    /// Launch the desktop command center (Tauri app; delegates to Python `gui`).
     Gui,
 
     /// Execute all commands from a file (one per line).
@@ -163,21 +163,8 @@ fn handle_run(
 }
 
 fn handle_gui() -> Result<()> {
-    let gui_backend = std::env::var("ARCHON_GUI").unwrap_or_else(|_| "ctk".to_string());
-    if gui_backend == "tauri" {
-        let binary = find_tauri_binary();
-        if let Some(bin) = binary {
-            let status = std::process::Command::new(&bin)
-                .status()
-                .with_context(|| format!("Failed to launch Tauri binary at {bin:?}"))?;
-            std::process::exit(status.code().unwrap_or(1));
-        }
-        eprintln!(
-            "{}",
-            "⚠  Tauri binary not found — falling back to CustomTkinter".yellow()
-        );
-    }
-    // Fall through to Python CTk GUI.
+    // The desktop GUI is the Tauri app under ui-tauri/. Python's `gui` command
+    // locates and launches the built binary (or prints build/dev instructions).
     delegate_to_python(&["gui"], &Config::default())
 }
 
@@ -303,18 +290,4 @@ fn detect_python() -> String {
         return ".venv/bin/python".to_string();
     }
     "python3".to_string()
-}
-
-/// Locate the Tauri GUI binary if built.
-fn find_tauri_binary() -> Option<PathBuf> {
-    let candidate = PathBuf::from("ui-tauri")
-        .join("src-tauri")
-        .join("target")
-        .join("release")
-        .join("archon");
-    if candidate.exists() {
-        Some(candidate)
-    } else {
-        None
-    }
 }

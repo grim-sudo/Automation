@@ -18,10 +18,6 @@ ARCHON_RUST_CLI=1
     Delegate to the compiled Rust CLI binary (archon-bin) if it exists on PATH
     or in one of the well-known build output directories.  Falls back to the
     Python CLI silently when the binary is not found.
-
-ARCHON_GUI=tauri|ctk
-    Select GUI backend (default: ctk — CustomTkinter).  Only used when the Rust
-    CLI or the Python CLI launches the `gui` subcommand.
 """
 
 from __future__ import annotations
@@ -75,7 +71,7 @@ if _RUST_CLI_ENABLED:
     # If binary not found fall through to Python CLI silently.
 
 # ---------------------------------------------------------------------------
-# ARCHON_GUI=tauri IPC bridge
+# Tauri IPC bridge
 # ---------------------------------------------------------------------------
 # When Tauri's Rust backend spawns `python archon.py --tauri-ipc`, it writes
 # a JSON payload to stdin and reads a JSON response from stdout.  This handler
@@ -86,19 +82,31 @@ if "--tauri-ipc" in sys.argv:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     def _tauri_ipc() -> None:
+        # Preserve the real stdout fd, then point fd 1 at stderr for the rest of
+        # the run. Library noise (loguru, Xlib, C libraries writing straight to
+        # fd 1) then cannot corrupt the single JSON document the Rust bridge
+        # parses from stdout. Only the final response is written to the saved fd.
+        saved_fd = os.dup(1)
+        os.dup2(2, 1)
+        real_stdout = os.fdopen(saved_fd, "w")
+
+        def _emit(text: str) -> None:
+            real_stdout.write(text)
+            real_stdout.flush()
+
         try:
             raw = sys.stdin.read().strip()
             payload = _json.loads(raw) if raw else {}
         except Exception as _exc:
-            sys.stdout.write(_json.dumps({"error": f"JSON parse error: {_exc}"}))
+            _emit(_json.dumps({"error": f"JSON parse error: {_exc}"}))
             sys.exit(1)
 
         action = payload.get("action", "")
         try:
             response = _dispatch_ipc(action, payload)
-            sys.stdout.write(_json.dumps(response) if not isinstance(response, str) else response)
+            _emit(_json.dumps(response) if not isinstance(response, str) else response)
         except Exception as _exc:
-            sys.stdout.write(_json.dumps({"error": str(_exc)}))
+            _emit(_json.dumps({"error": str(_exc)}))
             sys.exit(1)
 
     def _dispatch_ipc(action: str, payload: dict) -> object:  # type: ignore[type-arg]
@@ -109,15 +117,16 @@ if "--tauri-ipc" in sys.argv:
             from archon.core.engine import Archon as _Archon
 
             eng = _Archon()
-            result = eng.execute(payload.get("message", ""))
-            return result if isinstance(result, str) else str(result)
+            history = payload.get("history") or []
+            result = eng.chat(payload.get("message", ""), history)
+            return _json.dumps(result if isinstance(result, dict) else {"reply": str(result)})
 
         if action == "run":
             from archon.core.engine import Archon as _Archon
 
             eng = _Archon()
             result = eng.execute(payload.get("command", ""))
-            return result if isinstance(result, str) else str(result)
+            return _json.dumps(result if isinstance(result, dict) else {"result": str(result)})
 
         if action == "n8n_list":
             from archon.config import get_config
@@ -164,7 +173,23 @@ if "--tauri-ipc" in sys.argv:
             return "Build dispatched — use CLI: archon distro build"
 
         if action == "history":
-            return _json.dumps([])
+            from archon.core.engine import Archon as _Archon
+
+            eng = _Archon()
+            limit = int(payload.get("limit", 100))
+            return _json.dumps(eng.get_execution_history(limit))
+
+        if action == "capabilities":
+            from archon.core.engine import Archon as _Archon
+
+            eng = _Archon()
+            return _json.dumps(eng.describe_capabilities())
+
+        if action == "ai_status":
+            from archon.core.engine import Archon as _Archon
+
+            eng = _Archon()
+            return _json.dumps(eng.get_ai_status())
 
         if action == "models":
             from archon.ai.model_resolver import FreeModelResolver

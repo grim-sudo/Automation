@@ -1,6 +1,6 @@
 # Archon — Setup & Installation Guide
 
-> **Quick links**: [README](README.md) | [Usage examples](usage.md) | [Full CLI reference](user_guide.md)
+> **Quick links**: [README](README.md) | [Usage examples](docs/usage.md) | [Full CLI reference](docs/user_guide.md)
 
 ---
 
@@ -64,9 +64,9 @@ pip install -e ".[dev]"
 # Add optional feature groups as needed:
 pip install -e ".[dev,n8n]"             # + n8n workflow bridge
 pip install -e ".[dev,distro]"          # + Linux ISO builder
-pip install -e ".[dev,gui]"             # + graphical interface
+pip install -e ".[dev,gui]"             # + desktop automation (screen/input control)
 pip install -e ".[dev,web]"             # + Selenium / Playwright
-pip install -e ".[dev,n8n,distro,gui]"  # everything
+pip install -e ".[dev,n8n,distro,web]"  # a full working set
 ```
 
 ### What each extras group adds
@@ -76,7 +76,7 @@ pip install -e ".[dev,n8n,distro,gui]"  # everything
 | `dev` | pytest, pytest-asyncio, respx, ruff, mypy |
 | `n8n` | aiohttp (webhook listener) |
 | `distro` | kconfiglib (kernel config helpers) |
-| `gui` | customtkinter, pyautogui, pynput, pillow, darkdetect, pyperclip, psutil |
+| `gui` | pyautogui, pynput, pillow, psutil (desktop automation) |
 | `web` | selenium, playwright, webdriver-manager |
 | `data` | numpy, pandas, matplotlib, seaborn |
 
@@ -216,14 +216,41 @@ Special commands inside the chatbot:
 exit        — quit
 ```
 
-### `archon gui` — Graphical Interface
+### `archon gui` — Desktop Command Center
 
-Archon v2.0 ships a futuristic dark-mode GUI (CustomTkinter) with 7 pages:
-**Home · Chat · Automate · n8n · Distro Builder · History · Settings**
+Archon's desktop UI is a native app built with Tauri v2 (Rust backend) and
+Vite + TypeScript (frontend), located in `ui-tauri/`. It reads live system
+telemetry natively in Rust and drives the Python engine over a JSON IPC bridge.
+
+`archon gui` launches a built binary if one exists; otherwise it prints the
+commands to build or run it.
+
+**Prerequisites:** Node.js, a Rust toolchain (`rustup`), and the Tauri platform
+dependencies. On Debian/Ubuntu:
 
 ```bash
-pip install -e ".[gui]"
-python archon.py gui
+sudo apt-get install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+On Arch Linux:
+
+```bash
+sudo pacman -S webkit2gtk-4.1 base-devel curl wget file openssl \
+  libayatana-appindicator librsvg
+```
+
+See the [Tauri prerequisites guide](https://tauri.app/start/prerequisites/) for
+macOS and Windows.
+
+**Run it:**
+
+```bash
+cd ui-tauri
+npm install
+npm run tauri dev      # run in development mode
+# or:
+npm run tauri build    # produce a release binary, then `archon gui` finds it
 ```
 
 ### `archon batch` — Bulk Execution
@@ -499,14 +526,22 @@ The project uses `httpx`. Run a clean reinstall:
 pip install -e . --force-reinstall --no-cache-dir
 ```
 
-### GUI crashes on headless Linux
+### GUI won't launch
+
+The desktop UI is the Tauri app in `ui-tauri/`. If `archon gui` reports that no
+binary was found, build one first:
 
 ```bash
-sudo apt-get install xvfb
-Xvfb :99 -screen 0 1024x768x24 &
-export DISPLAY=:99
-python archon.py gui
+cd ui-tauri
+npm install
+npm run tauri build     # then re-run: archon gui
+# or run it directly in dev mode:
+npm run tauri dev
 ```
+
+If the build fails on Linux, install the Tauri platform dependencies
+(`webkit2gtk-4.1`, `gtk3`, and the packages listed under
+[`archon gui`](#archon-gui--desktop-command-center) above).
 
 ### Distro builder: permission denied
 
@@ -539,6 +574,6 @@ python -m json.tool < /tmp/archon.jsonl   # pretty-print JSON logs
 ## Next Steps
 
 1. Run `python archon.py chatbot` to explore capabilities interactively
-2. Read [usage.md](usage.md) for per-task command examples for every capability
-3. Read [user_guide.md](user_guide.md) for the full CLI and Python API reference
+2. Read [docs/usage.md](docs/usage.md) for per-task command examples for every capability
+3. Read [docs/user_guide.md](docs/user_guide.md) for the full CLI and Python API reference
 4. Copy `~/.archon/config.example.toml` to `config.toml` and customise it

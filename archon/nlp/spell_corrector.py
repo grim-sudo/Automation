@@ -37,35 +37,33 @@ class SpellCorrector:
             "json",
         }
 
-        # Command keywords and their variations
+        # Command keywords and their *misspellings* only.
+        #
+        # These lists must contain the canonical word plus genuine typos — never
+        # valid synonyms. correct_text() rewrites any listed variation to the
+        # canonical, so putting real words here (e.g. "document" → "file",
+        # "get" → "download") silently corrupts the user's meaning and produces
+        # nonsense like "write a doc file" → "write a file file". Synonym →
+        # intent mapping is the NLP classifier's job, not the spell corrector's.
         self.command_keywords = {
-            "create": [
-                "create",
-                "make",
-                "generate",
-                "build",
-                "setup",
-                "initialize",
-                "new",
-                "mkdri",
-            ],
-            "delete": ["delete", "remove", "rm", "erase", "destroy", "eliminate", "delet", "dlete"],
-            "copy": ["copy", "duplicate", "cp", "clone", "copi", "copu"],
-            "move": ["move", "mv", "transfer", "relocate", "moev", "muve"],
-            "rename": ["rename", "rn", "renam", "renme"],
-            "folder": ["folder", "directory", "dir", "fodler", "foldr", "foldер", "dir"],
-            "file": ["file", "document", "doc", "flie", "fil"],
-            "project": ["project", "proj", "projeect", "prject"],
-            "test": ["test", "testing", "tst", "tess", "tesst"],
-            "run": ["run", "execute", "start", "launch", "exec", "rn", "runn"],
-            "install": ["install", "setup", "add", "instal", "instll"],
-            "download": ["download", "fetch", "get", "pull", "dwld", "downlaod"],
-            "upload": ["upload", "push", "send", "upld", "uplod"],
-            "web": ["web", "website", "www", "weeb", "wbe"],
-            "automation": ["automation", "automate", "auto", "automtion", "automatoin"],
-            "script": ["script", "code", "program", "scirpt", "skript"],
-            "configure": ["configure", "config", "setup", "cfg", "configue", "configre"],
-            "monitor": ["monitor", "watch", "track", "moniter", "montior"],
+            "create": ["create", "mkdri"],
+            "delete": ["delete", "delet", "dlete"],
+            "copy": ["copy", "copi", "copu"],
+            "move": ["move", "moev", "muve"],
+            "rename": ["rename", "renam", "renme"],
+            "folder": ["folder", "fodler", "foldr"],
+            "file": ["file", "flie", "fil"],
+            "project": ["project", "projeect", "prject"],
+            "test": ["test", "tst", "tess", "tesst"],
+            "run": ["run", "runn"],
+            "install": ["install", "instal", "instll"],
+            "download": ["download", "dwld", "downlaod"],
+            "upload": ["upload", "upld", "uplod"],
+            "web": ["web", "weeb", "wbe"],
+            "automation": ["automation", "automtion", "automatoin"],
+            "script": ["script", "scirpt", "skript"],
+            "configure": ["configure", "configue", "configre"],
+            "monitor": ["monitor", "moniter", "montior"],
         }
 
         # Flatten the dictionary for reverse lookup
@@ -117,17 +115,27 @@ class SpellCorrector:
                 return canonical.capitalize()
             return canonical
 
-        # Fuzzy match
+        # Fuzzy match — but only accept it when the word really looks like a
+        # typo of the keyword, not a different valid word that happens to be
+        # somewhat similar. Without this guard, get_close_matches maps real
+        # words to keywords ("latest" → "test", "kconfig" → "configure"),
+        # corrupting the user's meaning. Requiring the same first letter and a
+        # small length delta keeps genuine typos (crate→create, projekt→project)
+        # while rejecting distinct words.
         matches = get_close_matches(
             word_lower, self.keyword_to_canonical.keys(), n=1, cutoff=threshold
         )
         if matches:
-            canonical = self.keyword_to_canonical[matches[0]]
-            if word.isupper():
-                return canonical.upper()
-            elif word[0].isupper():
-                return canonical.capitalize()
-            return canonical
+            candidate = matches[0]
+            same_start = candidate[:1] == word_lower[:1]
+            close_length = abs(len(candidate) - len(word_lower)) <= 2
+            if same_start and close_length:
+                canonical = self.keyword_to_canonical[candidate]
+                if word.isupper():
+                    return canonical.upper()
+                elif word[0].isupper():
+                    return canonical.capitalize()
+                return canonical
 
         return word
 

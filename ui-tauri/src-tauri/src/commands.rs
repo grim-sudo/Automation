@@ -195,3 +195,28 @@ pub async fn get_free_models(
     let raw = call_python(&state.config, &payload).map_err(|e| e.to_string())?;
     serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
+
+// ── Capabilities ─────────────────────────────────────────────────────────────
+
+/// Capability registry snapshot from the Python core. Returned as raw JSON so
+/// the UI can render the real registry shape without a fixed Rust schema.
+#[tauri::command]
+pub async fn describe_capabilities(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let payload = serde_json::json!({ "action": "capabilities" });
+    let raw = call_python(&state.config, &payload).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
+// ── Intelligence / AI status ─────────────────────────────────────────────────
+
+/// Live AI router status (provider, active model, key presence, fallback chain).
+#[tauri::command]
+pub async fn ai_status(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let payload = serde_json::json!({ "action": "ai_status" });
+    let raw = call_python(&state.config, &payload).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}

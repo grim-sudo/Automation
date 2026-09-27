@@ -3,8 +3,10 @@
 
 mod commands;
 mod python;
+mod system;
 
 use commands::AppState;
+use system::SysState;
 use archon_core::config::Config;
 
 fn main() {
@@ -14,6 +16,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .manage(AppState { config })
+        .manage(SysState::new())
         .invoke_handler(tauri::generate_handler![
             commands::send_message,
             commands::execute_command,
@@ -26,6 +29,12 @@ fn main() {
             commands::get_settings,
             commands::save_settings,
             commands::get_free_models,
+            commands::describe_capabilities,
+            commands::ai_status,
+            system::system_info,
+            system::list_processes,
+            system::network_info,
+            system::list_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -114,6 +114,32 @@ advice. Use plain text; no markdown headers or JSON.
 """
 
 
+def _extract_message_text(data: dict) -> str:
+    """Pull the assistant's reply text out of a chat-completion response.
+
+    OpenRouter responses are not uniform: some models (notably reasoning
+    models) return ``content: null``, and some providers return ``content`` as
+    a list of parts. Treat any missing/None content as empty rather than
+    letting ``None.strip()`` raise.
+
+    Args:
+        data: Parsed JSON body of a ``/chat/completions`` response.
+
+    Returns:
+        The assistant text, stripped; ``""`` when no content was returned.
+    """
+    try:
+        message = data["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError):
+        return ""
+    content = message.get("content")
+    if isinstance(content, list):
+        content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return (content or "").strip()
+
+
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
@@ -395,7 +421,14 @@ class OpenRouterAutomationAI:
             async with httpx.AsyncClient(timeout=45.0) as client:
                 resp = await client.post(_CHAT_URL, headers=self._headers(), json=payload)
                 resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"].strip()
+                reply = _extract_message_text(resp.json())
+                if not reply:
+                    return (
+                        "The model returned an empty response. Some free models do "
+                        "this intermittently — try rephrasing, or set OPENROUTER_MODEL "
+                        "to a different model."
+                    )
+                return reply
         except Exception as exc:
             logger.warning("converse_async failed: {}", exc)
             return f"[AI error: {exc}]"
@@ -635,7 +668,7 @@ class OpenRouterAutomationAI:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(_CHAT_URL, headers=self._headers(), json=payload)
             resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
+            return _extract_message_text(resp.json())
 
     def _headers(self) -> dict[str, str]:
         return {

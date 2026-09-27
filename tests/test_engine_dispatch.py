@@ -58,6 +58,57 @@ def test_unknown_action_and_category_raises(engine):
         )
 
 
+def test_unknown_unknown_raises_clear_message(engine):
+    # An unrecognised command parses to unknown/unknown. It must raise a clear,
+    # honest error — not the misleading "Plugin 'unknown' not found".
+    with pytest.raises(ValueError, match="known action"):
+        engine._execute_parsed_command(
+            {"action": "unknown", "category": "unknown", "params": {"raw_command": "xyz"}}
+        )
+
+
+def test_system_info_dispatch_returns_real_data(engine):
+    # system:get_info must route to the OS adapter and return real host data,
+    # not crash with "Plugin 'unknown' not found".
+    res = engine._execute_parsed_command(
+        {"action": "get_info", "category": "system", "params": {}}
+    )
+    assert isinstance(res, dict)
+    assert res.get("os")
+
+
+@pytest.mark.parametrize("action", ["write_file", "create_text_file", "create_file"])
+def test_filesystem_write_with_path_and_content(engine, tmp_path, action):
+    # The AI parser emits file-content writes as create_file/write_file with a
+    # `path` + `content`, which the OS adapter's create_file(name, location)
+    # can't consume. The engine must bridge that so the file is actually
+    # written instead of silently returning False.
+    target = tmp_path / "note.txt"
+    res = engine._execute_parsed_command(
+        {
+            "action": action,
+            "category": "filesystem",
+            "params": {"path": str(target), "content": "hello bread"},
+        }
+    )
+    assert isinstance(res, dict) and res.get("success") is True
+    assert target.read_text() == "hello bread"
+
+
+def test_filesystem_create_file_with_name_still_uses_adapter(engine, tmp_path):
+    # A classic create_file(name, location) must still go through the OS adapter
+    # (empty file), not the content-write bridge.
+    res = engine._execute_parsed_command(
+        {
+            "action": "create_file",
+            "category": "filesystem",
+            "params": {"name": "empty.txt", "location": str(tmp_path)},
+        }
+    )
+    assert res is True
+    assert (tmp_path / "empty.txt").exists()
+
+
 def test_prefix_action_falls_through_to_unknown_plugin(engine, tmp_path):
     # 'create_folder_deep' prefix-matches the 'create_folder' capability, is
     # dispatched to universal_automation, whose dynamic handler raises; the

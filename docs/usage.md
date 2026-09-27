@@ -832,7 +832,7 @@ archon run "press the Enter key"
 archon run "scroll down on the current window"
 ```
 
-> Requires `[gui]` extras: `pip install -e ".[gui]"`. On headless Linux, set `DISPLAY` first.
+> Requires `[gui]` (desktop automation) extras: `pip install -e ".[gui]"`. On headless Linux, set `DISPLAY` first.
 
 ---
 

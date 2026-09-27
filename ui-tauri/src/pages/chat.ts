@@ -1,86 +1,73 @@
 /**
- * Chat page — streaming AI conversation.
- * Mirrors archon/ui/gui/pages/chat_page.py.
+ * Chat — converse with the Archon intelligence layer. Shows actions and results
+ * only; never chain-of-thought. Requests run against the Python core and the
+ * input stays responsive while a reply is pending.
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { toast }  from "../components/toast.js";
+import { sendMessage, BackendUnavailable } from "../api.js";
+import { el } from "../ui.js";
 
-interface Message { role: "user" | "assistant"; content: string; }
+interface Turn {
+  role: "user" | "assistant";
+  content: string;
+}
 
-const history: Message[] = [];
+const history: Turn[] = [];
 
-export function renderChat(container: HTMLElement): void {
-  container.innerHTML = `
-    <div class="topbar">
-      <span class="topbar-title">💬  AI Chat</span>
-      <div class="topbar-spacer"></div>
-      <button class="btn btn-ghost" id="clear-chat">✕ Clear</button>
-    </div>
-    <div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;
-         display:flex;flex-direction:column;gap:10px;"></div>
-    <div style="padding:12px 16px;border-top:1px solid var(--border-subtle);
-         background:var(--bg-surface);display:flex;gap:8px;">
-      <input id="chat-input" type="text" placeholder="Ask anything or describe a task…"
-             style="flex:1;" />
-      <button class="btn btn-primary" id="chat-send">Send</button>
-    </div>
-  `;
+export function renderChat(root: HTMLElement): void {
+  const wrap = el("div", { class: "chat-view" });
+  const log = el("div", { class: "chat-log" });
+  const input = el("textarea", {
+    class: "chat-input",
+    placeholder: "Message Archon…",
+    rows: 1,
+  }) as HTMLTextAreaElement;
+  const send = el("button", { class: "btn btn-primary", text: "Send" });
 
-  const messagesEl = container.querySelector<HTMLElement>("#chat-messages")!;
-  const input      = container.querySelector<HTMLInputElement>("#chat-input")!;
-  const sendBtn    = container.querySelector<HTMLButtonElement>("#chat-send")!;
+  const composer = el("div", { class: "chat-composer" }, [input, send]);
+  wrap.append(log, composer);
+  root.append(wrap);
 
-  function appendBubble(role: "user" | "assistant", text: string): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.style.display = "flex";
-    wrap.style.justifyContent = role === "user" ? "flex-end" : "flex-start";
-    const bubble = document.createElement("div");
-    bubble.className = `chat-bubble ${role}`;
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
-    messagesEl.appendChild(wrap);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    return bubble;
-  }
+  const paint = () => {
+    log.innerHTML = "";
+    for (const t of history) {
+      log.append(el("div", { class: `chat-bubble ${t.role}` }, [
+        el("div", { class: "bubble-role", text: t.role === "user" ? "You" : "Archon" }),
+        el("div", { class: "bubble-body", text: t.content }),
+      ]));
+    }
+    log.scrollTop = log.scrollHeight;
+  };
+  paint();
 
-  async function sendMessage(): Promise<void> {
+  const submit = () => {
     const text = input.value.trim();
     if (!text) return;
     input.value = "";
-    sendBtn.disabled = true;
-
     history.push({ role: "user", content: text });
-    appendBubble("user", text);
+    const pending: Turn = { role: "assistant", content: "…" };
+    history.push(pending);
+    paint();
 
-    const thinkingBubble = appendBubble("assistant", "…");
-    try {
-      const response = await invoke<string>("send_message", {
-        message: text,
-        history: history.slice(-10),
-      });
-      thinkingBubble.textContent = response;
-      history.push({ role: "assistant", content: response });
-    } catch (err) {
-      thinkingBubble.textContent = `⚠  ${err}`;
-      thinkingBubble.style.color = "var(--error)";
-      toast.error(String(err));
-    } finally {
-      sendBtn.disabled = false;
-      input.focus();
-    }
-  }
+    const prior = history.slice(0, -2).map((t) => ({ role: t.role, content: t.content }));
+    sendMessage(text, prior)
+      .then((res) => {
+        pending.content = res.reply || res.result || res.error || "(no reply)";
+      })
+      .catch((err) => {
+        pending.content =
+          err instanceof BackendUnavailable
+            ? "Backend unavailable — Archon core is not running."
+            : String(err);
+      })
+      .finally(paint);
+  };
 
-  sendBtn.addEventListener("click", sendMessage);
+  send.addEventListener("click", submit);
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
   });
-
-  container.querySelector("#clear-chat")!.addEventListener("click", () => {
-    history.length = 0;
-    messagesEl.innerHTML = "";
-  });
-
-  // Welcome message
-  appendBubble("assistant", "Hi! I'm Archon. Describe a task or ask anything.");
 }

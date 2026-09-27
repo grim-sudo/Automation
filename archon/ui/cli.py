@@ -259,14 +259,10 @@ class EnhancedCLI:
                     logger.error(f"Error: {e}")
 
     def _run_gui(self) -> None:
-        """Run GUI mode"""
-        try:
-            from archon.ui.gui import ModernArchonGUI
+        """Run GUI mode (delegates to the Tauri desktop app)."""
+        from archon._cli import gui
 
-            gui = ModernArchonGUI()
-            gui.run()
-        except ImportError:
-            logger.error("GUI mode requires PyQt/Tkinter. Please install required dependencies.")
+        gui()
 
 
 def main():

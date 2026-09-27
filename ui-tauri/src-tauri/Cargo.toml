@@ -9,13 +9,17 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri                    = { version = "2", features = ["devtools"] }
-tauri-plugin-shell       = "2"
-tauri-plugin-notification = "2"
+# Pinned to the same minor as the @tauri-apps/* npm packages (see package.json).
+# Tauri's build step requires the Rust crate and JS API to match on major.minor;
+# tilde ranges keep both sides from drifting apart on the next install/update.
+tauri                    = { version = "~2.12", features = ["devtools"] }
+tauri-plugin-shell       = "~2.4"
+tauri-plugin-notification = "~2.5"
 serde                    = { version = "1", features = ["derive"] }
 serde_json               = "1"
 tokio                    = { version = "1", features = ["full"] }
 anyhow                   = "1"
+sysinfo                  = "0.32"
 
 # Reuse archon-core for config + validation
 archon-core = { path = "../../crates/archon-core" }

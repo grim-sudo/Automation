@@ -11,6 +11,7 @@ from archon.distro_builder.models import DistroProfile
 PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
     "debian": {
         "web server": ["nginx"],
+        "nginx": ["nginx"],
         "apache": ["apache2"],
         "database": ["postgresql"],
         "mysql": ["mysql-server"],
@@ -20,13 +21,27 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
         "gnome": ["gnome-core", "gdm3"],
         "xfce": ["xfce4", "lightdm"],
         "lxde": ["lxde", "lightdm"],
+        "lxqt": ["lxqt", "sddm"],
+        "mate": ["mate-desktop-environment", "lightdm"],
+        "cinnamon": ["cinnamon-desktop-environment", "lightdm"],
+        "hyprland": ["hyprland", "waybar", "wofi"],
+        "sway": ["sway", "swaybg", "waybar"],
         "development": ["build-essential", "git", "python3", "python3-pip", "cmake"],
         "gaming": ["steam", "wine", "lutris"],
         "audio workstation": ["jackd2", "ardour", "hydrogen", "qjackctl"],
         "docker": ["docker.io", "docker-compose"],
+        "podman": ["podman"],
         "kubernetes": ["kubectl", "helm"],
         "virtualization": ["qemu-kvm", "libvirt-daemon-system", "virt-manager"],
         "security": ["ufw", "fail2ban", "apparmor"],
+        "apparmor": ["apparmor", "apparmor-utils"],
+        "auditd": ["auditd"],
+        "nftables": ["nftables"],
+        "iptables": ["iptables"],
+        "wireguard": ["wireguard-tools"],
+        "nmap": ["nmap"],
+        "wireshark": ["wireshark"],
+        "tcpdump": ["tcpdump"],
         "media": ["vlc", "ffmpeg", "imagemagick"],
         "office": ["libreoffice"],
         "minimal": [],
@@ -40,6 +55,7 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
     },
     "arch": {
         "web server": ["nginx"],
+        "nginx": ["nginx"],
         "apache": ["apache"],
         "database": ["postgresql"],
         "mysql": ["mariadb"],
@@ -49,13 +65,27 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
         "gnome": ["gnome", "gdm"],
         "xfce": ["xfce4", "lightdm"],
         "lxde": ["lxde", "lightdm"],
+        "lxqt": ["lxqt", "sddm"],
+        "mate": ["mate", "lightdm"],
+        "cinnamon": ["cinnamon", "lightdm"],
+        "hyprland": ["hyprland", "waybar", "wofi"],
+        "sway": ["sway", "swaybg", "waybar"],
         "development": ["base-devel", "git", "python", "python-pip", "cmake"],
         "gaming": ["steam", "wine", "lutris"],
         "audio workstation": ["jack2", "ardour", "hydrogen"],
         "docker": ["docker", "docker-compose"],
+        "podman": ["podman"],
         "kubernetes": ["kubectl", "helm"],
         "virtualization": ["qemu", "libvirt", "virt-manager"],
         "security": ["ufw", "fail2ban", "apparmor"],
+        "apparmor": ["apparmor"],
+        "auditd": ["audit"],
+        "nftables": ["nftables"],
+        "iptables": ["iptables"],
+        "wireguard": ["wireguard-tools"],
+        "nmap": ["nmap"],
+        "wireshark": ["wireshark-qt"],
+        "tcpdump": ["tcpdump"],
         "media": ["vlc", "ffmpeg", "imagemagick"],
         "office": ["libreoffice-fresh"],
         "minimal": [],
@@ -154,7 +184,7 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
 
     # Detect desktop environment
     desktop: str | None = None
-    for de in ["kde", "gnome", "xfce", "lxde"]:
+    for de in ["kde", "gnome", "xfce", "lxqt", "lxde", "mate", "cinnamon", "hyprland", "sway"]:
         if de in nl_lower:
             desktop = de
             break
@@ -181,6 +211,16 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
         kconfig["CONFIG_KVM"] = "y"
     if "modules" in nl_lower:
         kconfig["CONFIG_MODULES"] = "y"
+    if "apparmor" in nl_lower:
+        kconfig["CONFIG_SECURITY_APPARMOR"] = "y"
+    if "selinux" in nl_lower:
+        kconfig["CONFIG_SECURITY_SELINUX"] = "y"
+    if "wireguard" in nl_lower:
+        kconfig["CONFIG_WIREGUARD"] = "m"
+    if "nftables" in nl_lower or "netfilter" in nl_lower:
+        kconfig["CONFIG_NF_TABLES"] = "m"
+    if "audit" in nl_lower:
+        kconfig["CONFIG_AUDIT"] = "y"
 
     logger.debug(
         f"nl_to_profile: base={base} desktop={desktop} "

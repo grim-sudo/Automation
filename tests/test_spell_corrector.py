@@ -115,6 +115,16 @@ class TestCorrectText:
         assert isinstance(strict, str)
         assert isinstance(lenient, str)
 
+    def test_synonyms_are_not_rewritten(self, corrector: SpellCorrector) -> None:
+        """Real words must pass through untouched — the corrector fixes typos,
+        not synonyms. Regression guard for 'write a doc file' → 'write a file
+        file' (and the wider class: get→download, add→install, code→script)."""
+        assert corrector.correct_text("write a doc file") == "write a doc file"
+        assert corrector.correct_text("get the report") == "get the report"
+        assert corrector.correct_text("add a comment") == "add a comment"
+        assert corrector.correct_text("write some code") == "write some code"
+        assert corrector.correct_text("create a new document") == "create a new document"
+
 
 # ─── extract_keywords ─────────────────────────────────────────────────────────
 

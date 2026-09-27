@@ -180,6 +180,33 @@ class Archon:
 
             self.logger.info(f"Executing command: {command}")
 
+            # Custom-OS / distro build is a first-class capability that the
+            # parser/plugin router can't express as a single action. Detect the
+            # intent up front and route to the real build pipeline so the same
+            # chat/run entry point reaches the OS builder.
+            distro_result = self._maybe_build_distro(command)
+            if distro_result is not None:
+                self._log_execution(
+                    command, {"action": "build_distro", "category": "distro_builder"},
+                    distro_result, success=distro_result.get("success", False),
+                    duration=time.monotonic() - start,
+                )
+                ok = distro_result.get("success", False)
+                payload = {
+                    "success": ok,
+                    "result": distro_result,
+                    "command": command,
+                    "complexity": "workflow",
+                    "timestamp": datetime.now().isoformat(),
+                }
+                if not ok:
+                    # Surface the builder's message at the top level so chat/CLI
+                    # renders the real reason (e.g. "needs root") instead of
+                    # "Unknown error".
+                    payload["error"] = distro_result.get("message", "Distro build failed")
+                    payload["fallback_message"] = distro_result.get("message", "")
+                return payload
+
             # Check if command is too complex for AI (very long with nested structures)
             # Use fallback parser directly for these cases
             if self._is_too_complex_for_ai(command):
@@ -196,8 +223,21 @@ class Archon:
                 complex_command = self.advanced_parser.parse_complex_command(command)
 
             if complex_command.complexity == CommandComplexity.SIMPLE:
-                # Use simple parsing for basic commands
-                parsed_command = self.command_parser.parse(command)
+                # Prefer the step the (AI or advanced) parser already produced.
+                # Re-parsing the raw command with the naive command_parser threw
+                # away the AI's correct routing — so "create a document about X"
+                # (a valid create_file/filesystem step) collapsed to unknown/
+                # unknown and every non-trivial task failed. Only fall back to a
+                # fresh parse when no step is available.
+                if complex_command.steps:
+                    step = complex_command.steps[0]
+                    parsed_command = {
+                        "action": step.action,
+                        "category": step.category,
+                        "params": step.params or {},
+                    }
+                else:
+                    parsed_command = self.command_parser.parse(command)
 
                 # Check permissions
                 if not self.permission_manager.check_permission(parsed_command):
@@ -297,6 +337,15 @@ class Archon:
         action = parsed_command.get("action")
         category = parsed_command.get("category")
         params = parsed_command.get("params", {})
+        # An unrecognised command parses to unknown/unknown. Fail with a clear,
+        # honest message instead of trying to dispatch a plugin literally named
+        # "unknown" (which produced the misleading "Plugin 'unknown' not found").
+        if not action or action == "unknown" or category == "unknown":
+            raise ValueError(
+                f"Could not interpret '{parsed_command.get('params', {}).get('raw_command', action)}' "
+                "as a known action. Rephrase it, or ask a question (starting with what/how/why) "
+                "to get a conversational answer instead."
+            )
         # Prefer a capability that advertises this action (registry is the router)
         try:
             candidates = self.capability_registry.route(action)
@@ -312,6 +361,21 @@ class Archon:
 
         # Route to appropriate handler
         if category == "filesystem":
+            # The AI parser emits file-content writes as create_file/write_file
+            # with a `path` + `content`, but the OS filesystem adapters only
+            # understand create_file(name, location). Bridge that contract here
+            # so "create a document about X" actually writes the file instead of
+            # silently returning False.
+            file_write_actions = {
+                "write_file", "create_text_file", "save_file",
+                "write_to_file", "save_to_document",
+            }
+            wants_content = "content" in (params or {})
+            has_path = bool((params or {}).get("path") or (params or {}).get("file_path"))
+            if action in file_write_actions or (
+                action == "create_file" and (wants_content or has_path) and not params.get("name")
+            ):
+                return self._handle_write_file(params)
             return self.os_adapter.filesystem.execute(action, params)
         elif category == "process":
             return self.os_adapter.process.execute(action, params)
@@ -590,6 +654,71 @@ class Archon:
         return gw
 
     # ── Custom distro building ──────────────────────────────────────────────
+
+    def _maybe_build_distro(self, command: str) -> dict[str, Any] | None:
+        """Route a natural-language OS/distro build request to the real pipeline.
+
+        Returns a structured result dict when ``command`` is a distro-build
+        request, or ``None`` when it is not (so normal parsing continues).
+
+        The build itself needs root and is long-running; the pipeline preflights
+        the root check and returns an honest "needs root" result rather than
+        raising, which we surface unchanged.
+        """
+        try:
+            from ..nlp.semantic_engine import IntentType, get_semantic_nlp
+
+            analysis = get_semantic_nlp().analyze(command)
+            if analysis.intent is not IntentType.BUILD_DISTRO:
+                return None
+        except Exception as exc:
+            self.logger.debug(f"distro intent check skipped: {exc}")
+            return None
+
+        self.logger.info(f"Routing to OS builder (build_distro): {command}")
+
+        # Preflight: the pipeline (pacstrap/debootstrap, kernel compile, xorriso)
+        # needs root and is long-running + network/disk heavy. Fail fast with an
+        # honest message instead of downloading a kernel and grinding for minutes
+        # before hitting a privilege error mid-build.
+        try:
+            from ..security.path_validator import PathValidator
+
+            PathValidator.check_root_required("distro build")
+        except PermissionError as exc:
+            return {"success": False, "message": str(exc), "iso_path": None}
+        except Exception:
+            pass  # Platforms without the check fall through to the real build.
+
+        try:
+            import asyncio
+            from pathlib import Path
+
+            from ..distro_builder.build_pipeline import build_from_nl
+
+            try:
+                from ..config import get_settings
+
+                output_dir = get_settings().distro_builder.output_dir
+            except Exception:
+                output_dir = "./distro_output"
+
+            out = Path(output_dir).expanduser().resolve()
+            result = asyncio.run(build_from_nl(command, out))
+            return {
+                "success": bool(getattr(result, "success", False)),
+                "message": getattr(result, "error_message", None)
+                or f"ISO built: {getattr(result, 'iso_path', None)}",
+                "iso_path": getattr(result, "iso_path", None),
+                "log_path": getattr(result, "log_path", None),
+                "build_time_seconds": getattr(result, "build_time_seconds", None),
+            }
+        except PermissionError as exc:
+            # Root preflight can surface as PermissionError depending on stage.
+            return {"success": False, "message": str(exc), "iso_path": None}
+        except Exception as exc:
+            self.logger.error(f"OS builder failed: {exc}")
+            return {"success": False, "message": f"Build error: {exc}", "iso_path": None}
 
     _DISTRO_BASE_MAP = {
         "arch linux": "arch",

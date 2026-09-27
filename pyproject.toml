@@ -67,12 +67,11 @@ dependencies = [
 
 [project.optional-dependencies]
 gui = [
-    "customtkinter>=5.2.0",
+    # Desktop automation deps (screen control / input / screenshots) used by the
+    # OS adapters. The desktop GUI itself is now the Tauri app under ui-tauri/.
     "pyautogui>=0.9.54",
     "pynput>=1.7.6",
     "pillow>=10.0.0",
-    "darkdetect>=0.8.0",
-    "pyperclip>=1.8.0",
     "psutil>=5.9.0",
 ]
 web = [
@@ -188,7 +187,6 @@ exclude = ["tests/", "setup.py"]
 module = [
     "pyautogui.*",
     "pynput.*",
-    "customtkinter.*",
     "selenium.*",
     "playwright.*",
     "kconfiglib.*",

@@ -1189,6 +1189,26 @@ class AdvancedCommandParser:
                 )
             ]
 
+        # Handle system-info queries: "show os version", "system info",
+        # "what os am i on", "kernel version", "which distro".
+        sys_info_patterns = [
+            r"\b(?:os|operating system|system|kernel|distro|distribution)\s+"
+            r"(?:version|info|information|details)\b",
+            r"\b(?:show|get|display|tell me|what(?:'s| is)?|which)\b.*"
+            r"\b(?:os|operating system|kernel|distro|distribution)\b",
+            r"\bsystem\s+info(?:rmation)?\b",
+        ]
+        low = command.lower()
+        if any(re.search(p, low) for p in sys_info_patterns):
+            return [
+                ParsedStep(
+                    action="get_info",
+                    category="system",
+                    params={},
+                    priority=1,
+                )
+            ]
+
         # Default fallback
         return [
             ParsedStep(

@@ -1,73 +1,72 @@
 /**
- * Collapsible sidebar navigation component.
+ * Grouped sidebar navigation with monochrome line icons and a status footer.
  * Mirrors archon/ui/gui/sidebar.py.
  */
 
-import { showPage, type PageId } from "../router.js";
+import { NAV_GROUPS, icon, type PageId } from "../nav.js";
+import { el } from "../ui.js";
+import { showPage } from "../router.js";
 
-interface NavEntry {
-  icon: string;
-  label: string;
-  page: PageId;
-}
-
-const NAV_ENTRIES: NavEntry[] = [
-  { icon: "⚡", label: "Home",       page: "home"     },
-  { icon: "💬", label: "Chat",       page: "chat"     },
-  { icon: "🤖", label: "Automate",   page: "automate" },
-  { icon: "🔄", label: "n8n",        page: "n8n"      },
-  { icon: "🐧", label: "Distro",     page: "distro"   },
-  { icon: "📋", label: "History",    page: "history"  },
-  { icon: "⚙️",  label: "Settings",  page: "settings" },
-];
+let buttons: Map<PageId, HTMLElement> = new Map();
 
 export function initSidebar(): void {
   const sidebar = document.getElementById("sidebar")!;
-  let collapsed = false;
+  sidebar.innerHTML = "";
+  buttons = new Map();
 
-  // Header
-  const header = document.createElement("div");
-  header.className = "sidebar-header";
-  header.innerHTML = `
-    <span class="sidebar-logo" id="sidebar-logo">⚡ Archon</span>
-    <button class="btn btn-ghost" id="sidebar-toggle" title="Toggle sidebar"
-            style="margin-left:auto;padding:4px 6px;">‹</button>
-  `;
-  sidebar.appendChild(header);
+  // Logo / header.
+  const logo = el("div", { class: "sidebar-header" }, [
+    el("div", { class: "sidebar-mark", html: archonMark() }),
+    el("span", { class: "sidebar-logo", text: "ARCHON" }),
+  ]);
+  sidebar.append(logo);
 
-  // Nav
-  const nav = document.createElement("nav");
-  nav.className = "sidebar-nav";
-
-  for (const entry of NAV_ENTRIES) {
-    const btn = document.createElement("button");
-    btn.className = "nav-item";
-    btn.dataset.page = entry.page;
-    btn.innerHTML = `
-      <span class="nav-icon">${entry.icon}</span>
-      <span class="nav-label">${entry.label}</span>
-    `;
-    btn.addEventListener("click", () => showPage(entry.page));
-    nav.appendChild(btn);
+  // Grouped nav.
+  const nav = el("nav", { class: "sidebar-nav" });
+  for (const group of NAV_GROUPS) {
+    nav.append(el("div", { class: "nav-group-title", text: group.title }));
+    for (const item of group.items) {
+      const btn = el("button", { class: "nav-item", "data-page": item.page }, [
+        el("span", { class: "nav-accent" }),
+        el("span", { class: "nav-icon" }, [icon(item.icon, 18)]),
+        el("span", { class: "nav-label", text: item.label }),
+      ]);
+      btn.addEventListener("click", () => showPage(item.page));
+      buttons.set(item.page, btn);
+      nav.append(btn);
+    }
   }
-  sidebar.appendChild(nav);
+  sidebar.append(nav);
 
-  // Footer
-  const footer = document.createElement("div");
-  footer.className = "sidebar-footer";
-  footer.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div class="status-dot" id="status-dot"></div>
-      <span class="nav-label" style="font-size:11px;color:var(--text-secondary)">Connected</span>
-    </div>
-  `;
-  sidebar.appendChild(footer);
+  // Status footer.
+  sidebar.append(
+    el("div", { class: "sidebar-footer" }, [
+      el("span", { class: "status-dot", id: "sidebar-status-dot" }),
+      el("span", { class: "sidebar-status", id: "sidebar-status", text: "System Online" }),
+      el("span", { class: "sidebar-version", text: "v2.0.0" }),
+    ]),
+  );
+}
 
-  // Toggle collapse
-  document.getElementById("sidebar-toggle")!.addEventListener("click", () => {
-    collapsed = !collapsed;
-    sidebar.classList.toggle("collapsed", collapsed);
-    const toggle = document.getElementById("sidebar-toggle")!;
-    toggle.textContent = collapsed ? "›" : "‹";
-  });
+export function setActiveNav(page: PageId): void {
+  buttons.forEach((btn, key) => btn.classList.toggle("active", key === page));
+}
+
+export function setSidebarStatus(online: boolean, label?: string): void {
+  const dot = document.getElementById("sidebar-status-dot");
+  const text = document.getElementById("sidebar-status");
+  const color = online ? "var(--success)" : "var(--error)";
+  if (dot) dot.style.background = color;
+  if (text) {
+    text.textContent = label ?? (online ? "System Online" : "Core Offline");
+    text.style.color = color;
+  }
+}
+
+/** Static Archon diamond emblem as inline SVG. */
+function archonMark(): string {
+  return `<svg viewBox="0 0 24 24" width="26" height="26" fill="none">
+    <path d="M12 2l9 10-9 10-9-10z" stroke="var(--gold)" stroke-width="1.4"/>
+    <path d="M12 7l4.5 5-4.5 5-4.5-5z" fill="var(--gold)" opacity="0.9"/>
+  </svg>`;
 }

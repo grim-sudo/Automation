@@ -65,7 +65,7 @@ console = Console()
 try:
     from archon import __version__ as _VERSION
 except Exception:
-    _VERSION = "1.0.0"
+    _VERSION = "2.0.0"
 
 
 def version_callback(value: bool) -> None:
@@ -354,8 +354,12 @@ def chatbot(
 def gui() -> None:
     """Launch the graphical user interface.
 
-    Opens the Archon desktop GUI built on CustomTkinter / Tkinter.
+    Opens the Archon desktop command center (Tauri + Rust). Launches a built
+    binary if one exists under ``ui-tauri/src-tauri/target``; otherwise prints
+    the commands to run it in dev mode.
     """
+    import subprocess
+
     try:
         from archon.utils.logger import configure_logging
 
@@ -363,46 +367,45 @@ def gui() -> None:
     except Exception:
         pass
 
-    console.print(
-        Panel(
-            "Starting [bold cyan]Archon GUI[/bold cyan]...",
-            border_style="cyan",
-        )
+    repo_root = Path(__file__).resolve().parent.parent
+    ui_dir = repo_root / "ui-tauri"
+    target = ui_dir / "src-tauri" / "target"
+    binary = "archon-tauri.exe" if sys.platform == "win32" else "archon-tauri"
+    built = next(
+        (
+            p
+            for p in (target / "release" / binary, target / "debug" / binary)
+            if p.exists()
+        ),
+        None,
     )
 
-    try:
-        from archon.bootstrap import ensure_tk
-
-        # Make Tk loadable even when Tcl/Tk lives in a non-standard prefix.
-        # No-op on properly configured machines; may re-exec once otherwise.
-        ensure_tk()
-
-        from archon.ui.gui import ModernArchonGUI
-
-        # Build the engine so GUI chat/automate pages execute real commands.
-        engine = None
-        try:
-            engine = _build_engine(safe_mode=_global_safe_mode, debug=_global_debug)
-        except Exception as exc:
-            console.print(
-                f"[yellow]Warning:[/yellow] engine unavailable, GUI runs in demo mode: {exc}"
-            )
-
-        app_gui = ModernArchonGUI(engine=engine)
-        app_gui.run()
-    except ImportError as exc:
+    if built is not None:
         console.print(
-            f"[bold red]Error:[/bold red] Could not import GUI module: {exc}\n"
-            "Install the GUI dependencies: [bold]pip install customtkinter[/bold]"
+            Panel(
+                f"Starting [bold cyan]Archon[/bold cyan] — {built}",
+                border_style="cyan",
+            )
         )
-        raise typer.Exit(1) from None
-    except Exception as exc:
-        console.print(f"[bold red]GUI error:[/bold red] {exc}")
-        if _global_debug:
-            import traceback
+        try:
+            raise typer.Exit(subprocess.call([str(built)]))
+        except FileNotFoundError as exc:
+            console.print(f"[bold red]Could not launch GUI:[/bold red] {exc}")
+            raise typer.Exit(1) from None
 
-            traceback.print_exc()
-        raise typer.Exit(1) from None
+    console.print(
+        Panel(
+            "[bold]Archon desktop GUI[/bold] is a Tauri app — no built binary found.\n\n"
+            "Run it in dev mode:\n"
+            "  [bold]cd ui-tauri && npm install && npm run tauri dev[/bold]\n\n"
+            "Or produce a release binary:\n"
+            "  [bold]cd ui-tauri && npm run tauri build[/bold]\n"
+            f"then re-run [bold]archon gui[/bold] (expects {target}/release/{binary}).",
+            title="GUI not built",
+            border_style="yellow",
+        )
+    )
+    raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------

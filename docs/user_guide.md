@@ -40,7 +40,7 @@ pip install -e ".[dev]"
 # Or install only what you need:
 pip install -e ".[n8n]"           # includes n8n bridge
 pip install -e ".[distro]"        # includes distro builder (Linux only)
-pip install -e ".[gui]"           # includes GUI (requires a display)
+pip install -e ".[gui]"           # desktop automation deps (screen/input control)
 ```
 
 **Verify:**
