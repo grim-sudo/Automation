@@ -73,6 +73,41 @@ class TestIntentDetection:
         result = nlp_engine.analyze("the quick brown fox jumps over the lazy dog")
         assert result.intent == IntentType.UNKNOWN
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "build a minimal arch iso with python and git",
+            "make me a hardened security linux distro with pentesting tools",
+            "I want you to make an operating system for cybersecurity with hardening "
+            "and spoofing and all the tools used for pentesting and blue teaming",
+            "build a custom os",
+            "create iso",
+        ],
+    )
+    def test_build_distro_intent(self, nlp_engine: SemanticNLPEngine, command: str) -> None:
+        """OS/distro/ISO builds must beat the generic CREATE verb they share.
+
+        The specialized intent's domain keyword (iso/distro/operating system)
+        always co-occurs with a build verb, so a flat match count let CREATE
+        tie and win on dict order — mis-routing real OS builds to plain create.
+        """
+        assert nlp_engine.analyze(command).intent == IntentType.BUILD_DISTRO
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "create a file called os.txt",
+            "make a folder named projects",
+            "create a linux user account",
+        ],
+    )
+    def test_build_distro_does_not_over_fire(
+        self, nlp_engine: SemanticNLPEngine, command: str
+    ) -> None:
+        """Weighting the distro intent must not hijack ordinary create requests
+        that merely mention 'os' or 'linux' without a real build keyword."""
+        assert nlp_engine.analyze(command).intent != IntentType.BUILD_DISTRO
+
     def test_ambiguous_command_has_low_confidence_or_suggestions(
         self, nlp_engine: SemanticNLPEngine
     ) -> None:

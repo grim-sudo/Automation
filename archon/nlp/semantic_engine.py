@@ -29,6 +29,10 @@ class IntentType(Enum):
     UNKNOWN = "unknown"
 
 
+# Intents whose match must outweigh a shared CRUD verb. See _determine_intent.
+_SPECIALIZED_INTENTS = frozenset({IntentType.BUILD_DISTRO, IntentType.N8N_WORKFLOW})
+
+
 class EntityType(Enum):
     """Entity types in natural language"""
 
@@ -126,9 +130,9 @@ class SemanticNLPEngine:
                 r"n8n\s*:",
             ],
             IntentType.BUILD_DISTRO: [
-                r"\b(build|create|compile|make)\s+(?:custom\s+)?(?:distro|linux|iso|distribution)\b",
-                r"\b(build|create|compile|make)\b.*\b(iso|distro|distribution|linux\s+image)\b",
-                r"\b(?:linux\s+iso|linux\s+distro|linux\s+distribution|custom\s+iso)\b",
+                r"\b(build|create|compile|make|generate)\s+(?:custom\s+)?(?:distro|linux|iso|distribution)\b",
+                r"\b(build|create|compile|make|generate)\b.*\b(iso|distro|distribution|linux\s+image|operating\s+system)\b",
+                r"\b(?:linux\s+iso|linux\s+distro|linux\s+distribution|custom\s+iso|custom\s+os)\b",
                 r"\bcompile\s+kernel\b",
                 r"\bbuild\s+(?:custom\s+)?(?:debian|arch|ubuntu)\b",
                 r"\bcreate\s+iso\b",
@@ -219,6 +223,14 @@ class SemanticNLPEngine:
             for pattern in patterns:
                 matches = len(re.findall(pattern, text_lower, re.IGNORECASE))
                 score += matches
+            # Specialized intents (distro builds, n8n) carry distinctive domain
+            # keywords (iso/distro/operating system, n8n) that ALWAYS co-occur with
+            # a generic CRUD verb — "build a distro" is also a "build". A flat count
+            # therefore lets CREATE tie the specialized intent on the shared verb and
+            # win on dict order, mis-routing OS-build requests to plain "create".
+            # Weight the domain match so a real keyword hit outranks a bare verb.
+            if intent in _SPECIALIZED_INTENTS:
+                score *= 3
             intent_scores[intent] = score
 
         # Find highest scoring intent
