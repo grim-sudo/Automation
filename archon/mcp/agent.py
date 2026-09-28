@@ -19,6 +19,7 @@ policy.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Callable
 from typing import Any
@@ -63,10 +64,13 @@ def build_agent_system_prompt(engine: Any) -> str:
         "scrape the web, and BUILD CUSTOM LINUX OPERATING SYSTEMS (bootable "
         "ISOs).\n\n"
         "TOOLS:\n"
-        "- run_automation(command): primary tool. Give it a plain natural-"
-        "language instruction; it reaches every capability, including the OS "
-        "builder (e.g. \"build a minimal Arch ISO with python and git\"). Prefer "
-        "this for most requests.\n"
+        "- run_automation(command): primary tool. Pass the user's request as a "
+        "plain natural-language instruction, preserving their exact wording, "
+        "file paths, and details — Archon's own engine parses, plans, and routes "
+        "it. Do NOT paraphrase, summarise, or 'clean up' the request; that only "
+        "strips signal the engine relies on. It reaches every capability, "
+        "including the OS builder (e.g. \"build a minimal Arch ISO with python "
+        "and git\"). Prefer this for most requests.\n"
         "- dispatch_action(capability, action, params): a precise structured "
         "call when you know the exact capability and action.\n"
         "- list_capabilities(): discover available capabilities and actions.\n\n"
@@ -90,6 +94,26 @@ def _default_provider() -> Any:
     from ..ai.provider_factory import build_provider
 
     return build_provider()
+
+
+def _build_memory() -> Any:
+    """Build the shared MemoryManager from config, or ``None`` if disabled/broken."""
+    try:
+        from ..config import get_config
+
+        cfg = get_config()
+        if not getattr(cfg.ai, "memory_enabled", False):
+            return None
+        from ..ai.memory import MemoryManager, MemoryStore
+
+        return MemoryManager(
+            MemoryStore(cfg.ai.memory_db_path or None),
+            auto_extract=cfg.ai.memory_auto_extract,
+            max_inject=cfg.ai.memory_max_inject,
+        )
+    except Exception as exc:  # noqa: BLE001 - memory is optional
+        logger.debug("MCP agent memory disabled: {}", exc)
+        return None
 
 
 class OllamaMCPAgent:
@@ -130,6 +154,10 @@ class OllamaMCPAgent:
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": build_agent_system_prompt(engine)}
         ]
+        # Shared persistent memory (same store the conversational facade uses),
+        # so the tool-driving agent both reads learned context and contributes to
+        # it. Best-effort: a failed store never blocks the agent.
+        self.memory = _build_memory()
 
     def _emit(self, **event: Any) -> None:
         """Fire a UI event, swallowing sink errors so rendering can't break a run."""
@@ -163,56 +191,107 @@ class OllamaMCPAgent:
         from fastmcp import Client
 
         self.messages.append({"role": "user", "content": user_message})
-        async with Client(self.server) as client:
-            tools = await self._ollama_tools(client)
-            valid_tools = {
-                t["function"]["name"] for t in tools if t.get("function", {}).get("name")
-            }
-            for _ in range(self.max_rounds):
-                message = await self.provider.chat(
-                    self.messages,
-                    tools=tools,
-                    max_tokens=2048,
-                    on_token=on_token,
-                    on_stats=on_stats,
-                )
-                self.messages.append(message)
-                tool_calls = message.get("tool_calls") or []
-                if not tool_calls:
-                    return message.get("content", "") or "(no response)"
-                self._emit(kind="phase", phase="EXECUTING")
-                for call in tool_calls:
-                    name, args = _parse_tool_call(call)
-                    if name not in valid_tools:
-                        # Some models (esp. via aggregating proxies) leak
-                        # malformed or XML-style tool calls whose "name" is a
-                        # broken fragment. Don't invoke garbage against MCP —
-                        # hand the model a corrective error so it retries with a
-                        # real tool instead of surfacing an opaque failure.
-                        err = (
-                            f"Unknown tool {name!r}. Valid tools: "
-                            f"{', '.join(sorted(valid_tools))}. "
-                            "Call one of these with correct JSON arguments."
-                        )
-                        logger.warning("MCP agent: rejected unknown tool {!r}", name)
-                        self._emit(kind="tool_error", name=name or "(empty)", error=err)
+
+        # Explicit memory commands are deterministic and need no tools/model.
+        if self.memory is not None:
+            try:
+                handled = self.memory.handle_command(user_message)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("MCP agent memory command failed: {}", exc)
+                handled = None
+            if handled is not None:
+                self.messages.append({"role": "assistant", "content": handled})
+                if on_token:
+                    on_token(handled)
+                return handled
+
+        # Inject recalled memory as a transient system message for this run only,
+        # removed in the finally so it never accumulates across turns.
+        mem_msg: dict[str, Any] | None = None
+        if self.memory is not None:
+            block = self.memory.context_block(user_message)
+            if block:
+                mem_msg = {"role": "system", "content": block}
+                self.messages.insert(1, mem_msg)
+
+        final_reply = "Stopped after reaching the tool-call limit without a final answer."
+        forwarded_command = False
+        try:
+            async with Client(self.server) as client:
+                tools = await self._ollama_tools(client)
+                valid_tools = {
+                    t["function"]["name"] for t in tools if t.get("function", {}).get("name")
+                }
+                for _ in range(self.max_rounds):
+                    message = await self.provider.chat(
+                        self.messages,
+                        tools=tools,
+                        max_tokens=2048,
+                        on_token=on_token,
+                        on_stats=on_stats,
+                    )
+                    self.messages.append(message)
+                    tool_calls = message.get("tool_calls") or []
+                    if not tool_calls:
+                        final_reply = message.get("content", "") or "(no response)"
+                        break
+                    self._emit(kind="phase", phase="EXECUTING")
+                    for call in tool_calls:
+                        name, args = _parse_tool_call(call)
+                        if name not in valid_tools:
+                            # Some models (esp. via aggregating proxies) leak
+                            # malformed or XML-style tool calls whose "name" is a
+                            # broken fragment. Don't invoke garbage against MCP —
+                            # hand the model a corrective error so it retries with a
+                            # real tool instead of surfacing an opaque failure.
+                            err = (
+                                f"Unknown tool {name!r}. Valid tools: "
+                                f"{', '.join(sorted(valid_tools))}. "
+                                "Call one of these with correct JSON arguments."
+                            )
+                            logger.warning("MCP agent: rejected unknown tool {!r}", name)
+                            self._emit(kind="tool_error", name=name or "(empty)", error=err)
+                            self.messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_name": name or "unknown",
+                                    "content": json.dumps({"success": False, "error": err}),
+                                }
+                            )
+                            continue
+                        if name == "run_automation" and not forwarded_command:
+                            # run_automation hands a natural-language instruction to
+                            # Archon's own planning engine — the engine IS the parser.
+                            # A model paraphrase only strips signal the engine relies
+                            # on (exact file paths, intent phrasing), which silently
+                            # mis-routes deterministic handlers like the document
+                            # enhancer. So the primary execution of a turn runs the
+                            # user's verbatim request. Later run_automation calls in
+                            # the same turn stay model-authored, so genuine follow-up
+                            # or decomposition steps still work.
+                            args = {**args, "command": user_message}
+                            forwarded_command = True
+                        result = await self._invoke(client, name, args)
                         self.messages.append(
                             {
                                 "role": "tool",
-                                "tool_name": name or "unknown",
-                                "content": json.dumps({"success": False, "error": err}),
+                                "tool_name": name,
+                                "content": json.dumps(result, default=str)[:8000],
                             }
                         )
-                        continue
-                    result = await self._invoke(client, name, args)
-                    self.messages.append(
-                        {
-                            "role": "tool",
-                            "tool_name": name,
-                            "content": json.dumps(result, default=str)[:8000],
-                        }
+        finally:
+            if mem_msg is not None:
+                with contextlib.suppress(ValueError):
+                    self.messages.remove(mem_msg)
+            # Best-effort: learn durable facts from the completed exchange.
+            if self.memory is not None and final_reply and "(no response)" not in final_reply:
+                try:
+                    await self.memory.learn(
+                        self.provider.complete, user_message, final_reply
                     )
-        return "Stopped after reaching the tool-call limit without a final answer."
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("MCP agent memory learn failed: {}", exc)
+        return final_reply
 
     # ── internals ────────────────────────────────────────────────────────────
 
@@ -261,8 +340,22 @@ class OllamaMCPAgent:
             self._emit(kind="tool_error", name=name, error=err)
             return {"success": False, "error": err}
         data = getattr(res, "data", None)
-        self._emit(kind="tool_ok", name=name)
-        return data if data is not None else {"success": True}
+        result = data if data is not None else {"success": True}
+        # A tool can succeed at the transport level yet report a failed action in
+        # its payload (e.g. run_automation → a workflow that failed). Surface that
+        # as a tool error so the UI doesn't show a green check on a failure and
+        # the model gets a clear signal instead of inventing an excuse.
+        if isinstance(result, dict) and result.get("success") is False:
+            err = (
+                result.get("error")
+                or result.get("fallback_message")
+                or result.get("message")
+                or "the action reported failure"
+            )
+            self._emit(kind="tool_error", name=name, error=str(err))
+        else:
+            self._emit(kind="tool_ok", name=name)
+        return result
 
     def _confirm(self, name: str, args: dict[str, Any], risk: RiskLevel) -> bool:
         """Ask the injected confirmer; deny by default when none is set."""

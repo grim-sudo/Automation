@@ -60,6 +60,12 @@ system telemetry in Rust and drives the Python engine over an IPC bridge).
   key, no cloud dependency. It can also target FreeLLMAPI, OpenAI, or Anthropic
   via `AI_PROVIDER`, and falls back to local Ollama automatically if a chosen
   cloud provider is unreachable.
+- **Persistent memory.** Archon retains what it learns across sessions in a
+  local SQLite store (`~/.archon/memory.db`), injected into prompts for every
+  provider. It auto-extracts durable facts from conversations and honours
+  explicit `remember that …` / `forget …` / `what do you remember` commands.
+  Provider-agnostic — memory sits above the backend, so it works the same on
+  local or cloud models. Toggle with `MEMORY_ENABLED` / `MEMORY_AUTO_EXTRACT`.
 - **Secure by construction.** Every shell interaction goes through a list-form
   `safe_run()` — there is no `shell=True` anywhere in the codebase. Paths are
   validated against traversal and null-byte injection before use.
@@ -423,6 +429,7 @@ Automation/
 │   │   ├── anthropic_provider.py  Anthropic Messages API backend
 │   │   ├── provider_factory.py    Provider selection + fallback to Ollama
 │   │   ├── automation_ai.py       Multi-provider AI facade
+│   │   ├── memory.py             Persistent cross-session memory (SQLite; provider-agnostic)
 │   │   ├── context_manager.py    Sliding-window context (tiktoken)
 │   │   ├── response_parser.py    Pydantic v2 TaskPlan / IntentResult + JSON repair
 │   │   └── task_planner.py       High-level planning orchestration

@@ -218,6 +218,9 @@ def test_facade_call_routes_through_ollama():
         return '{"intent": "test", "confidence": 0.9, "steps": []}'
 
     with patch.object(ai._ollama, "complete", side_effect=fake_complete):
+        # Disable memory so the post-reply extraction call doesn't overwrite the
+        # captured routing call — this test is about provider routing only.
+        ai.memory = None
         reply = ai.converse("hello there")
     assert reply
     assert captured["messages"][-1]["content"] == "hello there"

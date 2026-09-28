@@ -752,6 +752,43 @@ class WorkflowEngine:
                                 "success": False,
                                 "message": "No path specified for verification",
                             }
+                    elif step.action in ("read_file", "read"):
+                        # Read a file's contents and stash them in the workflow
+                        # context so later steps can reference the result. The
+                        # single-step path already supports this via the OS
+                        # adapter; the workflow path was missing it, so any
+                        # multi-step plan that began by reading a file died on
+                        # "Unknown filesystem action: read_file".
+                        path = (
+                            step.params.get("path")
+                            or step.params.get("file_path")
+                            or step.params.get("name")
+                        )
+                        if not path:
+                            result = {"success": False, "message": "No path to read"}
+                        elif not os.path.isfile(path):
+                            result = {
+                                "success": False,
+                                "message": f"File not found: {path}",
+                            }
+                        else:
+                            try:
+                                with open(path, encoding="utf-8") as fh:
+                                    content = fh.read()
+                                result = {
+                                    "success": True,
+                                    "path": path,
+                                    "content": content,
+                                    "size": len(content),
+                                    "message": f"Read {len(content)} chars from {path}",
+                                }
+                                if hasattr(self, "_step_context"):
+                                    self._step_context["read_file_result"] = content
+                            except Exception as e:
+                                result = {
+                                    "success": False,
+                                    "message": f"Failed to read {path}: {e}",
+                                }
                     else:
                         raise Exception(f"Unknown filesystem action: {step.action}")
                 elif step.category == "project_generator":

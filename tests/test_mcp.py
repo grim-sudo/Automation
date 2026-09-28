@@ -79,6 +79,11 @@ class _FakeEngine:
 
     def execute(self, command: str) -> dict:
         self.executed.append(command)
+        # A command containing FAIL simulates an action that runs but reports a
+        # failed result (e.g. a workflow step that failed), exercising the
+        # agent's honest-failure surfacing.
+        if "FAIL" in command:
+            return {"success": False, "command": command, "error": "simulated failure"}
         return {"success": True, "command": command, "complexity": "simple"}
 
 
@@ -263,6 +268,49 @@ async def test_agent_runs_tool_then_answers():
 
 
 @pytest.mark.asyncio
+async def test_agent_forwards_verbatim_user_message_to_run_automation():
+    """run_automation must execute the user's exact request, not the model's
+    paraphrase. The engine is the real NL parser; a lossy rewrite silently
+    mis-routes deterministic handlers (e.g. the document enhancer)."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call("run_automation", {"command": "append content to a file"})
+            ]},
+            {"role": "assistant", "content": "Done."},
+        ]
+    )
+    agent = OllamaMCPAgent(engine=engine, provider=provider, confirmer=lambda *a: True)
+    raw = "add more information to the markdown file at /data/test and make it more detailed"
+    await agent.run(raw)
+    # The model paraphrased, but the engine received the user's exact words.
+    assert engine.executed == [raw]
+
+
+@pytest.mark.asyncio
+async def test_agent_only_overrides_first_run_automation_in_turn():
+    """The primary execution uses the user's verbatim request; a later
+    run_automation call in the same turn stays model-authored, so genuine
+    follow-up/decomposition steps still work."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call("run_automation", {"command": "paraphrase one"})
+            ]},
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call("run_automation", {"command": "second derived step"})
+            ]},
+            {"role": "assistant", "content": "All done."},
+        ]
+    )
+    agent = OllamaMCPAgent(engine=engine, provider=provider, confirmer=lambda *a: True)
+    await agent.run("do the real task")
+    assert engine.executed == ["do the real task", "second derived step"]
+
+
+@pytest.mark.asyncio
 async def test_agent_rejects_malformed_tool_name():
     """A leaked/XML-mangled tool name must not be invoked; the model gets a
     corrective error and can recover on the next turn."""
@@ -287,6 +335,35 @@ async def test_agent_rejects_malformed_tool_name():
 
 
 @pytest.mark.asyncio
+async def test_agent_surfaces_failed_tool_result_as_error():
+    """A tool that runs but reports success=False must emit a tool_error (not a
+    green tool_ok), so the UI shows the failure and the model gets a clear
+    signal instead of inventing an excuse."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call("run_automation", {"command": "FAIL this task"})
+            ]},
+            {"role": "assistant", "content": "That didn't work."},
+        ]
+    )
+    events: list[dict] = []
+    agent = OllamaMCPAgent(
+        engine=engine,
+        provider=provider,
+        confirmer=lambda *a: True,
+        on_event=events.append,
+    )
+    reply = await agent.run("FAIL this task")
+
+    assert reply == "That didn't work."
+    kinds = [(e.get("kind"), e.get("name")) for e in events]
+    assert ("tool_error", "run_automation") in kinds
+    assert ("tool_ok", "run_automation") not in kinds
+
+
+@pytest.mark.asyncio
 async def test_agent_denies_high_risk_without_confirmer():
     engine = _FakeEngine()
     provider = _FakeProvider(
@@ -299,7 +376,7 @@ async def test_agent_denies_high_risk_without_confirmer():
     )
     # No confirmer => high-risk denied; engine.execute must NOT run.
     agent = OllamaMCPAgent(engine=engine, provider=provider, confirmer=None)
-    await agent.run("delete everything")
+    await agent.run("rm -rf /tmp/x")
     assert engine.executed == []
     tool_msgs = [m for m in provider.calls[-1]["messages"] if m.get("role") == "tool"]
     assert tool_msgs and "declined" in json.loads(tool_msgs[-1]["content"])["error"]
@@ -321,7 +398,7 @@ async def test_agent_respects_confirmer_approval():
         seen.append((name, risk))
         return True
     agent = OllamaMCPAgent(engine=engine, provider=provider, confirmer=confirm)
-    await agent.run("build an OS")
+    await agent.run("build an arch iso")
     assert engine.executed == ["build an arch iso"]
     assert seen == [("run_automation", RiskLevel.HIGH)]
 

@@ -111,6 +111,22 @@ falls back to local Ollama automatically if it's unreachable, so Archon keeps
 working either way. See [SETUP.md](SETUP.md#step-4--set-up-the-ai-backend) for
 the full provider matrix. Chain-of-thought / "thinking" tokens are never shown.
 
+### Memory
+
+Archon remembers what it learns across sessions, regardless of which provider
+is active. Durable facts (preferences, environment, ongoing projects) are
+extracted automatically after each exchange and stored in a local SQLite file
+at `~/.archon/memory.db`; relevant ones are injected into later prompts. You can
+also manage memory explicitly in chat:
+
+- `remember that I use PostgreSQL` — store a fact directly.
+- `what do you remember about me` — list stored memories.
+- `forget about zsh` — drop memories matching a phrase.
+- `forget everything` — clear the store.
+
+Turn it off with `MEMORY_ENABLED=false`, or keep the store but disable automatic
+extraction (explicit `remember` only) with `MEMORY_AUTO_EXTRACT=false`.
+
 Running `archon` with no sub-command drops you straight into the interactive
 chatbot.
 
@@ -404,6 +420,8 @@ archon --log-file ~/archon.jsonl batch tasks.txt
 | `FREELLMAPI_URL` / `FREELLMAPI_API_KEY` / `FREELLMAPI_MODEL` | FreeLLMAPI endpoint, key, and model (default model `auto`) |
 | `OPENAI_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI endpoint, key, and model |
 | `ANTHROPIC_URL` / `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic endpoint, key, and model |
+| `MEMORY_ENABLED` / `MEMORY_AUTO_EXTRACT` | Persistent cross-session memory and auto-fact-extraction (both default on) |
+| `MEMORY_MAX_INJECT` / `MEMORY_DB_PATH` | Max facts injected per prompt (default 8) and DB path override (default `~/.archon/memory.db`) |
 | `N8N_URL` | n8n instance base URL (e.g. `http://localhost:5678`) |
 | `N8N_API_KEY` | n8n REST API key |
 | `ARCHON_DEBUG` | Enable debug logging (`1`/`true`) |

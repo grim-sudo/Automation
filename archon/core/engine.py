@@ -4,6 +4,7 @@ Core automation engine that orchestrates all automation operations
 
 import os
 import platform
+import re
 import time
 from datetime import datetime
 from typing import Any
@@ -201,6 +202,30 @@ class Archon:
                     payload["fallback_message"] = distro_result.get("message", "")
                 return payload
 
+            # "Add more info / expand / make more detailed" on an existing file is
+            # really read → AI-enhance → write. The AI planner tends to emit a
+            # fragile 3-step plan (read_file → invented generate_enhanced_content →
+            # create_file) that no execution path can satisfy. Detect the intent up
+            # front and run it as one real step instead.
+            enhance_result = self._maybe_enhance_document(command)
+            if enhance_result is not None:
+                self._log_execution(
+                    command, {"action": "enhance_file", "category": "filesystem"},
+                    enhance_result, success=enhance_result.get("success", False),
+                    duration=time.monotonic() - start,
+                )
+                ok = enhance_result.get("success", False)
+                payload = {
+                    "success": ok,
+                    "result": enhance_result,
+                    "command": command,
+                    "complexity": "simple",
+                    "timestamp": datetime.now().isoformat(),
+                }
+                if not ok:
+                    payload["error"] = enhance_result.get("error", "Document enhancement failed")
+                return payload
+
             # Check if command is too complex for AI (very long with nested structures)
             # Use fallback parser directly for these cases
             if self._is_too_complex_for_ai(command):
@@ -355,6 +380,9 @@ class Archon:
 
         # Route to appropriate handler
         if category == "filesystem":
+            # Read an existing document, expand it with the AI, and write it back.
+            if action in ("enhance_file", "enhance_document", "expand_file", "expand_document"):
+                return self._handle_enhance_file(params)
             # The AI parser emits file-content writes as create_file/write_file
             # with a `path` + `content`, but the OS filesystem adapters only
             # understand create_file(name, location). Bridge that contract here
@@ -713,6 +741,157 @@ class Archon:
         except Exception as exc:
             self.logger.error(f"OS builder failed: {exc}")
             return {"success": False, "message": f"Build error: {exc}", "iso_path": None}
+
+    # Intent phrases that mean "expand/enrich an existing document" rather than
+    # "create a new one". Broad modification verbs (append/update/rewrite) are
+    # safe here only because routing *also* requires the named path to resolve
+    # to an EXISTING document (see _resolve_document_path); a "create a file"
+    # request names a file that does not exist yet, so it never routes here.
+    _ENHANCE_HINTS = (
+        "add more information",
+        "add more info",
+        "add more detail",
+        "add more content",
+        "add information",
+        "add detail",
+        "add content",
+        "add a section",
+        "add sections",
+        "additional section",
+        "more detailed",
+        "more detail to",
+        "make it more detailed",
+        "make it detailed",
+        "make it longer",
+        "expand on",
+        "expand the",
+        "expand this",
+        "extend the",
+        "extend this",
+        "elaborate on",
+        "elaborate the",
+        "flesh out",
+        "enrich the",
+        "enhance the",
+        "improve the detail",
+        "add to the existing",
+        "update the",
+        "revise the",
+        "rewrite the",
+        "append",
+    )
+
+    # File token: an absolute/relative path or a bare name ending in a document
+    # extension. Used to pull the target out of a free-form enhance request.
+    _PATH_TOKEN_RE = re.compile(r"(?:(?:~|\.{0,2})/[^\s'\"]+|[^\s'\"/]+\.[A-Za-z0-9]{1,6})")
+
+    def _maybe_enhance_document(self, command: str) -> dict[str, Any] | None:
+        """Route an "expand this existing file" request to a single enhance step.
+
+        Returns a result dict when ``command`` clearly asks to enrich an existing
+        document (an enhance phrase *and* a token that resolves to a real file),
+        or ``None`` so normal parsing continues. Requiring the path to exist keeps
+        this from hijacking ordinary "create a file" requests, which name files
+        that do not exist yet.
+        """
+        lowered = command.lower()
+        if not any(hint in lowered for hint in self._ENHANCE_HINTS):
+            return None
+
+        target: str | None = None
+        for token in self._PATH_TOKEN_RE.findall(command):
+            resolved = self._resolve_document_path(token)
+            if resolved is not None:
+                target = resolved
+                break
+        if target is None:
+            return None
+
+        self.logger.info(f"Routing to document enhancer (enhance_file): {target}")
+        return self._handle_enhance_file({"file_path": target, "instruction": command})
+
+    # Text-like extensions the enhancer is willing to read and rewrite.
+    _ENHANCE_EXTENSIONS = (".md", ".markdown", ".txt", ".rst", ".text")
+
+    def _resolve_document_path(self, path: str) -> str | None:
+        """Resolve a user token to a concrete document file, or ``None``.
+
+        Accepts a direct file path, or a directory that contains exactly one
+        document file (the common "the markdown file at /data/test" case where
+        the user names the folder). Ambiguous or non-document targets return
+        ``None`` so the caller can fall back to normal parsing.
+        """
+        candidate = os.path.expanduser(path)
+        if os.path.isfile(candidate):
+            return candidate
+        if os.path.isdir(candidate):
+            docs = [
+                os.path.join(candidate, f)
+                for f in sorted(os.listdir(candidate))
+                if f.lower().endswith(self._ENHANCE_EXTENSIONS)
+                and os.path.isfile(os.path.join(candidate, f))
+            ]
+            if len(docs) == 1:
+                return docs[0]
+        return None
+
+    def _handle_enhance_file(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Read a document, expand it with the AI, and write the result back.
+
+        One self-contained step: it never relies on cross-step placeholder
+        handoff (which the workflow engine does not perform). Fails honestly
+        rather than overwriting the file with empty or partial content.
+        """
+        raw_path = params.get("file_path") or params.get("path")
+        instruction = (
+            params.get("instruction")
+            or params.get("request")
+            or params.get("content")
+            or "Add more information and make it more detailed."
+        )
+        if not raw_path:
+            return {"success": False, "error": "file_path parameter required"}
+
+        file_path = self._resolve_document_path(raw_path)
+        if file_path is None:
+            return {
+                "success": False,
+                "error": (
+                    f"No single document found at '{raw_path}'. Point me at a "
+                    "specific text/markdown file to expand."
+                ),
+            }
+
+        read = self._handle_read_file({"file_path": file_path})
+        if not read.get("success"):
+            return read
+        original = read.get("content", "")
+
+        ai = getattr(self.ai_parser, "ai", None)
+        if ai is None or not getattr(ai, "is_available", False):
+            return {
+                "success": False,
+                "error": "AI backend unavailable — cannot enhance the document.",
+                "file_path": file_path,
+            }
+
+        enhanced = ai.enhance_document(
+            original, instruction, filename=os.path.basename(file_path)
+        )
+        if not enhanced or not enhanced.strip():
+            return {
+                "success": False,
+                "error": "The AI returned no content; the file was left unchanged.",
+                "file_path": file_path,
+            }
+
+        result = self._handle_write_file({"file_path": file_path, "content": enhanced})
+        if result.get("success"):
+            result["message"] = (
+                f"Expanded {file_path}: {read.get('size', len(original))} → "
+                f"{len(enhanced)} chars."
+            )
+        return result
 
     _DISTRO_BASE_MAP = {
         "arch linux": "arch",

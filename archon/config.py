@@ -113,6 +113,11 @@ _COMPAT_MAP: dict[str, tuple[str, str]] = {
     "ANTHROPIC_URL": ("ai", "anthropic_url"),
     "ANTHROPIC_API_KEY": ("ai", "anthropic_api_key"),
     "ANTHROPIC_MODEL": ("ai", "anthropic_model"),
+    # Persistent memory flat env vars
+    "MEMORY_ENABLED": ("ai", "memory_enabled"),
+    "MEMORY_AUTO_EXTRACT": ("ai", "memory_auto_extract"),
+    "MEMORY_MAX_INJECT": ("ai", "memory_max_inject"),
+    "MEMORY_DB_PATH": ("ai", "memory_db_path"),
     # n8n flat env vars
     "N8N_API_KEY": ("n8n", "api_key"),
     "N8N_URL": ("n8n", "url"),
@@ -238,6 +243,31 @@ class AISettings(BaseModel):
     retry_delay: float = Field(
         default=2.0,
         description="Base delay in seconds between retries",
+    )
+
+    # ── Persistent memory (provider-agnostic) ────────────────────────────────
+    memory_enabled: bool = Field(
+        default=True,
+        description=(
+            "Retain learned facts across sessions in ~/.archon/memory.db, "
+            "injected into prompts for every provider (local or cloud)."
+        ),
+    )
+    memory_auto_extract: bool = Field(
+        default=True,
+        description=(
+            "After each exchange, run a short best-effort LLM call to extract "
+            "durable facts to remember. When false, only explicit 'remember "
+            "that ...' commands store anything."
+        ),
+    )
+    memory_max_inject: int = Field(
+        default=8,
+        description="Max remembered facts injected into a prompt.",
+    )
+    memory_db_path: str = Field(
+        default="",
+        description="Override for the memory DB path. Empty uses ~/.archon/memory.db.",
     )
 
     @field_validator("max_tokens")
@@ -506,6 +536,23 @@ max_retries = 3
 
 # Base delay (seconds) between retries — uses exponential back-off
 retry_delay = 2.0
+
+# ── Persistent memory ─────────────────────────────────────────────────────────
+# Archon retains facts it learns across sessions in a local SQLite store,
+# injected into prompts for every provider (local Ollama or cloud API).
+
+# Retain learned facts across sessions  (env: MEMORY_ENABLED)
+memory_enabled = true
+
+# After each exchange, run a short LLM call to extract durable facts. When
+# false, only explicit "remember that ..." commands store anything.  (env: MEMORY_AUTO_EXTRACT)
+memory_auto_extract = true
+
+# Max remembered facts injected into a single prompt  (env: MEMORY_MAX_INJECT)
+memory_max_inject = 8
+
+# Override the memory DB path (blank uses ~/.archon/memory.db)  (env: MEMORY_DB_PATH)
+# memory_db_path = ""
 
 # ── n8n ──────────────────────────────────────────────────────────────────────
 

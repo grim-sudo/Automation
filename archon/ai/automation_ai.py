@@ -140,6 +140,25 @@ class OllamaAutomationAI:
         self._ollama = build_provider(_config, model=resolved_model)
         self._model_name = self._ollama.model
 
+        # Persistent cross-session memory. Provider-agnostic: it sits above the
+        # provider abstraction, so learned facts apply whether the active backend
+        # is local Ollama or a cloud API. Best-effort — a broken store must never
+        # stop the AI from answering.
+        self.memory = None
+        if getattr(_config.ai, "memory_enabled", False):
+            try:
+                from .memory import MemoryManager, MemoryStore
+
+                db_path = _config.ai.memory_db_path or None
+                self.memory = MemoryManager(
+                    MemoryStore(db_path),
+                    auto_extract=_config.ai.memory_auto_extract,
+                    max_inject=_config.ai.memory_max_inject,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("memory disabled — store init failed: {}", exc)
+                self.memory = None
+
         # Kick off availability probe: background task if a loop is running,
         # otherwise synchronously.
         self._init_task: asyncio.Task[None] | None = None
@@ -248,15 +267,29 @@ class OllamaAutomationAI:
         history: list[dict[str, str]] | None = None,
     ) -> str:
         """Return a conversational (non-automation) reply to ``message``."""
+        # Explicit memory commands ("remember that ...", "forget ...", "what do
+        # you remember") are handled deterministically without a model call.
+        if self.memory is not None:
+            try:
+                handled = self.memory.handle_command(message)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("memory command handling failed: {}", exc)
+                handled = None
+            if handled is not None:
+                return handled
+
         await self._ensure_init()
         if not self._is_available:
             return (
                 f"AI is not available. Is Ollama running at {self._ollama.base_url}? "
                 "You can still issue automation commands directly."
             )
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": _CHAT_SYSTEM_PROMPT.strip()}
-        ]
+        system = _CHAT_SYSTEM_PROMPT.strip()
+        if self.memory is not None:
+            block = self.memory.context_block(message)
+            if block:
+                system = f"{system}\n\n{block}"
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
         if history:
             # Keep the tail so we stay well under the context budget.
             messages.extend(history[-10:])
@@ -266,10 +299,17 @@ class OllamaAutomationAI:
         except Exception as exc:
             logger.warning("converse_async failed: {}", exc)
             return f"[AI error: {exc}]"
-        return reply or (
+        reply = reply or (
             "The model returned an empty response. Try rephrasing, or check "
             "that the Ollama model is loaded."
         )
+        # Best-effort: learn durable facts from this exchange.
+        if self.memory is not None:
+            try:
+                await self.memory.learn(self._ollama.complete, message, reply)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("memory learn failed: {}", exc)
+        return reply
 
     def converse(
         self,
@@ -292,10 +332,18 @@ class OllamaAutomationAI:
             )
             return
         self._context_window.add_user(prompt)
+        messages = self._context_window.get_messages()
+        if self.memory is not None:
+            block = self.memory.context_block(prompt)
+            if block:
+                # Inject after the leading system prompt so recalled context
+                # rides alongside the persona without evicting conversation turns.
+                insert_at = 1 if messages and messages[0]["role"] == "system" else 0
+                messages.insert(insert_at, {"role": "system", "content": block})
         accumulated: list[str] = []
         try:
             async for chunk in self._ollama.stream(
-                self._context_window.get_messages(), temperature=0.7, max_tokens=1024
+                messages, temperature=0.7, max_tokens=1024
             ):
                 accumulated.append(chunk)
                 yield chunk
@@ -303,7 +351,13 @@ class OllamaAutomationAI:
             logger.error("stream_response error: {}", exc)
             yield f"\n[Stream error: {exc}]"
         finally:
-            self._context_window.add_assistant("".join(accumulated))
+            reply = "".join(accumulated)
+            self._context_window.add_assistant(reply)
+            if self.memory is not None and reply.strip():
+                try:
+                    await self.memory.learn(self._ollama.complete, prompt, reply)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("memory learn (stream) failed: {}", exc)
 
     # ── Suggestions / enhancement helpers ─────────────────────────────────────
 
@@ -468,19 +522,82 @@ class OllamaAutomationAI:
                 ),
                 timeout=_DOCUMENT_TIMEOUT + 30,
             )
-            text = (raw or "").strip()
-            # Strip a single outer fence if the model wrapped the whole document.
-            if text.startswith("```"):
-                lines = text.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                text = "\n".join(lines).strip()
-            return text
+            return self._strip_outer_fence((raw or "").strip())
         except Exception as exc:
             logger.warning("generate_document failed: {}", exc)
             return ""
+
+    def enhance_document(
+        self, original_content: str, instruction: str, filename: str = ""
+    ) -> str:
+        """Expand an existing document per ``instruction``, keeping its substance.
+
+        Feeds the current content plus the enhancement instruction to the model
+        and returns the COMPLETE updated body. Returns ``""`` on failure or when
+        offline so the caller can refuse to overwrite the file with nothing.
+        """
+        if not self._is_available:
+            return ""
+        try:
+            target = f" The file is named '{filename}'." if filename else ""
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a technical writer improving an existing "
+                        "document. Keep all correct existing information, then "
+                        "expand it: add depth, missing sections, examples, and "
+                        "clarifications per the user's instruction. Preserve the "
+                        "original structure and GitHub-flavored Markdown "
+                        "formatting. Output the COMPLETE updated document body "
+                        "only — no preamble, commentary, placeholders, or a "
+                        "summary of what you changed."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Instruction: {instruction}{target}\n\n"
+                        f"Existing document:\n\n{original_content}"
+                    ),
+                },
+            ]
+            # Some aggregating routers (e.g. FreeLLMAPI 'auto') intermittently
+            # return an empty completion. An empty enhance means overwriting the
+            # doc with nothing, so retry once before giving up — a wasted minute
+            # beats silently failing a 50s+ request that usually works.
+            for attempt in range(2):
+                raw = self._run_sync(
+                    self._ollama.complete(
+                        messages,
+                        temperature=0.7,
+                        max_tokens=4000,
+                        timeout=_DOCUMENT_TIMEOUT,
+                    ),
+                    timeout=_DOCUMENT_TIMEOUT + 30,
+                )
+                enhanced = self._strip_outer_fence((raw or "").strip())
+                if enhanced:
+                    return enhanced
+                logger.warning(
+                    "enhance_document: empty completion (attempt {}/2)", attempt + 1
+                )
+            return ""
+        except Exception as exc:
+            logger.warning("enhance_document failed: {}", exc)
+            return ""
+
+    @staticmethod
+    def _strip_outer_fence(text: str) -> str:
+        """Drop a single ```` ``` ```` fence wrapping the whole reply, if present."""
+        if text.startswith("```"):
+            lines = text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        return text
 
     # ── Model management / status ──────────────────────────────────────────────
 

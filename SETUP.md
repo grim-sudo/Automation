@@ -512,6 +512,10 @@ require_root_confirmation = true
 | `ANTHROPIC_URL` | `ai.anthropic_url` | Default: `https://api.anthropic.com/v1` |
 | `ANTHROPIC_API_KEY` | `ai.anthropic_api_key` | Required when `AI_PROVIDER=anthropic` |
 | `ANTHROPIC_MODEL` | `ai.anthropic_model` | Default: `claude-3-5-sonnet-latest` |
+| `MEMORY_ENABLED` | `ai.memory_enabled` | Retain learned facts across sessions. Default: `true` |
+| `MEMORY_AUTO_EXTRACT` | `ai.memory_auto_extract` | Auto-extract durable facts after each exchange. Default: `true` |
+| `MEMORY_MAX_INJECT` | `ai.memory_max_inject` | Max remembered facts injected per prompt. Default: `8` |
+| `MEMORY_DB_PATH` | `ai.memory_db_path` | Override memory DB path. Default: `~/.archon/memory.db` |
 | `MAX_RETRIES` | `ai.max_retries` | Default: 3 |
 | `N8N_API_KEY` | `n8n.api_key` | Required for n8n commands |
 | `N8N_URL` | `n8n.url` | Default: `http://localhost:5678` |
@@ -527,7 +531,7 @@ require_root_confirmation = true
 ```bash
 # All tests
 pytest tests/ -v
-# Expected: 314 passed, 2 warnings
+# Expected: 358 passed, 2 warnings
 
 # Quiet summary
 pytest tests/ -q
