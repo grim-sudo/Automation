@@ -930,6 +930,26 @@ class Archon:
             if not file_path:
                 raise ValueError("file_path parameter required")
 
+            # Honest failure over silent empty file: this is the content-write
+            # path (scrape/generate → save). If the upstream step produced
+            # nothing, report a real error instead of a 0-byte file that looks
+            # like success. Unresolved handoff placeholders count as no content.
+            stripped = content.strip() if isinstance(content, str) else content
+            placeholder = isinstance(content, str) and content.strip() in (
+                "{{extracted_content}}",
+                "{{content}}",
+            )
+            if not stripped or placeholder:
+                return {
+                    "success": False,
+                    "error": (
+                        "No content to write — the upstream step produced no "
+                        "data, so the file was not created. (Refusing to write "
+                        "an empty file and report success.)"
+                    ),
+                    "file_path": file_path,
+                }
+
             # Resolve relative paths from Desktop with duplicate detection
             if not os.path.isabs(file_path):
                 resolved_path = self._resolve_file_with_disambiguation(file_path)

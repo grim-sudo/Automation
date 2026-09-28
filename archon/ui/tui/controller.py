@@ -87,7 +87,7 @@ class AgentController:
             return {"model": None, "backend": None, "online": False}
         return {
             "model": ai.get_current_model(),
-            "backend": "Ollama",
+            "backend": ai.get_backend_label(),
             "online": True,
         }
 

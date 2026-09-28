@@ -86,19 +86,10 @@ def build_agent_system_prompt(engine: Any) -> str:
 
 
 def _default_provider() -> Any:
-    """Build an :class:`OllamaProvider` from the active config."""
-    from ..ai.ollama_integration import OllamaProvider
-    from ..config import get_config
+    """Build the configured chat provider (Ollama by default) from config."""
+    from ..ai.provider_factory import build_provider
 
-    cfg = get_config()
-    model = cfg.ai.model or getattr(cfg.ai, "ollama_model", "") or "qwen3.5:9b"
-    return OllamaProvider(
-        base_url=getattr(cfg.ai, "ollama_url", "") or "http://127.0.0.1:11434",
-        model=model,
-        # Local reasoning models need a generous floor; the cloud-tuned default
-        # (30s) starves them mid-thought on a cold model load.
-        timeout=max(float(cfg.ai.timeout), 120.0),
-    )
+    return build_provider()
 
 
 class OllamaMCPAgent:
@@ -174,6 +165,9 @@ class OllamaMCPAgent:
         self.messages.append({"role": "user", "content": user_message})
         async with Client(self.server) as client:
             tools = await self._ollama_tools(client)
+            valid_tools = {
+                t["function"]["name"] for t in tools if t.get("function", {}).get("name")
+            }
             for _ in range(self.max_rounds):
                 message = await self.provider.chat(
                     self.messages,
@@ -189,6 +183,27 @@ class OllamaMCPAgent:
                 self._emit(kind="phase", phase="EXECUTING")
                 for call in tool_calls:
                     name, args = _parse_tool_call(call)
+                    if name not in valid_tools:
+                        # Some models (esp. via aggregating proxies) leak
+                        # malformed or XML-style tool calls whose "name" is a
+                        # broken fragment. Don't invoke garbage against MCP —
+                        # hand the model a corrective error so it retries with a
+                        # real tool instead of surfacing an opaque failure.
+                        err = (
+                            f"Unknown tool {name!r}. Valid tools: "
+                            f"{', '.join(sorted(valid_tools))}. "
+                            "Call one of these with correct JSON arguments."
+                        )
+                        logger.warning("MCP agent: rejected unknown tool {!r}", name)
+                        self._emit(kind="tool_error", name=name or "(empty)", error=err)
+                        self.messages.append(
+                            {
+                                "role": "tool",
+                                "tool_name": name or "unknown",
+                                "content": json.dumps({"success": False, "error": err}),
+                            }
+                        )
+                        continue
                     result = await self._invoke(client, name, args)
                     self.messages.append(
                         {

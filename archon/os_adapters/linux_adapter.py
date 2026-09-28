@@ -43,7 +43,11 @@ class LinuxFilesystemAdapter(BaseFilesystemAdapter):
         if action == "create_folder":
             return self.create_folder(params.get("name"), params.get("location"))
         elif action == "create_file":
-            return self.create_file(params.get("name"), params.get("location"))
+            return self.create_file(
+                params.get("name"),
+                params.get("location"),
+                params.get("content", ""),
+            )
         elif action == "delete":
             return self.delete(params.get("path"))
         elif action == "copy":

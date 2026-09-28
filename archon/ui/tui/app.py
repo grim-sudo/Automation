@@ -259,6 +259,8 @@ class ArchonApp(App[None]):
         if message.gen != self._gen:
             return
         conv = self.query_one("#conversation", VerticalScroll)
+        if self._current_assistant is not None:
+            self._current_assistant.cancel_working("(failed)")
         if self._current_execution is not None:
             self._current_execution.complete()
         conv.mount(ErrorView(message.summary, message.reason, message.action))
@@ -357,6 +359,8 @@ class ArchonApp(App[None]):
         # force-killed mid-inference, so we detach from it and reset the UI.
         self._gen += 1
         self.workers.cancel_group(self, "agent")
+        if self._current_assistant is not None:
+            self._current_assistant.cancel_working("(cancelled)")
         conv = self.query_one("#conversation", VerticalScroll)
         conv.mount(SystemMessage("Cancelled."))
         self.query_one("#activity", ActivityLog).err("cancelled")

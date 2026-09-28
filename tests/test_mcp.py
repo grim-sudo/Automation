@@ -263,6 +263,30 @@ async def test_agent_runs_tool_then_answers():
 
 
 @pytest.mark.asyncio
+async def test_agent_rejects_malformed_tool_name():
+    """A leaked/XML-mangled tool name must not be invoked; the model gets a
+    corrective error and can recover on the next turn."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call('run_="parameter name="command', {"command": "x"})
+            ]},
+            {"role": "assistant", "content": "Recovered."},
+        ]
+    )
+    agent = OllamaMCPAgent(engine=engine, provider=provider, confirmer=lambda *a: True)
+    reply = await agent.run("do the thing")
+    assert reply == "Recovered."
+    # The garbage tool name never reached the engine.
+    assert engine.executed == []
+    # The model was handed a corrective tool message naming the valid tools.
+    tool_msgs = [m for m in provider.calls[-1]["messages"] if m.get("role") == "tool"]
+    assert tool_msgs and "Unknown tool" in tool_msgs[-1]["content"]
+    assert "run_automation" in tool_msgs[-1]["content"]
+
+
+@pytest.mark.asyncio
 async def test_agent_denies_high_risk_without_confirmer():
     engine = _FakeEngine()
     provider = _FakeProvider(

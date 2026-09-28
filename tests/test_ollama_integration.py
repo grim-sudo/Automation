@@ -173,15 +173,26 @@ async def test_stream_yields_content_chunks():
 
 
 def test_facade_defaults_to_ollama_provider():
-    """The main AI facade uses the local Ollama backend by default (no API key)."""
-    from archon.ai.automation_ai import OllamaAutomationAI
+    """The main AI facade uses the local Ollama backend when provider=ollama.
 
-    with patch.object(OllamaProvider, "is_available", AsyncMock(return_value=True)), patch.object(
+    Forces the ollama provider so the test is deterministic regardless of the
+    ambient ``.env`` (which may select a cloud provider like freellmapi).
+    """
+    from archon.ai.automation_ai import OllamaAutomationAI
+    from archon.config import get_config
+
+    cfg = get_config()
+    with patch.object(cfg.ai, "provider", "ollama"), patch.object(
+        OllamaProvider, "is_available", AsyncMock(return_value=True)
+    ), patch.object(
         OllamaProvider, "list_models", AsyncMock(return_value=["qwen3.5:9b"])
     ):
         ai = OllamaAutomationAI()
     assert ai._ollama is not None
-    assert ai._model_name == "qwen3.5:9b"
+    # Model name comes from config (env: OLLAMA_MODEL), not a hardcoded literal,
+    # so this stays correct whatever local model the environment selects.
+    cfg = get_config()
+    assert ai._model_name == (cfg.ai.model or cfg.ai.ollama_model)
     status = ai.get_ai_status()
     assert status["provider"] == "Ollama"
 
@@ -189,8 +200,12 @@ def test_facade_defaults_to_ollama_provider():
 def test_facade_call_routes_through_ollama():
     """analyze/_call must reach the Ollama provider."""
     from archon.ai.automation_ai import OllamaAutomationAI
+    from archon.config import get_config
 
-    with patch.object(OllamaProvider, "is_available", AsyncMock(return_value=True)), patch.object(
+    cfg = get_config()
+    with patch.object(cfg.ai, "provider", "ollama"), patch.object(
+        OllamaProvider, "is_available", AsyncMock(return_value=True)
+    ), patch.object(
         OllamaProvider, "list_models", AsyncMock(return_value=["qwen3.5:9b"])
     ):
         ai = OllamaAutomationAI()

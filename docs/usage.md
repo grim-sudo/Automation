@@ -1337,7 +1337,9 @@ archon chatbot
 # then copy them into a batch file for repeatable execution
 ```
 
-**Model selection** — Archon uses the model configured for Ollama. Override only when you need a specific model:
+**Model selection** — Archon uses the model configured for the active provider
+(`AI_PROVIDER`, default local Ollama). Override only when you need a specific
+model:
 
 ```bash
 archon run "translate this to French" -m qwen3.5:9b

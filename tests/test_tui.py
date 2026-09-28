@@ -218,6 +218,47 @@ async def test_app_drops_stale_messages_after_cancel():
 
 
 @pytest.mark.asyncio
+async def test_assistant_working_indicator_lifecycle():
+    """The spinner animates while quiet, stops on first token, and on cancel."""
+    from archon.ui.tui.app import ArchonApp
+    from archon.ui.tui.widgets import AssistantMessage
+    from textual.containers import VerticalScroll
+
+    app = ArchonApp()
+    app.controller = _FakeController()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(1.8)
+        conv = app.query_one("#conversation", VerticalScroll)
+
+        # A fresh, quiet turn spins while it waits for content.
+        assistant = AssistantMessage()
+        conv.mount(assistant)
+        await pilot.pause(0.15)
+        assert assistant._spin_timer is not None
+        assert assistant._final is False
+
+        # First visible token replaces the spinner and stops the timer.
+        assistant.append_token("Hi")
+        await pilot.pause(0.05)
+        assert assistant._spin_timer is None
+        assert assistant._buffer == "Hi"
+
+        # A second, still-quiet turn that gets cancelled: spinner stops, the
+        # turn is marked final, and a note is left in place of a frozen frame.
+        other = AssistantMessage()
+        conv.mount(other)
+        await pilot.pause(0.15)
+        assert other._spin_timer is not None
+        other.cancel_working("(cancelled)")
+        await pilot.pause(0.05)
+        assert other._spin_timer is None
+        assert other._final is True
+        # A late token after cancel is ignored.
+        other.append_token("stale")
+        assert other._buffer == ""
+
+
+@pytest.mark.asyncio
 async def test_app_toggles_and_clear():
     from archon.ui.tui.app import ArchonApp
     from archon.ui.tui.widgets import ActivityLog

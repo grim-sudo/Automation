@@ -25,7 +25,6 @@ from loguru import logger
 from ..config import get_config
 from ..utils.logger import get_logger
 from .context_manager import ContextWindow
-from .ollama_integration import OllamaProvider
 from .response_parser import TaskPlan, parse_task_plan
 
 __all__ = ["AITaskPlan", "OllamaAutomationAI"]
@@ -132,20 +131,13 @@ class OllamaAutomationAI:
             max_tokens=_config.ai.max_tokens,
             system_prompt=_SYSTEM_PROMPT.strip(),
         )
-        resolved_model = (
-            model
-            or _config.ai.model
-            or getattr(_config.ai, "ollama_model", "")
-            or "qwen3.5:9b"
-        )
-        # Local reasoning models are far slower than a cloud API; floor the
-        # timeout so first-token latency + reasoning fits.
-        local_timeout = max(float(_config.ai.timeout), 120.0)
-        self._ollama = OllamaProvider(
-            base_url=getattr(_config.ai, "ollama_url", "") or "http://127.0.0.1:11434",
-            model=resolved_model,
-            timeout=local_timeout,
-        )
+        resolved_model = model or _config.ai.model or None
+        # Chooses ollama/freellmapi/openai/anthropic from config; falls back to
+        # local Ollama when a chosen cloud provider is unreachable. The factory
+        # floors the timeout for slow local reasoning models internally.
+        from .provider_factory import build_provider
+
+        self._ollama = build_provider(_config, model=resolved_model)
         self._model_name = self._ollama.model
 
         # Kick off availability probe: background task if a loop is running,
@@ -178,8 +170,7 @@ class OllamaAutomationAI:
             if not await self._ollama.is_available():
                 self._is_available = False
                 self.last_error = (
-                    f"Ollama not reachable at {self._ollama.base_url}. "
-                    "Start it with 'ollama serve'."
+                    f"AI provider not reachable at {self._ollama.base_url}."
                 )
                 logger.warning("OllamaAI: {}", self.last_error)
                 return
@@ -526,6 +517,16 @@ class OllamaAutomationAI:
     def get_current_model(self) -> str:
         """Return the active model id, or ``"None"`` when not initialised."""
         return self._model_name if self._is_available else "None"
+
+    def get_backend_label(self) -> str:
+        """Human name of the active backend (reflects fallback, not just config).
+
+        Cloud providers carry a ``label``; a plain Ollama provider (including one
+        the factory fell back to) has none, so it reports ``"Ollama"``.
+        """
+        labels = {"freellmapi": "FreeLLMAPI", "openai": "OpenAI", "anthropic": "Anthropic"}
+        label = getattr(self._ollama, "label", "") or ""
+        return labels.get(label, "Ollama")
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 

@@ -186,5 +186,4 @@ batch_*.txt
 /target/
 e2e/
 
-bread.txt
-noodles.txt
+quantum_computing_data.txt

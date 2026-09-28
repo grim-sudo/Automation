@@ -105,6 +105,12 @@ Archon talks to Ollama at `http://127.0.0.1:11434` by default. Override the
 URL or model with the `OLLAMA_URL` / `OLLAMA_MODEL` env vars or the `[ai]`
 config section.
 
+Archon can also target a cloud backend by setting `AI_PROVIDER` to `freellmapi`,
+`openai`, or `anthropic` (with the matching `*_API_KEY`). Any cloud provider
+falls back to local Ollama automatically if it's unreachable, so Archon keeps
+working either way. See [SETUP.md](SETUP.md#step-4--set-up-the-ai-backend) for
+the full provider matrix. Chain-of-thought / "thinking" tokens are never shown.
+
 Running `archon` with no sub-command drops you straight into the interactive
 chatbot.
 
@@ -392,8 +398,12 @@ archon --log-file ~/archon.jsonl batch tasks.txt
 
 | Variable | Purpose |
 |----------|---------|
+| `AI_PROVIDER` | AI backend: `ollama` (default), `freellmapi`, `openai`, or `anthropic` |
 | `OLLAMA_URL` | Local Ollama server URL (default `http://127.0.0.1:11434`) |
 | `OLLAMA_MODEL` | Local model name (default `qwen3.5:9b`) |
+| `FREELLMAPI_URL` / `FREELLMAPI_API_KEY` / `FREELLMAPI_MODEL` | FreeLLMAPI endpoint, key, and model (default model `auto`) |
+| `OPENAI_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI endpoint, key, and model |
+| `ANTHROPIC_URL` / `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic endpoint, key, and model |
 | `N8N_URL` | n8n instance base URL (e.g. `http://localhost:5678`) |
 | `N8N_API_KEY` | n8n REST API key |
 | `ARCHON_DEBUG` | Enable debug logging (`1`/`true`) |
@@ -412,12 +422,19 @@ Archon reads `~/.archon/config.toml`. Key settings:
 
 ```toml
 [ai]
+provider     = "ollama"                    # ollama | freellmapi | openai | anthropic
 ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
 ollama_model = "qwen3.5:9b"                # default local model
 model        = ""         # pin a model; blank uses ollama_model
 max_tokens   = 8000
 timeout      = 30
 max_retries  = 3
+
+# Cloud backends (used when 'provider' selects them; fall back to Ollama when down)
+# freellmapi_api_key = ""
+# freellmapi_model   = "auto"
+# openai_api_key     = ""
+# anthropic_api_key  = ""
 
 [n8n]
 url     = "http://localhost:5678"
@@ -438,7 +455,7 @@ safe_mode = false
 | Problem | Fix |
 |---------|-----|
 | `archon: command not found` | Activate the venv (`source .venv/bin/activate`) or call `python archon.py` |
-| AI not responding | Check Ollama is running: `curl http://127.0.0.1:11434/api/tags`. Pull the model with `ollama pull qwen3.5:9b`. Run `archon --debug run "hello"` |
+| AI not responding | Default local backend: check Ollama is running (`curl http://127.0.0.1:11434/api/tags`) and the model is pulled (`ollama pull qwen3.5:9b`). Cloud `AI_PROVIDER`: the sidebar **Backend** field shows the active provider — if it fell back to Ollama the provider was unreachable; verify its endpoint/key. Run `archon --debug run "hello"` |
 | First AI request is slow / times out | Local models are slow to load on first use; Archon uses a 120s floor for the local timeout. Larger models need more RAM/VRAM |
 | A large nested command only ran partially | The chosen model may be flaky. Try `/model` to switch to a more reliable one |
 | n8n returns 401 | Ensure `N8N_URL` and `N8N_API_KEY` are set in `.env` (flat names, not `N8N__URL`) |

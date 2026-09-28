@@ -55,9 +55,11 @@ system telemetry in Rust and drives the Python engine over an IPC bridge).
   validated `TaskPlan` (Pydantic v2) before anything runs. Malformed model
   output is repaired or falls back to a safe empty plan — it never crashes the
   run.
-- **Local-first AI.** Archon runs its planning core on a local LLM through
-  [Ollama](https://ollama.com) (`qwen3.5:9b`) — no API key, no cloud
-  dependency.
+- **Local-first, multi-provider AI.** Archon runs its planning core on a local
+  LLM through [Ollama](https://ollama.com) (`qwen3.5:9b`) by default — no API
+  key, no cloud dependency. It can also target FreeLLMAPI, OpenAI, or Anthropic
+  via `AI_PROVIDER`, and falls back to local Ollama automatically if a chosen
+  cloud provider is unreachable.
 - **Secure by construction.** Every shell interaction goes through a list-form
   `safe_run()` — there is no `shell=True` anywhere in the codebase. Paths are
   validated against traversal and null-byte injection before use.
@@ -81,7 +83,7 @@ system telemetry in Rust and drives the Python engine over an IPC bridge).
                 │  IntentResult
                 ▼
    ┌───────────────────────────┐
-   │  AI planning layer         │  local Ollama model;
+   │  AI planning layer         │  Ollama / FreeLLMAPI / OpenAI / Anthropic;
    │  (provider + planner)      │  structured TaskPlan with JSON repair
    └───────────────────────────┘
                 │  TaskPlan(steps=[…])
@@ -223,8 +225,17 @@ CLI flag  →  SECTION__FIELD env var  →  flat env var  →  .env file  →  ~
 **Minimal `.env`:**
 
 ```dotenv
-# Local AI — no key needed. Just run Ollama:
+# Default: local AI — no key needed. Just run Ollama:
 #   ollama pull qwen3.5:9b
+# AI_PROVIDER=ollama
+
+# Or select a cloud provider (falls back to Ollama if unreachable):
+# AI_PROVIDER=freellmapi
+# FREELLMAPI_URL=http://localhost:3001/v1
+# FREELLMAPI_API_KEY=freellmapi-...
+# FREELLMAPI_MODEL=auto
+# AI_PROVIDER=openai        # OPENAI_API_KEY, OPENAI_MODEL
+# AI_PROVIDER=anthropic     # ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
 # n8n (optional — only for `archon n8n` commands)
 N8N_URL=http://localhost:5678
@@ -235,12 +246,19 @@ N8N_API_KEY=your-n8n-key
 
 ```toml
 [ai]
+provider     = "ollama"                    # ollama | freellmapi | openai | anthropic
 ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
 ollama_model = "qwen3.5:9b"                # default local model
 model       = ""          # pin a model; blank uses ollama_model
 max_tokens  = 8000
 timeout     = 30
 max_retries = 3
+
+# Cloud backends (used when 'provider' selects them; fall back to Ollama when down)
+# freellmapi_api_key = ""
+# freellmapi_model   = "auto"
+# openai_api_key     = ""
+# anthropic_api_key  = ""
 
 [n8n]
 url     = "http://localhost:5678"
@@ -401,7 +419,10 @@ Automation/
 │   │   └── plugin_manager.py     Plugin discovery and dispatch
 │   ├── ai/
 │   │   ├── ollama_integration.py  Local Ollama backend
-│   │   ├── automation_ai.py       Ollama-only AI facade
+│   │   ├── openai_compat.py       OpenAI-compatible backend (FreeLLMAPI / OpenAI)
+│   │   ├── anthropic_provider.py  Anthropic Messages API backend
+│   │   ├── provider_factory.py    Provider selection + fallback to Ollama
+│   │   ├── automation_ai.py       Multi-provider AI facade
 │   │   ├── context_manager.py    Sliding-window context (tiktoken)
 │   │   ├── response_parser.py    Pydantic v2 TaskPlan / IntentResult + JSON repair
 │   │   └── task_planner.py       High-level planning orchestration
@@ -530,7 +551,7 @@ dependencies.
 | Problem | Fix |
 |---------|-----|
 | `archon: command not found` | Activate the venv (`source .venv/bin/activate`) or call `python archon.py` |
-| AI not responding | Verify Ollama: `curl http://127.0.0.1:11434/api/tags` and `ollama pull qwen3.5:9b`; run `archon --debug run "hello"` |
+| AI not responding | On the default local backend, verify Ollama: `curl http://127.0.0.1:11434/api/tags` and `ollama pull qwen3.5:9b`. On a cloud `AI_PROVIDER`, check the sidebar **Backend** field — if it fell back to Ollama the provider was unreachable; verify its endpoint/key. Run `archon --debug run "hello"` for full traffic |
 | n8n returns 401 | Ensure `N8N_URL` and `N8N_API_KEY` are set in `.env` (flat names, not `N8N__URL`) |
 | GUI won't launch | Build it once: `cd ui-tauri && npm install && npm run tauri build`, or `npm run tauri dev` |
 | Distro: permission denied | Run `distro build` with `sudo` |
@@ -554,4 +575,5 @@ More detailed troubleshooting is in **[SETUP.md](SETUP.md)**.
 
 - **Issues:** [GitHub Issues](https://github.com/grim-sudo/Automation/issues)
 - **Local model:** [ollama.com](https://ollama.com) (`ollama pull qwen3.5:9b`)
+- **Cloud providers:** set `AI_PROVIDER` to `freellmapi`, `openai`, or `anthropic` — see [SETUP.md](SETUP.md#step-4--set-up-the-ai-backend)
 </content>

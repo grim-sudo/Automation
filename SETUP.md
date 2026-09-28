@@ -18,8 +18,9 @@
 - Python 3.12+
 - 4 GB available RAM
 - 2 GB free disk space (much more for distro builds — see [Distro Builder](#custom-linux-distro-builder))
-- An AI backend: local via [Ollama](https://ollama.com) — install
-  Ollama and pull `qwen3.5:9b` (no API key required).
+- An AI backend: local via [Ollama](https://ollama.com) (install Ollama and
+  pull `qwen3.5:9b`, no API key), or a cloud provider — FreeLLMAPI, OpenAI, or
+  Anthropic (see [Step 4](#step-4--set-up-the-ai-backend)).
 
 ---
 
@@ -85,8 +86,20 @@ pip install -e ".[dev,n8n,distro,web]"  # a full working set
 
 ## Step 4 — Set Up the AI Backend
 
-Archon runs its AI planning core on a **local LLM through Ollama** — no API key
-required.
+Archon supports four AI backends, selected with `AI_PROVIDER`:
+
+| `AI_PROVIDER` | Backend | Key required | Notes |
+|---------------|---------|--------------|-------|
+| `ollama` (default) | Local [Ollama](https://ollama.com) server | No | Fully offline; zero config |
+| `freellmapi` | [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) OpenAI-compatible router | Unified FreeLLMAPI key | Aggregates many free providers behind one endpoint |
+| `openai` | OpenAI (or any OpenAI-compatible endpoint) | OpenAI API key | |
+| `anthropic` | Anthropic Messages API | Anthropic API key | |
+
+Whichever cloud provider you pick, **Archon falls back to local Ollama
+automatically** if that provider is unreachable or unconfigured — so the app
+keeps working. Chain-of-thought / "thinking" tokens are never displayed.
+
+### Option A — Local Ollama (default, no API key)
 
 1. Install [Ollama](https://ollama.com/download) for your platform.
 2. Pull the default model and make sure the server is running:
@@ -101,9 +114,43 @@ needed for AI. To use a different local model or URL:
 
 ```dotenv
 # .env (all optional; these are the defaults)
+AI_PROVIDER=ollama
 OLLAMA_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=qwen3.5:9b
+```
 
+### Option B — FreeLLMAPI (OpenAI-compatible router)
+
+Run FreeLLMAPI locally (defaults to `http://localhost:3001`), then point Archon
+at it:
+
+```dotenv
+AI_PROVIDER=freellmapi
+FREELLMAPI_URL=http://localhost:3001/v1
+FREELLMAPI_API_KEY=freellmapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+FREELLMAPI_MODEL=auto      # 'auto' lets the router pick the best available model
+```
+
+### Option C — OpenAI
+
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+# OPENAI_URL=https://api.openai.com/v1   # override for other OpenAI-compatible endpoints
+```
+
+### Option D — Anthropic
+
+```dotenv
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+```
+
+### n8n integration (optional — any provider)
+
+```dotenv
 # n8n integration (optional — only needed for archon n8n commands)
 N8N_URL=http://localhost:5678
 N8N_API_KEY=your-n8n-api-key
@@ -111,6 +158,9 @@ N8N_API_KEY=your-n8n-api-key
 
 > **Important:** Always use the flat variable names `N8N_URL` and `N8N_API_KEY` (not
 > `N8N__URL`). The compat layer maps these to the correct nested config fields.
+
+> **Security:** Never commit real API keys. Put them in `.env` (which is
+> gitignored) or `~/.archon/config.toml`, not in source or tracked files.
 
 Archon reads `.env` automatically on startup.
 
@@ -131,8 +181,18 @@ cp ~/.archon/config.example.toml ~/.archon/config.toml
 
 ```toml
 [ai]
+provider     = "ollama"                    # ollama | freellmapi | openai | anthropic
 ollama_url   = "http://127.0.0.1:11434"
 ollama_model = "qwen3.5:9b"
+
+# Cloud providers (used when 'provider' names them; fall back to Ollama when down)
+freellmapi_url     = "http://localhost:3001/v1"
+freellmapi_api_key = ""
+freellmapi_model   = "auto"
+openai_api_key     = ""
+openai_model       = "gpt-4o-mini"
+anthropic_api_key  = ""
+anthropic_model    = "claude-3-5-sonnet-latest"
 
 [n8n]
 url     = "http://localhost:5678"
@@ -378,7 +438,7 @@ desktop  = ""
 
 1. CLI flags (`--debug`, `--safe-mode`, `--log-file`)
 2. `SECTION__FIELD` env vars — e.g. `AI__MAX_TOKENS=16000`
-3. Flat legacy env vars — `OLLAMA_URL`, `OLLAMA_MODEL`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
+3. Flat legacy env vars — `AI_PROVIDER`, `OLLAMA_URL`, `OLLAMA_MODEL`, `FREELLMAPI_*`, `OPENAI_*`, `ANTHROPIC_*`, `N8N_API_KEY`, `N8N_URL`, `MAX_RETRIES`
 4. `~/.archon/config.toml`
 5. Built-in defaults
 
@@ -393,8 +453,21 @@ continue_on_error = false    # keep going in batch mode after a failure
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 [ai]
+provider     = "ollama"                    # ollama | freellmapi | openai | anthropic
 ollama_url   = "http://127.0.0.1:11434"    # local Ollama server
 ollama_model = "qwen3.5:9b"                # default local model
+
+# Cloud backends — used when 'provider' selects them; each falls back to local
+# Ollama when its endpoint is unreachable or its key is missing.
+freellmapi_url     = "http://localhost:3001/v1"
+freellmapi_api_key = ""                    # or FREELLMAPI_API_KEY env var
+freellmapi_model   = "auto"                # 'auto' = router picks the model
+openai_url         = "https://api.openai.com/v1"
+openai_api_key     = ""                    # or OPENAI_API_KEY env var
+openai_model       = "gpt-4o-mini"
+anthropic_url      = "https://api.anthropic.com/v1"
+anthropic_api_key  = ""                    # or ANTHROPIC_API_KEY env var
+anthropic_model    = "claude-3-5-sonnet-latest"
 
 # Pin a specific model; blank uses ollama_model
 model          = ""
@@ -427,8 +500,18 @@ require_root_confirmation = true
 
 | Variable | Config field | Notes |
 |----------|-------------|-------|
+| `AI_PROVIDER` | `ai.provider` | `ollama` (default) \| `freellmapi` \| `openai` \| `anthropic` |
 | `OLLAMA_URL` | `ai.ollama_url` | Default: `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | `ai.ollama_model` | Default: `qwen3.5:9b` |
+| `FREELLMAPI_URL` | `ai.freellmapi_url` | Default: `http://localhost:3001/v1` |
+| `FREELLMAPI_API_KEY` | `ai.freellmapi_api_key` | Required when `AI_PROVIDER=freellmapi` |
+| `FREELLMAPI_MODEL` | `ai.freellmapi_model` | Default: `auto` |
+| `OPENAI_URL` | `ai.openai_url` | Default: `https://api.openai.com/v1` |
+| `OPENAI_API_KEY` | `ai.openai_api_key` | Required when `AI_PROVIDER=openai` |
+| `OPENAI_MODEL` | `ai.openai_model` | Default: `gpt-4o-mini` |
+| `ANTHROPIC_URL` | `ai.anthropic_url` | Default: `https://api.anthropic.com/v1` |
+| `ANTHROPIC_API_KEY` | `ai.anthropic_api_key` | Required when `AI_PROVIDER=anthropic` |
+| `ANTHROPIC_MODEL` | `ai.anthropic_model` | Default: `claude-3-5-sonnet-latest` |
 | `MAX_RETRIES` | `ai.max_retries` | Default: 3 |
 | `N8N_API_KEY` | `n8n.api_key` | Required for n8n commands |
 | `N8N_URL` | `n8n.url` | Default: `http://localhost:5678` |
@@ -442,9 +525,9 @@ require_root_confirmation = true
 ## Running the Test Suite
 
 ```bash
-# All 275 tests
+# All tests
 pytest tests/ -v
-# Expected: 275 passed, 2 warnings
+# Expected: 314 passed, 2 warnings
 
 # Quiet summary
 pytest tests/ -q
@@ -497,12 +580,24 @@ python archon.py --help
 
 ### AI not responding / empty responses
 
+If you're on the default local Ollama backend:
+
 ```bash
 # Confirm Ollama is up and the model is pulled
 curl http://127.0.0.1:11434/api/tags
 ollama pull qwen3.5:9b
 
 python archon.py --debug run "hello"   # see full traffic
+```
+
+If you set a cloud `AI_PROVIDER` (`freellmapi`/`openai`/`anthropic`) but replies
+still look local, the provider was unreachable and Archon fell back to Ollama.
+The sidebar's **Backend** field shows which one is actually active. Verify the
+endpoint and key:
+
+```bash
+# FreeLLMAPI example
+curl http://localhost:3001/v1/models -H "Authorization: Bearer $FREELLMAPI_API_KEY"
 ```
 
 > Local models can be slow to load on the first request. Archon floors the

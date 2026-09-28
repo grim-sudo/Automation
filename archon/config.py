@@ -96,9 +96,23 @@ class _TomlFileSource(PydanticBaseSettingsSource):
 # Maps bare env var names -> (nested_section, field_name_within_section)
 _COMPAT_MAP: dict[str, tuple[str, str]] = {
     "MAX_RETRIES": ("ai", "max_retries"),
+    # Active provider selector
+    "AI_PROVIDER": ("ai", "provider"),
     # Local Ollama backend flat env vars
     "OLLAMA_URL": ("ai", "ollama_url"),
     "OLLAMA_MODEL": ("ai", "ollama_model"),
+    # FreeLLMAPI (OpenAI-compatible) flat env vars
+    "FREELLMAPI_URL": ("ai", "freellmapi_url"),
+    "FREELLMAPI_API_KEY": ("ai", "freellmapi_api_key"),
+    "FREELLMAPI_MODEL": ("ai", "freellmapi_model"),
+    # OpenAI flat env vars
+    "OPENAI_URL": ("ai", "openai_url"),
+    "OPENAI_API_KEY": ("ai", "openai_api_key"),
+    "OPENAI_MODEL": ("ai", "openai_model"),
+    # Anthropic flat env vars
+    "ANTHROPIC_URL": ("ai", "anthropic_url"),
+    "ANTHROPIC_API_KEY": ("ai", "anthropic_api_key"),
+    "ANTHROPIC_MODEL": ("ai", "anthropic_model"),
     # n8n flat env vars
     "N8N_API_KEY": ("n8n", "api_key"),
     "N8N_URL": ("n8n", "url"),
@@ -138,9 +152,19 @@ class _CompatEnvSource(PydanticBaseSettingsSource):
 class AISettings(BaseModel):
     """AI provider and model configuration.
 
-    Archon runs entirely against a local Ollama server; there is no cloud
-    backend and no API key is required.
+    Archon can run against a local Ollama server (no key required) or an
+    OpenAI-compatible endpoint (FreeLLMAPI / OpenAI) or Anthropic. The active
+    backend is chosen by ``provider``; when a chosen cloud provider is
+    unreachable, the factory falls back to local Ollama.
     """
+
+    provider: str = Field(
+        default="ollama",
+        description=(
+            "Active AI backend: 'ollama' (local), 'freellmapi', 'openai', or "
+            "'anthropic'. Cloud providers fall back to Ollama when unreachable."
+        ),
+    )
 
     ollama_url: str = Field(
         default="http://127.0.0.1:11434",
@@ -149,6 +173,48 @@ class AISettings(BaseModel):
     ollama_model: str = Field(
         default="qwen3.5:9b",
         description="Default model served by Ollama when 'model' is unset.",
+    )
+
+    # ── FreeLLMAPI (OpenAI-compatible local router) ──────────────────────────
+    freellmapi_url: str = Field(
+        default="http://localhost:3001/v1",
+        description="Base URL of the FreeLLMAPI OpenAI-compatible endpoint.",
+    )
+    freellmapi_api_key: str = Field(
+        default="",
+        description="FreeLLMAPI unified bearer key.",
+    )
+    freellmapi_model: str = Field(
+        default="auto",
+        description="FreeLLMAPI model id ('auto' lets the router choose).",
+    )
+
+    # ── OpenAI ───────────────────────────────────────────────────────────────
+    openai_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL of the OpenAI-compatible endpoint.",
+    )
+    openai_api_key: str = Field(
+        default="",
+        description="OpenAI API key (Bearer token).",
+    )
+    openai_model: str = Field(
+        default="gpt-4o-mini",
+        description="OpenAI model id.",
+    )
+
+    # ── Anthropic ──────────────────────────────────────────────────────────────
+    anthropic_url: str = Field(
+        default="https://api.anthropic.com/v1",
+        description="Base URL of the Anthropic Messages API.",
+    )
+    anthropic_api_key: str = Field(
+        default="",
+        description="Anthropic API key (x-api-key header).",
+    )
+    anthropic_model: str = Field(
+        default="claude-3-5-sonnet-latest",
+        description="Anthropic model id.",
     )
     model: str = Field(
         default="",
