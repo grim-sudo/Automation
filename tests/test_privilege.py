@@ -31,29 +31,42 @@ def test_cancelled_prompt_refuses():
     with patch.object(PrivilegeEscalator, "is_root", staticmethod(lambda: False)), patch.object(
         PrivilegeEscalator, "sudo_available", staticmethod(lambda: True)
     ):
-        # Opening the session is fine (escalation is possible); the refusal
-        # happens when a sub-command tries to run and the prompt is cancelled.
-        with esc.session("op") as sess:
-            with pytest.raises(PrivilegeError):
-                sess.run(["pacstrap", "/mnt"])
+        with pytest.raises(PrivilegeError):
+            with esc.session("op"):
+                pass
 
 
-def test_reprompts_every_subcommand_and_never_caches():
+def test_wrong_password_refuses():
+    esc = PrivilegeEscalator(provider=lambda reason: "bad")
+    with patch.object(PrivilegeEscalator, "is_root", staticmethod(lambda: False)), patch.object(
+        PrivilegeEscalator, "sudo_available", staticmethod(lambda: True)
+    ), patch("subprocess.run", return_value=_completed(returncode=1)):
+        with pytest.raises(PrivilegeError):
+            with esc.session("op"):
+                pass
+
+
+def test_session_prompts_once_and_password_not_retained():
     calls: list[str] = []
     esc = PrivilegeEscalator(provider=lambda reason: calls.append(reason) or "secret")
     with patch.object(PrivilegeEscalator, "is_root", staticmethod(lambda: False)), patch.object(
         PrivilegeEscalator, "sudo_available", staticmethod(lambda: True)
-    ), patch("subprocess.run", return_value=_completed(returncode=0)):
-        # Opening the session prompts for nothing.
+    ), patch("subprocess.run", return_value=_completed(returncode=0)) as run:
+        assert esc.active_session is None
         with esc.session("build") as sess:
-            assert calls == []
+            assert sess is not None
+            assert esc.active_session is sess
+            # Prompted exactly once up front for the whole operation.
+            assert calls == ["build"]
+            # Sub-commands reuse the held password — no further prompts.
             sess.run(["a"])
             sess.run(["b"])
-            sess.run(["c"])
-        # Every sub-command re-prompted; nothing was cached.
-        assert calls == ["build", "build", "build"]
-    # The escalator retains no password attribute anywhere.
-    assert not any(getattr(esc, name, None) == "secret" for name in vars(esc))
+            assert calls == ["build"]
+        # After the operation the session (and its password) is dropped.
+        assert esc.active_session is None
+        # The validation call fed the password on stdin to `sudo -S`.
+        _, kwargs = run.call_args
+        assert kwargs.get("input", "").startswith("secret")
 
 
 def test_root_yields_no_session_and_runs_directly():
