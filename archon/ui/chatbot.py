@@ -47,6 +47,15 @@ class ChatbotMode:
         self._engine = engine
         self._agent: Any = None
 
+        # Privilege escalation input layer: when a capability needs root, prompt
+        # for the sudo password (masked, prompt-every-time, never stored here).
+        try:
+            from ..security.privilege import configure_escalator
+
+            configure_escalator(self._sudo_password)
+        except Exception as exc:  # noqa: BLE001 - escalation stays optional
+            self.logger.debug(f"Could not configure sudo escalation: {exc}")
+
         # The live view (or a paused-capable stand-in) currently owning the
         # terminal; the confirmer pauses it before prompting. ``stop``/``start``
         # compatible so a rich Status, our OpsView, or a mock all work here.
@@ -127,7 +136,7 @@ class ChatbotMode:
             status.stop()
         try:
             self.console.print(self._confirm_panel(name, args, risk))
-            return self._ask_confirmation("Approve this action?", default_yes=False)
+            return self._ask_phrase("yes")
         finally:
             if status is not None:
                 status.start()
@@ -158,6 +167,39 @@ class ChatbotMode:
             return default_yes
         return answer in ("yes", "y", "true")
 
+    def _ask_phrase(self, phrase: str = "yes") -> bool:
+        """Require the user to type an exact phrase; anything else cancels.
+
+        Used for HIGH/DESTRUCTIVE actions so confirmation is a deliberate,
+        typed 'yes' rather than a single keystroke. Archon does the match.
+        """
+        answer = self.console.input(
+            f"Type '{phrase}' to proceed, anything else cancels: "
+        ).strip()
+        return answer.lower() == phrase.lower()
+
+    def _sudo_password(self, reason: str) -> str | None:
+        """Prompt for the sudo password with masked input; None if cancelled.
+
+        Pauses any live view so the prompt owns the terminal. The password is
+        handed to the escalator and never stored here.
+        """
+        import getpass
+
+        status = self._status
+        if status is not None:
+            status.stop()
+        try:
+            self.console.print(f"[bold yellow]sudo required:[/bold yellow] {reason}")
+            try:
+                pw = getpass.getpass("sudo password (empty to cancel): ")
+            except (EOFError, KeyboardInterrupt):
+                return None
+            return pw or None
+        finally:
+            if status is not None:
+                status.start()
+
     # ── Live execution events ───────────────────────────────────────────────
 
     def _on_agent_event(self, event: dict[str, Any]) -> None:
@@ -170,15 +212,20 @@ class ChatbotMode:
             return
         kind = event.get("kind")
         name = event.get("name", "")
+        detail = event.get("detail", "")
+        # run_automation/dispatch_action are generic wrappers; the engine reports
+        # the capability it actually routed to as `detail`. Show "wrapper → route"
+        # so the user sees the real work instead of the opaque tool name.
+        label = f"{name} → {detail}" if detail and detail != name else name
         ui_event: UIEvent
         if kind == "phase":
             ui_event = phase(event.get("phase", "WORKING"), Channel.ARCHON)
         elif kind == "tool_start":
-            ui_event = start(name, channel=Channel.ARCHON)
+            ui_event = start(label, channel=Channel.ARCHON)
         elif kind == "tool_ok":
-            ui_event = ok(name, channel=Channel.ARCHON)
+            ui_event = ok(label, channel=Channel.ARCHON)
         elif kind == "tool_error":
-            ui_event = error(name, event.get("error", ""), channel=Channel.ARCHON)
+            ui_event = error(label, event.get("error", ""), channel=Channel.ARCHON)
         else:
             return
         view.handle(ui_event)

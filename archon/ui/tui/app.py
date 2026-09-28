@@ -31,7 +31,7 @@ from ...capabilities import RiskLevel
 from ...utils.logger import get_logger
 from . import events as ev
 from .controller import AgentController
-from .screens import ConfirmScreen, StartupScreen
+from .screens import PhraseConfirmScreen, StartupScreen, SudoPromptScreen
 from .sysinfo import SystemProbe
 from .widgets import (
     ActivityLog,
@@ -47,6 +47,17 @@ from .widgets import (
 )
 
 _CSS_PATH = Path(__file__).with_name("app.tcss")
+
+
+def _tool_label(name: str, detail: str = "") -> str:
+    """Compose the display label for a tool call.
+
+    ``run_automation`` and ``dispatch_action`` are generic entry points; the
+    engine reports the capability it actually routed to as ``detail`` (e.g.
+    ``filesystem.enhance_file``). Showing ``name → detail`` tells the user which
+    capability is really doing the work instead of the opaque wrapper name.
+    """
+    return f"{name} → {detail}" if detail and detail != name else name
 
 
 class ArchonApp(App[None]):
@@ -91,6 +102,15 @@ class ArchonApp(App[None]):
         # Wire the controller's hooks to post typed messages from the worker.
         self.controller.on_event = self._forward_event
         self.controller.confirmer = self._confirm_from_thread
+        # Privilege escalation input layer: when a capability needs root, prompt
+        # for the sudo password through a masked modal. Prompt-every-time — the
+        # password is handed to the escalator and never stored by the UI.
+        try:
+            from ...security.privilege import configure_escalator
+
+            configure_escalator(self._sudo_password_from_thread)
+        except Exception as exc:  # noqa: BLE001 - escalation stays optional
+            self.logger.debug(f"Could not configure sudo escalation: {exc}")
 
         self.query_one("#activity", ActivityLog).display = False  # hidden by default
 
@@ -178,24 +198,39 @@ class ArchonApp(App[None]):
             self.post_message(ev.PhaseChanged(gen, event.get("phase", "")))
         elif kind == "tool_start":
             self.post_message(
-                ev.ToolStarted(gen, event.get("name", ""), event.get("args", {}))
+                ev.ToolStarted(
+                    gen, event.get("name", ""), event.get("args", {}), event.get("detail", "")
+                )
             )
         elif kind == "tool_ok":
-            self.post_message(ev.ToolOk(gen, event.get("name", "")))
+            self.post_message(ev.ToolOk(gen, event.get("name", ""), event.get("detail", "")))
         elif kind == "tool_error":
             self.post_message(
-                ev.ToolError(gen, event.get("name", ""), event.get("error", ""))
+                ev.ToolError(
+                    gen, event.get("name", ""), event.get("error", ""), event.get("detail", "")
+                )
             )
 
     def _confirm_from_thread(
         self, name: str, args: dict[str, Any], risk: RiskLevel
     ) -> bool:
-        """Block the worker thread on a modal human decision."""
+        """Block the worker thread on a modal human decision.
+
+        HIGH/DESTRUCTIVE actions (deletion, termination, system changes) require
+        the user to *type* an exact 'yes' — a deliberate confirmation, not a
+        one-key press — before Archon proceeds. Archon does the phrase match.
+        """
         prompt = f"Approve {risk.value}-risk action '{name}'?"
         detail = ", ".join(f"{k}={v}" for k, v in list(args.items())[:6])
         return bool(
-            self.call_from_thread(self.push_screen_wait, ConfirmScreen(prompt, detail))
+            self.call_from_thread(
+                self.push_screen_wait, PhraseConfirmScreen(prompt, detail)
+            )
         )
+
+    def _sudo_password_from_thread(self, reason: str) -> str | None:
+        """Prompt (from a worker thread) for the sudo password via a masked modal."""
+        return self.call_from_thread(self.push_screen_wait, SudoPromptScreen(reason))
 
     # ── message handlers ─────────────────────────────────────────────────────────
 
@@ -218,22 +253,26 @@ class ArchonApp(App[None]):
     def _on_tool_start(self, message: ev.ToolStarted) -> None:
         if message.gen != self._gen or self._current_execution is None:
             return
-        self._current_execution.start_tool(message.name, message.args)
-        self.query_one("#activity", ActivityLog).run(message.name)
+        self._current_execution.start_tool(message.name, message.args, message.detail)
+        self.query_one("#activity", ActivityLog).run(_tool_label(message.name, message.detail))
 
     @on(ev.ToolOk)
     def _on_tool_ok(self, message: ev.ToolOk) -> None:
         if message.gen != self._gen or self._current_execution is None:
             return
-        self._current_execution.finish_tool(message.name, ok=True)
-        self.query_one("#activity", ActivityLog).ok(message.name)
+        self._current_execution.finish_tool(message.name, ok=True, detail=message.detail)
+        self.query_one("#activity", ActivityLog).ok(_tool_label(message.name, message.detail))
 
     @on(ev.ToolError)
     def _on_tool_error(self, message: ev.ToolError) -> None:
         if message.gen != self._gen or self._current_execution is None:
             return
-        self._current_execution.finish_tool(message.name, ok=False, error=message.error)
-        self.query_one("#activity", ActivityLog).err(f"{message.name}: {message.error}")
+        self._current_execution.finish_tool(
+            message.name, ok=False, error=message.error, detail=message.detail
+        )
+        self.query_one("#activity", ActivityLog).err(
+            f"{_tool_label(message.name, message.detail)}: {message.error}"
+        )
 
     @on(ev.ModelStats)
     def _on_stats(self, message: ev.ModelStats) -> None:

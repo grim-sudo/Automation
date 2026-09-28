@@ -192,6 +192,7 @@ class Archon:
                     "result": distro_result,
                     "command": command,
                     "complexity": "workflow",
+                    "route": "distro_builder.build_distro",
                     "timestamp": datetime.now().isoformat(),
                 }
                 if not ok:
@@ -220,6 +221,7 @@ class Archon:
                     "result": enhance_result,
                     "command": command,
                     "complexity": "simple",
+                    "route": "filesystem.enhance_file",
                     "timestamp": datetime.now().isoformat(),
                 }
                 if not ok:
@@ -276,6 +278,10 @@ class Archon:
                     "result": result,
                     "command": command,
                     "complexity": "simple",
+                    "route": (
+                        f"{parsed_command.get('category', 'unknown')}."
+                        f"{parsed_command.get('action', 'unknown')}"
+                    ),
                     "timestamp": datetime.now().isoformat(),
                 }
             else:
@@ -308,6 +314,9 @@ class Archon:
                     "result": workflow_result,
                     "command": command,
                     "complexity": complex_command.complexity.value,
+                    "route": " → ".join(
+                        f"{s.category}.{s.action}" for s in complex_command.steps[:6]
+                    ) or "workflow",
                     "steps_completed": workflow_result.get("completed_steps", 0),
                     "total_steps": workflow_result.get("total_steps", 0),
                     "execution_time": workflow_result.get("total_execution_time", 0),
@@ -700,18 +709,23 @@ class Archon:
         self.logger.info(f"Routing to OS builder (build_distro): {command}")
 
         # Preflight: the pipeline (pacstrap/debootstrap, kernel compile, xorriso)
-        # needs root and is long-running + network/disk heavy. Fail fast with an
-        # honest message instead of downloading a kernel and grinding for minutes
-        # before hitting a privilege error mid-build.
+        # needs root and is long-running + network/disk heavy. If we're not root,
+        # try to escalate through the privilege input layer — prompt once for the
+        # sudo password, validate it, and run the whole build inside that session
+        # so each privileged sub-command goes through `sudo -S`. If escalation is
+        # impossible or declined, fail fast with an honest message instead of
+        # grinding for minutes before hitting a privilege error mid-build.
+        from ..security.privilege import PrivilegeError, get_escalator
+
+        escalator = get_escalator()
         try:
-            from ..security.path_validator import PathValidator
-
-            PathValidator.check_root_required("distro build")
-        except PermissionError as exc:
+            with escalator.session("distro build"):
+                return self._run_distro_build(command)
+        except PrivilegeError as exc:
             return {"success": False, "message": str(exc), "iso_path": None}
-        except Exception:
-            pass  # Platforms without the check fall through to the real build.
 
+    def _run_distro_build(self, command: str) -> dict[str, Any]:
+        """Run the real OS-build pipeline (root or an active sudo session)."""
         try:
             import asyncio
             from pathlib import Path

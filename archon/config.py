@@ -121,6 +121,9 @@ _COMPAT_MAP: dict[str, tuple[str, str]] = {
     # n8n flat env vars
     "N8N_API_KEY": ("n8n", "api_key"),
     "N8N_URL": ("n8n", "url"),
+    # Firecrawl (self-hosted) flat env vars
+    "FIRECRAWL_BASE_URL": ("firecrawl", "base_url"),
+    "FIRECRAWL_TIMEOUT": ("firecrawl", "timeout"),
 }
 
 
@@ -337,6 +340,34 @@ class N8nSettings(BaseModel):
         return v
 
 
+class FirecrawlSettings(BaseModel):
+    """Self-hosted Firecrawl web-tools integration settings."""
+
+    base_url: str = Field(
+        default="http://localhost:3002",
+        description="Base URL of the self-hosted Firecrawl server",
+    )
+    timeout: float = Field(
+        default=120.0,
+        description="Per-request timeout in seconds for Firecrawl calls",
+    )
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        v = v.strip()
+        if v and not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("firecrawl base_url must start with http:// or https://")
+        return v.rstrip("/")
+
+    @field_validator("timeout")
+    @classmethod
+    def _validate_timeout(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("firecrawl timeout must be positive")
+        return v
+
+
 class DistroBuildSettings(BaseModel):
     """Custom Linux distribution builder settings."""
 
@@ -408,6 +439,10 @@ class Settings(BaseSettings):
     distro_builder: DistroBuildSettings = Field(
         default_factory=DistroBuildSettings,
         description="Custom Linux distro builder settings",
+    )
+    firecrawl: FirecrawlSettings = Field(
+        default_factory=FirecrawlSettings,
+        description="Self-hosted Firecrawl web-tools settings",
     )
     debug: bool = Field(
         default=False,
@@ -592,6 +627,15 @@ kernel_cache_dir = "~/.archon/kernel_cache"
 
 # Prompt for confirmation before root-required build operations
 require_root_confirmation = true
+
+# ── Firecrawl (self-hosted web tools) ──────────────────────────────────────────
+
+[firecrawl]
+# Base URL of your self-hosted Firecrawl server (github.com/firecrawl/firecrawl)
+base_url = "http://localhost:3002"
+
+# Per-request timeout in seconds (crawls can be slow)
+timeout = 120.0
 """
 
     path.write_text(content, encoding="utf-8")

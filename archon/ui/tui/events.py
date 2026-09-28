@@ -42,23 +42,26 @@ class PhaseChanged(_GenMessage):
 
 
 class ToolStarted(_GenMessage):
-    def __init__(self, gen: int, name: str, args: dict[str, Any]) -> None:
+    def __init__(self, gen: int, name: str, args: dict[str, Any], detail: str = "") -> None:
         super().__init__(gen)
         self.name = name
         self.args = args
+        self.detail = detail
 
 
 class ToolOk(_GenMessage):
-    def __init__(self, gen: int, name: str) -> None:
+    def __init__(self, gen: int, name: str, detail: str = "") -> None:
         super().__init__(gen)
         self.name = name
+        self.detail = detail
 
 
 class ToolError(_GenMessage):
-    def __init__(self, gen: int, name: str, error: str) -> None:
+    def __init__(self, gen: int, name: str, error: str, detail: str = "") -> None:
         super().__init__(gen)
         self.name = name
         self.error = error
+        self.detail = detail
 
 
 class ModelStats(_GenMessage):

@@ -325,12 +325,20 @@ class OllamaMCPAgent:
     ) -> dict[str, Any]:
         """Confirm (if risky) then execute a single tool call via MCP."""
         risk = self._classify_risk(name, args)
-        self._emit(kind="tool_start", name=name, args=args)
+        # For a direct dispatch the real capability.action is known up front; for
+        # run_automation the engine only reveals which capability it routed to in
+        # its result, so that detail is filled in on completion below.
+        detail = ""
+        if name == "dispatch_action":
+            detail = (
+                f"{args.get('capability', '')}.{args.get('action', '')}"
+            ).strip(".")
+        self._emit(kind="tool_start", name=name, args=args, detail=detail)
         if risk in (RiskLevel.HIGH, RiskLevel.DESTRUCTIVE) and not self._confirm(
             name, args, risk
         ):
             logger.info("MCP agent: {} action {} declined", risk.value, name)
-            self._emit(kind="tool_error", name=name, error="declined by user")
+            self._emit(kind="tool_error", name=name, error="declined by user", detail=detail)
             return {
                 "success": False,
                 "error": f"User declined the {risk.value}-risk action '{name}'.",
@@ -339,14 +347,22 @@ class OllamaMCPAgent:
             res = await client.call_tool(name, args, raise_on_error=False)
         except Exception as exc:  # noqa: BLE001 - report, keep the loop alive
             logger.warning("MCP agent: tool {} raised: {}", name, exc)
-            self._emit(kind="tool_error", name=name, error=f"Tool call failed: {exc}")
+            self._emit(
+                kind="tool_error", name=name, error=f"Tool call failed: {exc}", detail=detail
+            )
             return {"success": False, "error": f"Tool call failed: {exc}"}
         if getattr(res, "is_error", False):
             err = str(getattr(res, "data", res))
-            self._emit(kind="tool_error", name=name, error=err)
+            self._emit(kind="tool_error", name=name, error=err, detail=detail)
             return {"success": False, "error": err}
         data = getattr(res, "data", None)
         result = data if data is not None else {"success": True}
+        # The engine reports which capability/action it actually routed to via a
+        # `route` field — surface it so the UI shows the real work (e.g.
+        # "run_automation → filesystem.enhance_file") instead of the opaque
+        # top-level tool name.
+        if isinstance(result, dict) and result.get("route"):
+            detail = str(result["route"])
         # A tool can succeed at the transport level yet report a failed action in
         # its payload (e.g. run_automation → a workflow that failed). Surface that
         # as a tool error so the UI doesn't show a green check on a failure and
@@ -358,9 +374,9 @@ class OllamaMCPAgent:
                 or result.get("message")
                 or "the action reported failure"
             )
-            self._emit(kind="tool_error", name=name, error=str(err))
+            self._emit(kind="tool_error", name=name, error=str(err), detail=detail)
         else:
-            self._emit(kind="tool_ok", name=name)
+            self._emit(kind="tool_ok", name=name, detail=detail)
         return result
 
     def _confirm(self, name: str, args: dict[str, Any], risk: RiskLevel) -> bool:

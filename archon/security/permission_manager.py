@@ -413,6 +413,10 @@ class PermissionManager:
             ("web_automation", "extract_links"): ActionCategory.NETWORK_ACCESS,
             ("web_automation", "extract_images"): ActionCategory.NETWORK_ACCESS,
             ("web_automation", "scrape_table"): ActionCategory.NETWORK_ACCESS,
+            # Firecrawl (self-hosted) web tools
+            ("firecrawl", "firecrawl_scrape"): ActionCategory.NETWORK_ACCESS,
+            ("firecrawl", "firecrawl_crawl"): ActionCategory.NETWORK_ACCESS,
+            ("firecrawl", "firecrawl_search"): ActionCategory.NETWORK_ACCESS,
             # Universal automation actions
             ("universal_automation", "create_word_document"): ActionCategory.FILESYSTEM_WRITE,
             ("universal_automation", "create_powerpoint"): ActionCategory.FILESYSTEM_WRITE,

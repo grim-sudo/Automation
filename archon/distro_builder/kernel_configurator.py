@@ -142,7 +142,23 @@ def build_kernel(
 
     import shutil
 
-    shutil.copy2(str(config_path), str(kernel_dir / ".config"))
+    dst = kernel_dir / ".config"
+    if config_path != dst:
+        if not config_path.exists():
+            return False, f"kernel .config not found at {config_path}"
+        shutil.copy2(str(config_path), str(dst))
+
+    # No .config supplied (defconfig path) — generate one with `make defconfig`.
+    if not dst.exists():
+        logger.info("No .config present — generating defconfig …")
+        defconfig = subprocess.run(
+            ["make", "defconfig"],
+            cwd=str(kernel_dir),
+            capture_output=True,
+            text=True,
+        )
+        if defconfig.returncode != 0:
+            return False, f"make defconfig failed:\n{defconfig.stdout}\n{defconfig.stderr}"
 
     num_jobs = jobs or os.cpu_count() or 1
     cmd = ["make", f"-j{num_jobs}", "bzImage", "modules"]

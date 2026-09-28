@@ -27,6 +27,51 @@ from .rootfs_builder import build_arch_rootfs, build_buildroot_rootfs, build_deb
 console = Console()
 
 
+def _invoking_user_home() -> Path | None:
+    """Home directory of the user who launched the build, even under sudo.
+
+    When Archon runs a privileged step (or the whole process is root), a bare
+    ``~`` would resolve to ``/root``. We resolve it to the *invoking* user's home
+    via ``SUDO_USER`` so caches never land in root's home. Returns ``None`` when
+    no safe home can be determined (caller should fall back to /tmp).
+    """
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and sudo_user != "root":
+        try:
+            import pwd
+
+            return Path(pwd.getpwnam(sudo_user).pw_dir)
+        except (KeyError, ImportError):
+            return None
+    if os.geteuid() != 0:
+        return Path.home()
+    return None
+
+
+def _resolve_kernel_cache() -> Path:
+    """Resolve the kernel cache directory from config, safe under sudo/root.
+
+    Honors ``distro_builder.kernel_cache_dir`` and expands a leading ``~`` to the
+    invoking user's home (not root's). Falls back to ``/tmp/archon_kernel_cache``
+    when the configured path would resolve into root's home unsafely.
+    """
+    configured = "~/.archon/kernel_cache"
+    try:
+        from ..config import get_config
+
+        configured = get_config().distro_builder.kernel_cache_dir or configured
+    except Exception:  # noqa: BLE001 - config is optional; fall back to the default
+        pass
+
+    raw = configured.strip() or "~/.archon/kernel_cache"
+    if raw.startswith("~"):
+        home = _invoking_user_home()
+        if home is None:
+            return Path("/tmp/archon_kernel_cache")
+        raw = str(home) + raw[1:]
+    return Path(raw).expanduser().resolve()
+
+
 async def build_distro(
     profile: DistroProfile,
     output_dir: Path,
@@ -103,7 +148,7 @@ async def build_distro(
         console.print("[bold cyan]Step 2/7:[/bold cyan] Downloading kernel source")
         logger.info(f"Step 2/7: Downloading kernel {kernel_version}")
 
-        kernel_cache = Path.home() / ".archon" / "kernel_cache"
+        kernel_cache = _resolve_kernel_cache()
         kernel_cache.mkdir(parents=True, exist_ok=True)
         kernel_dir = await download_kernel(kernel_version, kernel_cache)
 

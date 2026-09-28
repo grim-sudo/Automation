@@ -91,7 +91,7 @@ def test_confirm_action_pauses_spinner_while_prompting():
     status.stop.side_effect = lambda: events.append("stop")
     status.start.side_effect = lambda: events.append("start")
     bot.console.input = MagicMock(
-        side_effect=lambda *_a, **_k: events.append("input") or "y"
+        side_effect=lambda *_a, **_k: events.append("input") or "yes"
     )
 
     approved = bot._confirm_action("run_automation", {"command": "rm -rf x"}, "DESTRUCTIVE")
@@ -110,6 +110,21 @@ def test_confirm_action_without_spinner_still_prompts():
     bot.console.input = MagicMock(return_value="n")
 
     assert bot._confirm_action("dispatch_action", {}, "HIGH") is False
+
+
+def test_confirm_requires_exact_yes_not_single_letter():
+    """Phrase-match: a bare 'y' must NOT approve a risky action — only 'yes'.
+
+    The typed confirmation is the safeguard for deletion/termination, so muscle
+    memory 'y' should fall through to a cancel.
+    """
+    bot = ChatbotMode(engine=MagicMock())
+    bot._status = None
+    bot.console.input = MagicMock(return_value="y")
+    assert bot._confirm_action("run_automation", {"command": "delete /x"}, "HIGH") is False
+
+    bot.console.input = MagicMock(return_value="YES")  # case-insensitive
+    assert bot._confirm_action("run_automation", {"command": "delete /x"}, "HIGH") is True
 
 
 def test_short_collapses_whitespace_and_caps_length():

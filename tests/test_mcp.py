@@ -84,7 +84,12 @@ class _FakeEngine:
         # agent's honest-failure surfacing.
         if "FAIL" in command:
             return {"success": False, "command": command, "error": "simulated failure"}
-        return {"success": True, "command": command, "complexity": "simple"}
+        return {
+            "success": True,
+            "command": command,
+            "complexity": "simple",
+            "route": "filesystem.create_folder",
+        }
 
 
 class _FakeProvider:
@@ -265,6 +270,55 @@ async def test_agent_runs_tool_then_answers():
     assert engine.executed == ["make a folder"]
     # A tool-role message with the result was fed back to the model.
     assert any(m.get("role") == "tool" for m in provider.calls[-1]["messages"])
+
+
+@pytest.mark.asyncio
+async def test_agent_surfaces_routed_capability_in_events():
+    """The UI must see which capability run_automation actually routed to (the
+    engine's `route`), not just the opaque wrapper name — so the activity log
+    shows 'run_automation → filesystem.create_folder' instead of a bare tool."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call("run_automation", {"command": "make a folder"})
+            ]},
+            {"role": "assistant", "content": "Done."},
+        ]
+    )
+    events: list[dict] = []
+    agent = OllamaMCPAgent(
+        engine=engine, provider=provider, confirmer=lambda *a: True, on_event=events.append
+    )
+    await agent.run("make a folder")
+    oks = [e for e in events if e["kind"] == "tool_ok"]
+    assert oks and oks[0]["name"] == "run_automation"
+    assert oks[0]["detail"] == "filesystem.create_folder"
+
+
+@pytest.mark.asyncio
+async def test_agent_dispatch_action_event_carries_capability_detail():
+    """dispatch_action knows the capability.action up front, so its start event
+    surfaces it immediately rather than waiting for a route in the result."""
+    engine = _FakeEngine()
+    provider = _FakeProvider(
+        [
+            {"role": "assistant", "content": "", "tool_calls": [
+                _tool_call(
+                    "dispatch_action",
+                    {"capability": "filesystem", "action": "create_folder", "params": {}},
+                )
+            ]},
+            {"role": "assistant", "content": "Done."},
+        ]
+    )
+    events: list[dict] = []
+    agent = OllamaMCPAgent(
+        engine=engine, provider=provider, confirmer=lambda *a: True, on_event=events.append
+    )
+    await agent.run("make a folder")
+    starts = [e for e in events if e["kind"] == "tool_start"]
+    assert starts and starts[0]["detail"] == "filesystem.create_folder"
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Center, Middle, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input, Static
 
 from .widgets.glyphs import GLYPHS
 
@@ -84,3 +84,77 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_deny(self) -> None:
         self.dismiss(False)
+
+
+class PhraseConfirmScreen(ModalScreen[bool]):
+    """Typed-confirmation modal for risky actions.
+
+    Unlike a one-keystroke y/n, the user must type an exact phrase (default
+    ``yes``) to proceed. Archon does the phrase match; anything else — including
+    an empty submission or Escape — cancels. Used for HIGH/DESTRUCTIVE actions
+    such as deletion, where a deliberate keystroke sequence is the safeguard.
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, prompt: str, detail: str = "", phrase: str = "yes") -> None:
+        super().__init__()
+        self._prompt = prompt
+        self._detail = detail
+        self._phrase = phrase
+
+    def compose(self) -> ComposeResult:
+        text = Text()
+        text.append(f"{GLYPHS.err} CONFIRM\n\n", style="#d9a441 bold")
+        text.append(self._prompt, style="#d7dae0")
+        if self._detail:
+            text.append(f"\n\n{self._detail}", style="#8a8f98")
+        text.append(
+            f"\n\nType '{self._phrase}' to proceed, anything else cancels.",
+            style="#cc6666",
+        )
+        with Center(Middle(Vertical(classes="confirm-box"))):
+            yield Static(text, classes="confirm-text")
+            yield Input(placeholder=f"type '{self._phrase}'", id="phrase-input")
+
+    def on_mount(self) -> None:
+        self.query_one("#phrase-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value.strip().lower() == self._phrase.lower())
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
+class SudoPromptScreen(ModalScreen[str | None]):
+    """Masked password prompt for privilege escalation.
+
+    Returns the entered password, or ``None`` if the user cancels (Escape or an
+    empty submission). The password is handed straight to the escalator and
+    never stored by the UI.
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, reason: str) -> None:
+        super().__init__()
+        self._reason = reason
+
+    def compose(self) -> ComposeResult:
+        text = Text()
+        text.append(f"{GLYPHS.err} SUDO REQUIRED\n\n", style="#d9a441 bold")
+        text.append(f"{self._reason} needs root privileges.\n", style="#d7dae0")
+        text.append("Enter your sudo password to continue.", style="#8a8f98")
+        with Center(Middle(Vertical(classes="confirm-box"))):
+            yield Static(text, classes="confirm-text")
+            yield Input(password=True, placeholder="sudo password", id="sudo-input")
+
+    def on_mount(self) -> None:
+        self.query_one("#sudo-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value or None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

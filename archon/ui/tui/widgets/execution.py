@@ -22,9 +22,10 @@ from .glyphs import GLYPHS, PENDING
 class ToolCallView(Static):
     """One tool operation row: glyph + name + elapsed time."""
 
-    def __init__(self, name: str, state: str = "run") -> None:
+    def __init__(self, name: str, state: str = "run", detail: str = "") -> None:
         super().__init__(classes="tool-row")
         self._name = name
+        self._detail = detail
         self._state = state  # "pending" | "run" | "ok" | "err"
         self._error = ""
         self._start = time.monotonic()
@@ -50,12 +51,22 @@ class ToolCallView(Static):
         line = Text()
         line.append_text(self._glyph())
         line.append(f"  {self._name}", style="#d7dae0" if self._state != "err" else "#cc6666")
+        # The resolved capability the wrapper routed to (e.g. filesystem.enhance_file).
+        if self._detail and self._detail != self._name:
+            line.append("  → ", style="#4b4f57")
+            line.append(self._detail, style="#8a6d3b")
         elapsed = self._elapsed_text()
         if elapsed:
             line.append(f"   {elapsed}", style="#4b4f57")
         if self._error:
             line.append(f"\n     {self._error}", style="#cc6666")
         return line
+
+    def set_detail(self, detail: str) -> None:
+        """Fill in the resolved capability once the engine reports it."""
+        if detail and detail != self._detail:
+            self._detail = detail
+            self.refresh()
 
     def mark_ok(self) -> None:
         self._state = "ok"
@@ -96,16 +107,19 @@ class ExecutionView(Collapsible):
     def _set_title(self, text: str) -> None:
         self.title = text
 
-    def start_tool(self, name: str, args: dict[str, Any] | None = None) -> None:
+    def start_tool(
+        self, name: str, args: dict[str, Any] | None = None, detail: str = ""
+    ) -> None:
         self._set_title("EXECUTION · RUNNING")
-        row = ToolCallView(name)
+        row = ToolCallView(name, detail=detail)
         self._rows.append(row)
         self.query_one("#exec-rows", Vertical).mount(row)
         row.scroll_visible()
 
-    def finish_tool(self, name: str, ok: bool, error: str = "") -> None:
+    def finish_tool(self, name: str, ok: bool, error: str = "", detail: str = "") -> None:
         for row in reversed(self._rows):
             if row.name == name and row.running:
+                row.set_detail(detail)
                 if ok:
                     row.mark_ok()
                 else:
@@ -113,7 +127,7 @@ class ExecutionView(Collapsible):
                 self._count += 1
                 return
         # Completion without a matching start still shows, so nothing is lost.
-        row = ToolCallView(name, state="ok" if ok else "err")
+        row = ToolCallView(name, state="ok" if ok else "err", detail=detail)
         if not ok:
             row._error = error
         self._rows.append(row)

@@ -29,32 +29,61 @@ _BUILDROOT_URL = "https://buildroot.org/downloads/buildroot-snapshot.tar.gz"
 
 
 def _require_root(func_name: str) -> None:
-    """Raise PermissionError if not running as root.
+    """Ensure privileged commands can run, or raise PermissionError.
+
+    Root itself is fine. Otherwise an active :class:`PrivilegeEscalator` session
+    (opened by the caller after prompting for the sudo password) lets the build
+    proceed by running each command through ``sudo -S``. Only when neither is
+    available do we refuse.
 
     Args:
         func_name: Name of the calling function for the error message.
 
     Raises:
-        PermissionError: If not root.
+        PermissionError: If not root and no sudo escalation session is active.
     """
-    if os.geteuid() != 0:
-        raise PermissionError(
-            f"{func_name}() requires root privileges. Re-run with sudo or as root."
-        )
+    if os.geteuid() == 0:
+        return
+    try:
+        from ..security.privilege import get_escalator
+
+        if get_escalator().active_session is not None:
+            return
+    except Exception:  # noqa: BLE001 - fall through to the honest refusal
+        pass
+    raise PermissionError(
+        f"{func_name}() requires root privileges. Re-run with sudo or as root."
+    )
 
 
 def _run_logged(
     cmd: list[str], cwd: str | None = None, env: dict | None = None
 ) -> tuple[bool, str]:
-    """Run a command, log stdout/stderr, return (success, combined_log)."""
+    """Run a command, log stdout/stderr, return (success, combined_log).
+
+    When not root but a sudo-escalation session is active, the command runs
+    through ``sudo -S`` transparently so the whole build can complete.
+    """
     logger.debug("Running: {}", " ".join(cmd))
-    result = subprocess.run(
-        cmd,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        env=env or dict(os.environ),
-    )
+    session = None
+    if os.geteuid() != 0:
+        try:
+            from ..security.privilege import get_escalator
+
+            session = get_escalator().active_session
+        except Exception:  # noqa: BLE001
+            session = None
+    run_env = env or dict(os.environ)
+    if session is not None:
+        result = session.run(cmd, cwd=cwd, env=run_env)
+    else:
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=run_env,
+        )
     output = (result.stdout or "") + "\n" + (result.stderr or "")
     if result.returncode != 0:
         logger.error("Command failed (exit {}):\n{}", result.returncode, result.stderr[:500])
