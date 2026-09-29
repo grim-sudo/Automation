@@ -174,14 +174,14 @@ What those intents can actually do:
 |--------|----------|
 | **Files & folders** | create, delete, copy, move, rename, list, bulk-create, nested trees |
 | **Package management** | install, uninstall, search, list (apt / pacman / pip / npm / brew) |
-| **Project scaffolding** | Python, C, Java, React, Next.js, Express, web-scraping, data-science starters |
+| **Project scaffolding** | Python, C, Java, React, Next.js, Express, web-scraping, data-science starters, plus AI-driven multi-file generation for arbitrary projects (e.g. a transformer model) |
 | **DevOps & infrastructure** | Dockerfile, docker-compose, Kubernetes manifests, CI/CD, Terraform, monitoring |
 | **Document generation** | Word (`.docx`), PowerPoint (`.pptx`), Excel (`.xlsx`), PDF |
 | **Web automation** | browser control and scraping; text / link / image / table extraction |
 | **System administration** | services, firewall, users, permissions, scheduled tasks |
 | **Security** | SSL setup, vulnerability scan, compliance check, hardening |
 | **n8n workflows** | create, list, run, and check status via the n8n REST API |
-| **Linux distro builder** | Debian / Arch / Buildroot ISOs from TOML profiles or a description |
+| **Linux distro builder** | Debian / Arch / Buildroot ISOs from TOML profiles or a description; picks the desktop/compositor (GNOME, KDE, Hyprland, sway, i3, …) and kernel flavor (standard, hardened, lts, zen/cachyos, kali) from the request, with descriptive auto-naming |
 
 A complete command reference with examples for every capability lives in
 **[docs/usage.md](docs/usage.md)**.
@@ -457,7 +457,7 @@ Automation/
 ├── ui-tauri/                     Desktop command center (Tauri v2 + Vite + TypeScript)
 ├── userguide.md                  End-to-end user guide (every interface and flag)
 ├── docs/                         usage.md
-└── tests/                        pytest suite (306 tests)
+└── tests/                        pytest suite (449 tests)
 ```
 
 **Entry points**
@@ -520,7 +520,7 @@ workflows = asyncio.run(mgr.list_workflows())
 ```bash
 pip install -e ".[dev]"
 
-# Run the test suite (275 tests)
+# Run the test suite (449 tests)
 pytest tests/ -v -m "not integration and not slow"
 
 # Lint, format, and type-check
