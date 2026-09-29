@@ -1018,25 +1018,30 @@ scrape_configs:
             "location": location,
         }
 
-    def _dynamic_action_handler(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _dynamic_action_handler(
+        self, action: str, params: dict[str, Any], sandbox: bool = False
+    ) -> dict[str, Any]:
         """Handle any action dynamically using AI and system capabilities"""
 
-        # Try to map action to system commands
-        action_mappings = {
-            "create_website": self._create_website,
-            "setup_database": self._setup_database,
-            "backup_system": self._backup_system,
-            "optimize_performance": self._optimize_performance,
-            "security_audit": self._security_audit,
-            "deploy_microservices": self._deploy_microservices,
-            "setup_ci_cd": self._setup_ci_cd,
-            "data_analysis": self._data_analysis,
-            "machine_learning": self._machine_learning,
-            "blockchain_deploy": self._blockchain_deploy,
+        # Map known actions to their handler *method names*; resolve lazily so a
+        # not-yet-implemented handler (most of these are aspirational) is simply
+        # skipped instead of raising AttributeError while building the dict.
+        handler_names = {
+            "create_website": "_create_website",
+            "setup_database": "_setup_database",
+            "backup_system": "_backup_system",
+            "optimize_performance": "_optimize_performance",
+            "security_audit": "_security_audit",
+            "deploy_microservices": "_deploy_microservices",
+            "setup_ci_cd": "_setup_ci_cd",
+            "data_analysis": "_data_analysis",
+            "machine_learning": "_machine_learning",
+            "blockchain_deploy": "_blockchain_deploy",
         }
 
-        if action in action_mappings:
-            return action_mappings[action](params)
+        handler = getattr(self, handler_names[action], None) if action in handler_names else None
+        if handler is not None:
+            return handler(params)
 
         # If no specific handler, try to execute as system command
         try:
@@ -1057,6 +1062,14 @@ scrape_configs:
                 command += f" {params['name']}"
             if "location" in params:
                 command += f" in {params['location']}"
+
+            # In sandbox mode never touch the system — simulate the command.
+            if sandbox:
+                return {
+                    "success": True,
+                    "sandbox": True,
+                    "message": f"(sandbox) simulated: {command}",
+                }
 
             # Execute as system command using safe_run (shlex splits the string)
             result = safe_run(command)

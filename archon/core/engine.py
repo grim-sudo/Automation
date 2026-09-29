@@ -724,6 +724,25 @@ class Archon:
         except PrivilegeError as exc:
             return {"success": False, "message": str(exc), "iso_path": None}
 
+    # "output directory /data", "output dir ~/isos", "output to ./build", or a
+    # trailing "... in /data" — capture the path token that follows.
+    _OUTPUT_DIR_RE = re.compile(
+        r"\boutput\s+(?:directory|dir|folder|to|into|at)?\s*"
+        r"(?P<path>~?/[^\s,;]+|\./[^\s,;]+)",
+        re.IGNORECASE,
+    )
+
+    def _extract_output_dir(self, command: str) -> str | None:
+        """Pull an output directory path out of a natural-language build request.
+
+        Returns the path string when the user named one, else ``None`` so the
+        caller falls back to configured defaults. Only absolute (``/``, ``~/``)
+        or explicit relative (``./``) paths are honored to avoid grabbing stray
+        words like "output the iso".
+        """
+        match = self._OUTPUT_DIR_RE.search(command)
+        return match.group("path") if match else None
+
     def _run_distro_build(self, command: str) -> dict[str, Any]:
         """Run the real OS-build pipeline (root or an active sudo session)."""
         try:
@@ -732,21 +751,34 @@ class Archon:
 
             from ..distro_builder.build_pipeline import build_from_nl
 
-            try:
-                from ..config import get_settings
+            # Honor an output directory named in the request (e.g. "output
+            # directory /data for the iso"); otherwise fall back to config.
+            output_dir = self._extract_output_dir(command)
+            if output_dir is None:
+                try:
+                    from ..config import get_settings
 
-                output_dir = get_settings().distro_builder.output_dir
-            except Exception:
-                output_dir = "./distro_output"
+                    output_dir = get_settings().distro_builder.output_dir
+                except Exception:
+                    output_dir = "./distro_output"
 
             out = Path(output_dir).expanduser().resolve()
             result = asyncio.run(build_from_nl(command, out))
+            success = bool(getattr(result, "success", False))
+            iso_path = getattr(result, "iso_path", None)
+            error_message = getattr(result, "error_message", None)
+            log_path = getattr(result, "log_path", None)
+            if success:
+                message = f"ISO built: {iso_path}"
+            else:
+                # A failed build must never read like a success ("ISO built:
+                # None"). Surface the real reason, or point at the log.
+                message = error_message or f"Distro build failed. See log: {log_path}"
             return {
-                "success": bool(getattr(result, "success", False)),
-                "message": getattr(result, "error_message", None)
-                or f"ISO built: {getattr(result, 'iso_path', None)}",
-                "iso_path": getattr(result, "iso_path", None),
-                "log_path": getattr(result, "log_path", None),
+                "success": success,
+                "message": message,
+                "iso_path": iso_path,
+                "log_path": log_path,
                 "build_time_seconds": getattr(result, "build_time_seconds", None),
             }
         except PermissionError as exc:

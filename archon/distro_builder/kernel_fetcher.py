@@ -76,8 +76,20 @@ async def download_kernel(version: str, dest_dir: Path) -> Path:
     extracted_path = dest_dir / f"linux-{version}"
 
     if extracted_path.exists():
-        logger.info("Kernel {} already extracted at {}", version, extracted_path)
-        return extracted_path
+        # Only reuse a cached tree we can actually build in. A kernel compile
+        # writes thousands of files *into* the source dir, so a tree left
+        # root-owned by an earlier privileged run would fail cryptically
+        # mid-build (mkdir/.tmp Permission denied). Fail fast with a fix instead.
+        import os
+
+        if os.access(extracted_path, os.W_OK):
+            logger.info("Kernel {} already extracted at {}", version, extracted_path)
+            return extracted_path
+        raise RuntimeError(
+            f"Cached kernel source at {extracted_path} is not writable by the current "
+            f"user — it was likely left root-owned by an earlier privileged run. "
+            f"Remove it with `sudo rm -rf {extracted_path}` and rebuild."
+        )
 
     # ── Download tarball ──────────────────────────────────────────────────────
     logger.info("Downloading kernel {} …", version)

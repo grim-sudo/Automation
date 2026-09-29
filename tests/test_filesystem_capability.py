@@ -55,3 +55,14 @@ def test_plugin_delegates_folder_creation(tmp_path):
     assert res["success"] is True
     assert os.path.isdir(res["path"])
     assert plugin._filesystem is plugin._filesystem  # cached accessor
+
+
+def test_dynamic_action_in_sandbox_simulates_and_does_not_crash():
+    # Regression: the sandbox path used to pass a `sandbox=` kwarg the dynamic
+    # handler did not accept, raising "unexpected keyword argument 'sandbox'".
+    # It must now simulate (no system execution) and report success.
+    plugin = UniversalAutomationPlugin()
+    res = plugin.execute("run_tests", {"_sandbox": True})
+    assert res["success"] is True
+    assert res.get("sandbox") is True
+    assert "simulated" in res["message"].lower()

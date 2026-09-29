@@ -36,6 +36,18 @@ def test_engine_and_task_executor_share_codegen():
     assert exec_inst._generate_fibonacci_code() == generate_fibonacci_code()
 
 
+def test_extract_output_dir_from_nl_request():
+    from archon.core.engine import Archon
+
+    # __init__ is heavy; the extractor only reads a class-level regex.
+    engine = object.__new__(Archon)
+    assert engine._extract_output_dir("build a distro, output directory /data for the iso") == "/data"
+    assert engine._extract_output_dir("output dir ~/isos please") == "~/isos"
+    assert engine._extract_output_dir("output to ./build") == "./build"
+    # No explicit path => None so the caller falls back to config defaults.
+    assert engine._extract_output_dir("just build me an iso and output the results") is None
+
+
 # ─── file resolver ─────────────────────────────────────────────────────────────
 
 

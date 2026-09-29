@@ -110,17 +110,20 @@ def test_filesystem_create_file_with_name_still_uses_adapter(engine, tmp_path):
 
 
 def test_prefix_action_falls_through_to_unknown_plugin(engine, tmp_path):
-    # 'create_folder_deep' prefix-matches the 'create_folder' capability, is
-    # dispatched to universal_automation, whose dynamic handler raises; the
-    # engine falls through to the category-name fallback and raises for 'misc'.
-    with pytest.raises(ValueError, match="misc"):
-        engine._execute_parsed_command(
-            {
-                "action": "create_folder_deep",
-                "category": "misc",
-                "params": {"path": str(tmp_path / "x")},
-            }
-        )
+    # 'create_folder_deep' prefix-matches the 'create_folder' capability and is
+    # dispatched to universal_automation's dynamic handler. That handler no
+    # longer crashes (it used to raise AttributeError building a table of
+    # unimplemented handlers); an unknown action now returns a structured
+    # failure instead of blowing up.
+    res = engine._execute_parsed_command(
+        {
+            "action": "create_folder_deep",
+            "category": "misc",
+            "params": {"path": str(tmp_path / "x")},
+        }
+    )
+    assert isinstance(res, dict)
+    assert res["success"] is False
 
 
 # ── chat() seamless router ──────────────────────────────────────────────────
