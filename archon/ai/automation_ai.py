@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -112,6 +113,36 @@ advice. Use plain text; no markdown headers or JSON.
 # aborts a valid, still-streaming reply, so document generation gets its own
 # generous ceiling.
 _DOCUMENT_TIMEOUT = 600.0
+
+
+def _extract_json(text: str) -> Any:
+    """Parse the first JSON object/array out of a model reply, or return ``None``.
+
+    Handles the common cases where the model wraps JSON in a ```` ```json ```` fence
+    or surrounds it with prose: we try a direct parse first, then fall back to the
+    substring spanning the first ``{``/``[`` and its matching last ``}``/``]``.
+    """
+    if not text:
+        return None
+    with contextlib.suppress(json.JSONDecodeError):
+        return json.loads(text)
+    # Strip a markdown fence if present.
+    if text.startswith("```"):
+        lines = text.split("\n")
+        text = "\n".join(lines[1:])
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        with contextlib.suppress(json.JSONDecodeError):
+            return json.loads(text)
+    # Last resort: slice the widest brace/bracket span and try that.
+    for open_ch, close_ch in (("{", "}"), ("[", "]")):
+        start = text.find(open_ch)
+        end = text.rfind(close_ch)
+        if start != -1 and end > start:
+            with contextlib.suppress(json.JSONDecodeError):
+                return json.loads(text[start : end + 1])
+    return None
 
 
 class OllamaAutomationAI:
@@ -455,11 +486,16 @@ class OllamaAutomationAI:
         except Exception:
             return {"optimized_steps": steps, "improvements": [], "parallel_groups": []}
 
-    def generate_code(self, prompt: str, system_prompt: str | None = None) -> str:
+    def generate_code(
+        self, prompt: str, system_prompt: str | None = None, max_tokens: int = 2000
+    ) -> str:
         """Generate raw code/text for ``prompt`` (empty string when unavailable).
 
         Strips a leading/trailing markdown code fence if the model wraps its
         output. Returns ``""`` on any failure so callers fall back cleanly.
+
+        ``max_tokens`` is caller-tunable so multi-file project generation can ask
+        for larger single-file outputs than the 2000-token default.
         """
         if not self._is_available:
             return ""
@@ -473,7 +509,7 @@ class OllamaAutomationAI:
                 {"role": "user", "content": prompt},
             ]
             raw = self._run_sync(
-                self._ollama.complete(messages, temperature=0.7, max_tokens=2000)
+                self._ollama.complete(messages, temperature=0.7, max_tokens=max_tokens)
             )
             code = (raw or "").strip()
             if code.startswith("```"):
@@ -487,6 +523,37 @@ class OllamaAutomationAI:
         except Exception as exc:
             logger.warning("generate_code failed: {}", exc)
             return ""
+
+    def generate_json(
+        self, prompt: str, system_prompt: str | None = None, max_tokens: int = 1500
+    ) -> Any:
+        """Ask the model for JSON and return the parsed object (``None`` on failure).
+
+        Robust to the model wrapping the JSON in prose or a ```` ```json ```` fence:
+        the first ``{...}`` or ``[...]`` span is extracted before parsing. Returns
+        ``None`` when offline or when nothing parseable comes back, so callers can
+        fall back cleanly.
+        """
+        if not self._is_available:
+            return None
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        system_prompt
+                        or "You return only valid JSON. No prose, no markdown fences."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ]
+            raw = self._run_sync(
+                self._ollama.complete(messages, temperature=0.3, max_tokens=max_tokens)
+            )
+            return _extract_json((raw or "").strip())
+        except Exception as exc:
+            logger.warning("generate_json failed: {}", exc)
+            return None
 
     def generate_document(self, request: str, filename: str = "") -> str:
         """Generate prose/markdown document body for a natural-language request.

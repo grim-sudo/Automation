@@ -8,6 +8,75 @@ from loguru import logger
 
 from archon.distro_builder.models import DistroProfile
 
+# Cybersecurity tool groups (Debian/Kali package names). These are installed
+# resiliently — a name missing from the enabled repos is skipped, not fatal —
+# and the heavy hitters (metasploit-framework, burpsuite, veracrypt) come from
+# the Kali repo layered on the Debian base when a security build is requested.
+_PENTEST_TOOLS = [
+    "nmap", "masscan", "wireshark", "tcpdump", "netcat-traditional",
+    "hydra", "john", "hashcat", "sqlmap", "nikto", "aircrack-ng",
+    "dnsutils", "dnsrecon", "whatweb", "dirb", "gobuster", "wfuzz",
+    "wpscan", "enum4linux", "metasploit-framework", "burpsuite",
+]
+_BLUETEAM_TOOLS = [
+    "auditd", "rsyslog", "snort", "suricata", "fail2ban", "aide",
+    "rkhunter", "chkrootkit", "clamav", "osquery",
+]
+_FORENSICS_TOOLS = [
+    "sleuthkit", "autopsy", "foremost", "testdisk", "binwalk",
+    "gddrescue", "volatility3", "yara",
+]
+_SPOOFING_TOOLS = [
+    "macchanger", "ettercap-text-only", "dsniff", "bettercap",
+    "tor", "openvpn", "proxychains4", "wireguard-tools",
+]
+_HARDENING_TOOLS = [
+    "apparmor", "apparmor-utils", "ufw", "fail2ban", "auditd",
+    "nftables", "unattended-upgrades", "libpam-pwquality", "veracrypt",
+]
+# The umbrella "cybersecurity" request pulls a curated must-have subset across
+# every discipline so a bare "cybersecurity OS" is useful out of the box.
+_CYBERSEC_ESSENTIALS = (
+    ["nmap", "wireshark", "tcpdump", "hydra", "john", "sqlmap", "nikto",
+     "aircrack-ng", "metasploit-framework", "burpsuite"]
+    + ["auditd", "snort", "suricata", "sleuthkit", "volatility3", "rkhunter"]
+    + ["macchanger", "tor", "openvpn", "proxychains4"]
+    + ["apparmor", "apparmor-utils", "ufw", "fail2ban", "nftables", "veracrypt"]
+)
+
+# Phrases that indicate a security-focused build needing the Kali repo. Matched
+# as case-insensitive substrings against the request.
+KALI_TRIGGER_KEYWORDS = (
+    "cybersecurity", "cyber security", "pentest", "pentesting",
+    "penetration testing", "penetration test", "red team", "red-team",
+    "blue team", "blue teaming", "blue-team", "forensics", "dfir",
+    "incident response", "kali",
+)
+
+# The userland "omarchy" (an opinionated Arch + Hyprland setup) is known for, on
+# top of the Hyprland desktop group. Kept to packages available in Arch's repos.
+_OMARCHY_PACKAGES = [
+    "alacritty", "neovim", "starship", "fzf", "ripgrep", "fastfetch",
+    "hyprlock", "hypridle", "mako", "wl-clipboard", "brightnessctl",
+    "playerctl", "polkit-gnome", "ttf-jetbrains-mono-nerd",
+]
+
+# Kernel-flavor keywords → flavor. Checked in order; first hit wins.
+_KERNEL_FLAVOR_HINTS = (
+    ("cachyos", "cachyos"),
+    ("cachy", "cachyos"),
+    ("linux-zen", "zen"),
+    ("zen kernel", "zen"),
+    ("hardened kernel", "hardened"),
+    ("hardened", "hardened"),
+    ("lts kernel", "lts"),
+    ("long-term", "lts"),
+    ("long term", "lts"),
+    ("kali kernel", "kali"),
+    ("performance kernel", "zen"),
+    ("gaming", "zen"),
+)
+
 PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
     "debian": {
         "web server": ["nginx"],
@@ -24,8 +93,16 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
         "lxqt": ["lxqt", "sddm"],
         "mate": ["mate-desktop-environment", "lightdm"],
         "cinnamon": ["cinnamon-desktop-environment", "lightdm"],
-        "hyprland": ["hyprland", "waybar", "wofi"],
-        "sway": ["sway", "swaybg", "waybar"],
+        "hyprland": ["hyprland", "waybar", "wofi", "xdg-desktop-portal-hyprland"],
+        "sway": ["sway", "swaybg", "waybar", "wofi"],
+        "budgie": ["budgie-desktop", "lightdm"],
+        "cosmic": ["cosmic-session", "cosmic-greeter"],
+        "deepin": ["deepin-desktop-environment", "lightdm"],
+        "enlightenment": ["enlightenment", "lightdm"],
+        "i3": ["i3", "i3status", "dmenu", "lightdm"],
+        "bspwm": ["bspwm", "sxhkd", "dmenu", "lightdm"],
+        "awesome": ["awesome", "lightdm"],
+        "openbox": ["openbox", "obconf", "lightdm"],
         "development": ["build-essential", "git", "python3", "python3-pip", "cmake"],
         "gaming": ["steam", "wine", "lutris"],
         "audio workstation": ["jackd2", "ardour", "hydrogen", "qjackctl"],
@@ -42,6 +119,19 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
         "nmap": ["nmap"],
         "wireshark": ["wireshark"],
         "tcpdump": ["tcpdump"],
+        # Cybersecurity discipline groups (Kali-backed on the Debian base).
+        "cybersecurity": _CYBERSEC_ESSENTIALS,
+        "cyber security": _CYBERSEC_ESSENTIALS,
+        "pentest": _PENTEST_TOOLS,
+        "pentesting": _PENTEST_TOOLS,
+        "penetration testing": _PENTEST_TOOLS,
+        "red team": _PENTEST_TOOLS,
+        "blue team": _BLUETEAM_TOOLS,
+        "blue teaming": _BLUETEAM_TOOLS,
+        "forensics": _FORENSICS_TOOLS,
+        "dfir": _FORENSICS_TOOLS,
+        "spoofing": _SPOOFING_TOOLS,
+        "hardening": _HARDENING_TOOLS,
         "media": ["vlc", "ffmpeg", "imagemagick"],
         "office": ["libreoffice"],
         "minimal": [],
@@ -68,8 +158,17 @@ PACKAGE_MAP: dict[str, dict[str, list[str]]] = {
         "lxqt": ["lxqt", "sddm"],
         "mate": ["mate", "lightdm"],
         "cinnamon": ["cinnamon", "lightdm"],
-        "hyprland": ["hyprland", "waybar", "wofi"],
-        "sway": ["sway", "swaybg", "waybar"],
+        "hyprland": ["hyprland", "waybar", "wofi", "xdg-desktop-portal-hyprland"],
+        "sway": ["sway", "swaybg", "waybar", "wofi"],
+        "budgie": ["budgie-desktop", "lightdm"],
+        "cosmic": ["cosmic"],
+        "niri": ["niri", "waybar", "wofi"],
+        "deepin": ["deepin", "deepin-extra", "lightdm"],
+        "enlightenment": ["enlightenment", "lightdm"],
+        "i3": ["i3-wm", "i3status", "dmenu", "lightdm"],
+        "bspwm": ["bspwm", "sxhkd", "dmenu", "lightdm"],
+        "awesome": ["awesome", "lightdm"],
+        "openbox": ["openbox", "obconf", "lightdm"],
         "development": ["base-devel", "git", "python", "python-pip", "cmake"],
         "gaming": ["steam", "wine", "lutris"],
         "audio workstation": ["jack2", "ardour", "hydrogen"],
@@ -175,19 +274,31 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
 
     nl_lower = nl_command.lower()
 
-    # Detect base distro
+    # Detect base distro. "omarchy" is an opinionated Arch + Hyprland setup, so it
+    # implies the Arch base regardless of the word "arch" appearing.
     base: Literal["debian", "arch", "unix"] = "debian"
-    if "arch" in nl_lower:
+    if "arch" in nl_lower or "omarchy" in nl_lower:
         base = "arch"
     elif "buildroot" in nl_lower or "minimal unix" in nl_lower or "unix" in nl_lower:
         base = "unix"
 
-    # Detect desktop environment
+    # Detect desktop environment / compositor. Longer, more specific names are
+    # checked first so e.g. "lxqt" wins over a bare "lx" and "i3" doesn't shadow
+    # a fuller name. omarchy is Hyprland-based.
     desktop: str | None = None
-    for de in ["kde", "gnome", "xfce", "lxqt", "lxde", "mate", "cinnamon", "hyprland", "sway"]:
-        if de in nl_lower:
-            desktop = de
-            break
+    _DE_KEYWORDS = [
+        "hyprland", "cinnamon", "enlightenment", "openbox", "budgie", "cosmic",
+        "deepin", "awesome", "bspwm", "gnome", "plasma", "kde", "xfce", "lxqt",
+        "lxde", "mate", "sway", "niri", "i3",
+    ]
+    if "omarchy" in nl_lower:
+        desktop = "hyprland"
+    else:
+        for de in _DE_KEYWORDS:
+            if de in nl_lower:
+                # "plasma" is KDE's package group keyword.
+                desktop = "kde" if de == "plasma" else de
+                break
     # Headless / server / no GUI overrides any desktop detection
     if "no gui" in nl_lower or "headless" in nl_lower or "server" in nl_lower:
         desktop = None
@@ -202,6 +313,13 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
     # If a desktop was detected, pull its package group in as well
     if desktop and base in PACKAGE_MAP:
         for pkg in PACKAGE_MAP[base].get(desktop, []):
+            if pkg not in packages:
+                packages.append(pkg)
+
+    # "omarchy" is a curated Arch + Hyprland desktop. Pull the tiling-desktop
+    # userland it is known for on top of the Hyprland group already added above.
+    if "omarchy" in nl_lower and base == "arch":
+        for pkg in _OMARCHY_PACKAGES:
             if pkg not in packages:
                 packages.append(pkg)
 
@@ -230,18 +348,33 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
     #     build, so they imply a custom kernel.
     source = _detect_kernel_source(nl_lower, has_kconfig=bool(kconfig))
 
+    # Pick which prebuilt kernel line best fits the request (performance, hardened,
+    # LTS, Kali, …). Only meaningful for the prebuilt path; a custom source build
+    # compiles its own kernel from kconfig.
+    flavor = _detect_kernel_flavor(nl_lower, base)
+
+    # A security-focused request on the Debian base needs the Kali repo so tools
+    # absent from Debian (metasploit, burpsuite, veracrypt, …) are installable.
+    kali_repo = base == "debian" and any(k in nl_lower for k in KALI_TRIGGER_KEYWORDS)
+
+    name = _derive_name(nl_lower, base, desktop)
+
     logger.debug(
-        f"nl_to_profile: base={base} desktop={desktop} kernel_source={source} "
-        f"hostname={hostname} packages={packages} kconfig={kconfig}"
+        f"nl_to_profile: name={name} base={base} desktop={desktop} kernel_source={source} "
+        f"flavor={flavor} hostname={hostname} kali_repo={kali_repo} "
+        f"packages={packages} kconfig={kconfig}"
     )
 
     return DistroProfile(
-        name=f"custom-{base}",
+        name=name,
         base=base,
-        kernel=KernelConfig(version="latest-stable", source=source, kconfig_options=kconfig),
+        kernel=KernelConfig(
+            version="latest-stable", source=source, flavor=flavor, kconfig_options=kconfig
+        ),
         packages=list(dict.fromkeys(packages)),  # dedupe, preserve order
         hostname=hostname,
         desktop=desktop,
+        kali_repo=kali_repo,
     )
 
 
@@ -279,3 +412,69 @@ def _detect_kernel_source(nl_lower: str, has_kconfig: bool) -> Literal["prebuilt
     if any(h in nl_lower for h in _PREBUILT_KERNEL_HINTS):
         return "prebuilt"
     return "custom" if has_kconfig else "prebuilt"
+
+
+def _detect_kernel_flavor(
+    nl_lower: str, base: str
+) -> Literal["standard", "hardened", "lts", "zen", "cachyos", "kali"]:
+    """Pick the prebuilt kernel line that best matches the request.
+
+    A security build on Debian gets Kali's kernel (it rides in on the Kali repo).
+    Otherwise keyword hints select hardened/lts/zen/cachyos. The result is then
+    constrained to what the chosen base can actually provide — the rootfs builder
+    maps flavor → package per base, but keeping the profile honest here avoids
+    promising e.g. a CachyOS kernel on Debian.
+    """
+    if base == "debian" and any(k in nl_lower for k in KALI_TRIGGER_KEYWORDS):
+        detected = "kali"
+    else:
+        detected = "standard"
+        for hint, flavor in _KERNEL_FLAVOR_HINTS:
+            if hint in nl_lower:
+                detected = flavor
+                break
+
+    # Debian ships neither zen/cachyos nor an LTS-tagged image; Arch has no Kali
+    # kernel. Fall back to the base default rather than a name that won't resolve.
+    if base == "debian" and detected in ("zen", "cachyos", "lts"):
+        return "standard"
+    if base != "debian" and detected == "kali":
+        return "standard"
+    return detected
+
+
+# Recognizable build intents → a short, descriptive name segment. First match wins.
+_NAME_INTENTS = (
+    (("cybersecurity", "cyber security", "pentest", "penetration", "red team",
+      "blue team", "forensics", "dfir", "hardening", "security"), "secops"),
+    (("privacy", "anonymous", "anonymity", "spoofing", "tor "), "ghostshell"),
+    (("machine learning", "deep learning", " ml ", " ai ", "data science",
+      "data analysis", "transformer"), "datalab"),
+    (("gaming", "game "), "playdeck"),
+    (("media", "audio", "video", "content creation"), "mediaforge"),
+    (("developer", "development", "programming", "coding"), "devbox"),
+    (("server", "headless"), "server"),
+)
+
+
+def _derive_name(nl_lower: str, base: str, desktop: str | None) -> str:
+    """Build a descriptive, filesystem-safe distro/ISO name from the request.
+
+    Replaces the old generic ``custom-<base>`` with something that reflects intent,
+    e.g. ``archon-secops-debian`` or ``archon-omarchy``. The name doubles as the
+    ISO filename and boot label, so it stays lowercase, hyphenated, and short.
+    """
+    if "omarchy" in nl_lower:
+        return "archon-omarchy"
+
+    intent: str | None = None
+    for keywords, label in _NAME_INTENTS:
+        if any(k in nl_lower for k in keywords):
+            intent = label
+            break
+
+    parts = ["archon"]
+    if intent:
+        parts.append(intent)
+    parts.append(base)
+    return "-".join(parts)

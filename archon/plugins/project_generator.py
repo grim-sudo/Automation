@@ -35,6 +35,7 @@ class ProjectGeneratorPlugin(AutomationPlugin):
             "create_express_backend",
             "create_c_program",
             "create_hello_world",
+            "generate_project",
         ]
 
     def execute(self, action: str, params: dict[str, Any]) -> Any:
@@ -45,6 +46,13 @@ class ProjectGeneratorPlugin(AutomationPlugin):
             if not isinstance(params, dict):
                 raise ValueError("Params must be a dictionary")
 
+            if action == "generate_project":
+                return self._generate_project(
+                    params.get("description") or params.get("request") or "",
+                    params.get("name"),
+                    params.get("location"),
+                    int(params.get("max_files", 15)),
+                )
             if action == "create_c_project":
                 return self._create_c_project(
                     params.get("name", "MyProject"), params.get("location")
@@ -91,6 +99,180 @@ class ProjectGeneratorPlugin(AutomationPlugin):
             name = name.replace(ch, "_")
         name = name.strip(" .")
         return name or "unnamed_project"
+
+    def _safe_join(self, project_path: str, rel_path: str) -> str | None:
+        """Join a model-provided relative path under project_path, rejecting escapes.
+
+        Model output is untrusted: an absolute path or ``..`` traversal must never
+        write outside the project directory. Returns the absolute destination, or
+        ``None`` if the path escapes the tree.
+        """
+        rel = str(rel_path).strip().lstrip("/")
+        if not rel or ".." in rel.replace("\\", "/").split("/"):
+            return None
+        dest = os.path.abspath(os.path.join(project_path, rel))
+        root = os.path.abspath(project_path)
+        if os.path.commonpath([dest, root]) != root:
+            return None
+        return dest
+
+    def _generate_project(
+        self,
+        description: str,
+        name: str = None,
+        location: str = None,
+        max_files: int = 15,
+    ) -> dict[str, Any]:
+        """AI-driven multi-file project generation for complex requests.
+
+        Plans a file layout for *description* (e.g. "a transformer model in
+        PyTorch" or "an encoder-decoder seq2seq model"), then generates each file
+        with the AI and writes them under a project directory. This is the path for
+        projects too large or open-ended for the fixed templates above.
+
+        The AI backend is required; without it we refuse rather than emit stubs.
+        """
+        try:
+            if not isinstance(description, str) or not description.strip():
+                return {"success": False, "error": "A project description is required."}
+
+            from archon.ai.automation_ai import OllamaAutomationAI
+
+            ai = OllamaAutomationAI()
+            if not ai.is_available:
+                return {
+                    "success": False,
+                    "error": (
+                        "AI backend unavailable — cannot generate a project. "
+                        f"{getattr(ai, 'last_error', '') or ''}".strip()
+                    ),
+                }
+
+            # ── 1. Plan the file layout ──────────────────────────────────────
+            plan_prompt = (
+                "Plan a complete, runnable software project for this request:\n"
+                f"{description}\n\n"
+                "Return JSON only, matching exactly this schema:\n"
+                '{"name": "short_snake_case_name", "language": "python", '
+                '"dependencies": ["pkg1", "pkg2"], '
+                '"files": [{"path": "relative/path.py", "purpose": "what it does"}]}\n'
+                "Rules: 4-15 files, real relative paths (no leading slash, no ..), "
+                "include an entrypoint and a README.md, keep it coherent and minimal."
+            )
+            plan = ai.generate_json(
+                plan_prompt,
+                system_prompt="You are a senior software architect. Return only valid JSON.",
+                max_tokens=1800,
+            )
+
+            files = []
+            if isinstance(plan, dict) and isinstance(plan.get("files"), list):
+                files = [
+                    f for f in plan["files"]
+                    if isinstance(f, dict) and f.get("path")
+                ]
+            language = (plan or {}).get("language", "") if isinstance(plan, dict) else ""
+            dependencies = (plan or {}).get("dependencies", []) if isinstance(plan, dict) else []
+            plan_name = (plan or {}).get("name") if isinstance(plan, dict) else None
+
+            # ── 2. Resolve the project directory ─────────────────────────────
+            project_name = self._sanitize_name(name or plan_name or "generated_project")
+            base_dir = os.path.abspath(location) if location else os.getcwd()
+            project_path = os.path.join(base_dir, project_name)
+            os.makedirs(project_path, exist_ok=True)
+
+            # ── 3. Fall back to a single file if planning produced nothing ────
+            if not files:
+                content = ai.generate_code(
+                    f"Write a complete, runnable implementation for: {description}. "
+                    "Return only code.",
+                    max_tokens=3500,
+                )
+                if not content.strip():
+                    return {
+                        "success": False,
+                        "error": "The AI returned no content; nothing was written.",
+                        "project_path": project_path,
+                    }
+                ext = ".py" if "python" in (language + description).lower() else ".txt"
+                out = os.path.join(project_path, f"main{ext}")
+                with open(out, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return {
+                    "success": True,
+                    "project_path": project_path,
+                    "files_created": [out],
+                    "message": f"Generated single-file project at {project_path}",
+                }
+
+            # ── 4. Generate each planned file ────────────────────────────────
+            file_index = "\n".join(
+                f"- {f['path']}: {f.get('purpose', '')}" for f in files[:max_files]
+            )
+            created: list[str] = []
+            skipped: list[str] = []
+            for entry in files[:max_files]:
+                dest = self._safe_join(project_path, entry["path"])
+                if dest is None:
+                    skipped.append(str(entry.get("path")))
+                    continue
+
+                purpose = entry.get("purpose", "")
+                base_name = os.path.basename(dest).lower()
+                if base_name in ("readme.md", "readme.txt"):
+                    body = ai.generate_document(
+                        f"README for a project: {description}. Files:\n{file_index}",
+                        filename="README.md",
+                    )
+                else:
+                    body = ai.generate_code(
+                        f"Project: {description}\n\n"
+                        f"Full file list:\n{file_index}\n\n"
+                        f"Write the complete contents of `{entry['path']}` "
+                        f"({purpose}). It must fit coherently with the other files. "
+                        "Return only the file contents, no explanation.",
+                        max_tokens=3500,
+                    )
+                if not body or not body.strip():
+                    skipped.append(entry["path"])
+                    continue
+
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "w", encoding="utf-8") as f:
+                    f.write(body)
+                created.append(dest)
+
+            # ── 5. Write a dependency manifest if the plan named any ──────────
+            if dependencies and isinstance(dependencies, list):
+                lang = str(language).lower()
+                if "python" in lang and not any(
+                    p.endswith("requirements.txt") for p in created
+                ):
+                    req = os.path.join(project_path, "requirements.txt")
+                    with open(req, "w", encoding="utf-8") as f:
+                        f.write("\n".join(str(d) for d in dependencies) + "\n")
+                    created.append(req)
+
+            if not created:
+                return {
+                    "success": False,
+                    "error": "The AI returned no usable file content; nothing was written.",
+                    "project_path": project_path,
+                    "skipped": skipped,
+                }
+
+            return {
+                "success": True,
+                "project_path": project_path,
+                "files_created": created,
+                "skipped": skipped,
+                "message": (
+                    f'Generated project "{project_name}" with {len(created)} files'
+                    + (f" ({len(skipped)} skipped)" if skipped else "")
+                ),
+            }
+        except Exception as e:
+            raise Exception(f"Failed to generate project: {e}") from None
 
     def _create_c_project(self, project_name: str, location: str = None) -> dict[str, Any]:
         try:

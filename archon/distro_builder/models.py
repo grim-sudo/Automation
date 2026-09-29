@@ -27,6 +27,11 @@ class KernelConfig(BaseModel):
         source:          ``"prebuilt"`` installs the distro's packaged kernel (reliable,
                          boots first time); ``"custom"`` compiles the kernel from source
                          and builds a matching initramfs (needed to apply kconfig_options).
+        flavor:          Which prebuilt kernel line to install (source == "prebuilt" only).
+                         Resolved to a per-base package name by the rootfs builder:
+                         ``standard`` (distro default), ``hardened`` (extra exploit
+                         mitigations), ``lts`` (long-term-support), ``zen``/``cachyos``
+                         (desktop/throughput tuned), ``kali`` (Kali's kernel on Debian).
         patches:         List of local patch file paths to apply with ``patch -p1``.
         kconfig_options: Mapping of CONFIG_ option names to values (``"y"``/``"n"``/``"m"``).
                          Only meaningful when ``source == "custom"``.
@@ -34,6 +39,9 @@ class KernelConfig(BaseModel):
 
     version: str = "latest-stable"
     source: Literal["prebuilt", "custom"] = "prebuilt"
+    flavor: Literal[
+        "standard", "hardened", "lts", "zen", "cachyos", "kali"
+    ] = "standard"
     patches: list[str] = Field(default_factory=list)
     kconfig_options: dict[str, str] = Field(default_factory=dict)
 
@@ -51,6 +59,9 @@ class DistroProfile(BaseModel):
         hostname:      Default hostname for the built image.
         desktop:       Optional desktop environment identifier.
         extra_scripts: List of shell script paths to run inside the chroot.
+        kali_repo:     Debian-only: layer the Kali rolling repo (pinned low) so
+                       security tools not in Debian (metasploit, burpsuite, …)
+                       are installable. Set for cybersecurity/pentest builds.
     """
 
     name: str = "custom-linux"
@@ -62,6 +73,7 @@ class DistroProfile(BaseModel):
     hostname: str = "archon-custom"
     desktop: str | None = None
     extra_scripts: list[str] = Field(default_factory=list)
+    kali_repo: bool = False
 
     @field_validator("packages", mode="before")
     @classmethod

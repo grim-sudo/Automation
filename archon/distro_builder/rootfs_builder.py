@@ -99,6 +99,36 @@ def _select_debian_mirror(configured: str, suite: str) -> str:
     return fastest
 
 
+# Kernel flavor → prebuilt package name, per base. Debian's archive only ships a
+# single generic image line, so every flavor resolves to linux-image-amd64 there
+# (a Kali security build still boots a stable Debian kernel — the toolset is what
+# matters). Arch exposes real variants.
+def _arch_kernel_package(flavor: str) -> str:
+    """Map a kernel flavor to the Arch package pacstrap should install."""
+    mapping = {
+        "standard": "linux",
+        "hardened": "linux-hardened",
+        "lts": "linux-lts",
+        "zen": "linux-zen",
+        # ponytail: CachyOS ships its kernel from its own repo, whose keyring
+        # bootstrap would mutate the host pacman keyring — off-limits here. zen is
+        # the closest throughput-tuned kernel installable from official Arch repos.
+        "cachyos": "linux-zen",
+        "kali": "linux",  # Kali is Debian-based; no Arch equivalent.
+    }
+    return mapping.get(flavor, "linux")
+
+
+def _debian_kernel_package(flavor: str) -> str:
+    """Map a kernel flavor to the Debian image package apt should install.
+
+    Debian's archive exposes one generic amd64 image line, so all flavors resolve
+    to it. A ``kali`` flavor rides the Kali repo layered elsewhere; the pinned-low
+    repo keeps Debian's stable kernel as the one that actually installs.
+    """
+    return "linux-image-amd64"
+
+
 def _require_root(func_name: str) -> None:
     """Ensure privileged commands can run, or raise PermissionError.
 
@@ -181,7 +211,7 @@ def _install_file(content: str, dest: Path, mode: str = "0644") -> tuple[bool, s
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(content)
-        return _run_logged(["install", "-m", mode, "-T", tmp, str(dest)])
+        return _run_logged(["install", "-D", "-m", mode, "-T", tmp, str(dest)])
     finally:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
@@ -219,6 +249,64 @@ def _umount_chroot_binds(mounted: list[str]) -> None:
     """Lazily unmount chroot bind targets in reverse order (best effort)."""
     for target in reversed(mounted):
         _run_logged(["umount", "-l", target])
+
+
+def _apt_install(chroot: list[str], pkgs: list[str], env: dict) -> tuple[bool, list[str]]:
+    """Install *pkgs* in the chroot resiliently; return (all_ok, failed).
+
+    Tries the whole set in one transaction (fast path). apt aborts the *entire*
+    transaction if a single name is missing from the enabled repos, so on failure
+    we retry per package — the installable ones still land and only the genuinely
+    unavailable names are reported. This is what keeps one bad tool name from
+    leaving the ISO empty.
+    """
+    if not pkgs:
+        return True, []
+    base = chroot + ["apt-get", "install", "-y", "--no-install-recommends"]
+    ok, _ = _run_logged(base + pkgs, env=env)
+    if ok:
+        return True, []
+    logger.warning("Batch install failed; retrying {} packages individually …", len(pkgs))
+    failed: list[str] = []
+    for pkg in pkgs:
+        ok, _ = _run_logged(base + [pkg], env=env)
+        if not ok:
+            failed.append(pkg)
+    return not failed, failed
+
+
+def _setup_kali_repo(rootfs_path: Path, env: dict) -> bool:
+    """Layer the Kali rolling repo onto a Debian rootfs, pinned low.
+
+    Pinned to priority 100 so Debian (500) stays the default source; Kali is used
+    only for packages Debian doesn't provide (metasploit-framework, burpsuite,
+    veracrypt, …). This keeps the base stable while making the security toolset
+    installable. Requires ca-certificates/gnupg/curl already in the chroot.
+    """
+    chroot = ["chroot", str(rootfs_path)]
+    apt = rootfs_path / "etc" / "apt"
+    ok_list, _ = _install_file(
+        "deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware\n",
+        apt / "sources.list.d" / "kali.list",
+    )
+    ok_pin, _ = _install_file(
+        "Package: *\nPin: release o=Kali\nPin-Priority: 100\n",
+        apt / "preferences.d" / "kali.pref",
+    )
+    # Fetch and de-armor the Kali archive signing key (the keyring package itself
+    # lives only in the Kali repo, so we can't apt-install it first).
+    ok_key, _ = _run_logged(
+        chroot
+        + [
+            "sh",
+            "-c",
+            "curl -fsSL https://archive.kali.org/archive-key.asc "
+            "| gpg --dearmor -o /etc/apt/trusted.gpg.d/kali-archive-keyring.gpg",
+        ],
+        env=env,
+    )
+    ok_upd, _ = _run_logged(chroot + ["apt-get", "update"], env=env)
+    return ok_list and ok_pin and ok_key and ok_upd
 
 
 async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
@@ -286,37 +374,38 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
         chroot + ["ln", "-sf", f"/usr/share/zoneinfo/{profile.timezone}", "/etc/localtime"],
     )
 
-    # Locale (read is fine — the file is world-readable; only the write needs root)
+    # Locale: write locale.gen now, but defer locale-gen until the `locales`
+    # package is installed below — running it against a base debootstrap tree
+    # fails with "locale-gen: not found" (exit 127) and poisons apt with locale
+    # warnings.
     locale_gen = rootfs_path / "etc" / "locale.gen"
     existing = locale_gen.read_text(encoding="utf-8") if locale_gen.exists() else ""
     await asyncio.to_thread(
         _install_file, existing + f"\n{profile.locale} UTF-8\n", locale_gen
     )
-    await asyncio.to_thread(_run_logged, chroot + ["locale-gen"])
 
-    # Live-boot infrastructure is mandatory for a bootable live ISO: live-boot
-    # supplies the initramfs hooks that mount live/filesystem.squashfs off the
-    # media, live-config handles first-boot setup, and systemd-sysv provides the
-    # init a debootstrap --variant=minbase tree otherwise lacks. When the profile
-    # asks for the distro's prebuilt kernel, install it here too so its postinst
-    # generates a live-capable initramfs (live-boot is configured in the same
-    # transaction). A custom-source kernel is installed separately afterwards.
-    # initramfs-tools is what actually builds the initrd; it is a dependency of
-    # live-boot but listed explicitly so --no-install-recommends can never drop
-    # it. live-boot supplies the initramfs hooks that mount
-    # live/filesystem.squashfs; live-config handles first boot; systemd-sysv is
-    # the init a --variant=minbase tree lacks.
+    # Critical infrastructure that MUST install for a bootable, usable live ISO:
+    #   * initramfs-tools builds the initrd; live-boot supplies the hooks that
+    #     mount live/filesystem.squashfs; live-config handles first boot;
+    #     systemd-sysv is the init a --variant=minbase tree lacks.
+    #   * locales is required so locale-gen works (and to silence apt's locale
+    #     warnings that previously surfaced as spurious failures).
+    #   * the prebuilt kernel, when requested, so its postinst + our explicit
+    #     regen produce a live-capable initramfs.
+    #   * ca-certificates/gnupg/curl only when the Kali repo will be added, to
+    #     fetch and verify its signing key.
     live_pkgs = [
         "initramfs-tools",
         "live-boot",
         "live-config",
         "live-config-systemd",
         "systemd-sysv",
+        "locales",
     ]
     if profile.kernel.source == "prebuilt":
-        live_pkgs.append("linux-image-amd64")
-
-    install_pkgs = live_pkgs + list(profile.packages)
+        live_pkgs.append(_debian_kernel_package(profile.kernel.flavor))
+    if profile.kali_repo:
+        live_pkgs += ["ca-certificates", "gnupg", "curl"]
 
     env = dict(os.environ)
     env["DEBIAN_FRONTEND"] = "noninteractive"
@@ -328,18 +417,47 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
         # apt needs a package index inside the chroot before it can install anything.
         await asyncio.to_thread(_run_logged, chroot + ["apt-get", "update"], env=env)
 
-        pkg_cmd = chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + install_pkgs
-        logger.info("Installing {} packages (incl. live-boot infra) …", len(install_pkgs))
-        ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
-        if not ok:
-            # live-boot failing is fatal — without it the ISO cannot boot. Profile
-            # packages failing is not, so only refuse when the live infra is missing.
-            live_boot_present = (rootfs_path / "usr" / "share" / "initramfs-tools" / "scripts"
-                                 / "live").exists()
+        logger.info("Installing {} live/base packages …", len(live_pkgs))
+        infra_ok, _ = await asyncio.to_thread(
+            _run_logged,
+            chroot + ["apt-get", "install", "-y", "--no-install-recommends", *live_pkgs],
+            env=env,
+        )
+        if not infra_ok:
+            # live-boot failing is fatal — without it the ISO cannot boot. Only
+            # refuse when the live infra is genuinely missing; a non-zero exit
+            # can also come from an unrelated postinst.
+            live_boot_present = (
+                rootfs_path / "usr" / "share" / "initramfs-tools" / "scripts" / "live"
+            ).exists()
             if not live_boot_present:
                 logger.error("live-boot infrastructure failed to install — ISO would not boot.")
                 return False
-            logger.warning("Some profile packages failed to install; continuing.")
+            logger.warning("Base install returned non-zero but live-boot is present; continuing.")
+
+        # Now that `locales` is installed, generate the requested locale.
+        await asyncio.to_thread(_run_logged, chroot + ["locale-gen"], env=env)
+
+        # Security builds: layer the Kali repo so tools absent from Debian
+        # (metasploit-framework, burpsuite, veracrypt, …) become installable.
+        if profile.kali_repo:
+            kali_ok = await asyncio.to_thread(_setup_kali_repo, rootfs_path, env)
+            if not kali_ok:
+                logger.warning("Kali repo setup failed; Kali-only tools may be skipped.")
+
+        # Profile tools, installed resiliently so one unavailable name does not
+        # abort the whole set and leave the ISO empty.
+        if profile.packages:
+            logger.info("Installing {} profile packages …", len(profile.packages))
+            _all_ok, failed = await asyncio.to_thread(
+                _apt_install, chroot, list(profile.packages), env
+            )
+            if failed:
+                logger.warning(
+                    "{} package(s) could not be installed (skipped): {}",
+                    len(failed),
+                    ", ".join(failed),
+                )
 
         # Regenerate the initramfs now that live-boot is installed, so the initrd
         # carries the hooks that mount the squashfs at boot. The kernel postinst
@@ -399,7 +517,13 @@ async def build_arch_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     rootfs_path = rootfs_path.resolve()
     rootfs_path.mkdir(parents=True, exist_ok=True)
 
-    base_pkgs = ["base", "linux", "linux-firmware"] + profile.packages
+    kernel_pkg = (
+        _arch_kernel_package(profile.kernel.flavor)
+        if profile.kernel.source == "prebuilt"
+        else "linux"
+    )
+    logger.info("Arch kernel flavor {} -> {}", profile.kernel.flavor, kernel_pkg)
+    base_pkgs = ["base", kernel_pkg, "linux-firmware"] + profile.packages
 
     logger.info("Running pacstrap …")
     with Progress(

@@ -448,6 +448,7 @@ class PermissionManager:
             ("universal_automation", "update_system"): ActionCategory.PROCESS_START,
             # Project generator actions
             ("project_generator", "create_python_project"): ActionCategory.FILESYSTEM_WRITE,
+            ("project_generator", "generate_project"): ActionCategory.FILESYSTEM_WRITE,
             ("project_generator", "create_c_project"): ActionCategory.FILESYSTEM_WRITE,
             ("project_generator", "create_web_scraping_project"): ActionCategory.FILESYSTEM_WRITE,
             ("project_generator", "create_data_analysis_project"): ActionCategory.FILESYSTEM_WRITE,

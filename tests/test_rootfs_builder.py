@@ -33,7 +33,8 @@ def test_install_file_stages_to_tmp_and_runs_install(monkeypatch):
 
     assert ok is True
     assert recorded and recorded[0][0] == "install"
-    assert recorded[0][1:3] == ["-m", "0644"]
+    # -D creates parent dirs; -m sets the mode.
+    assert recorded[0][1:4] == ["-D", "-m", "0644"]
     assert recorded[0][-1].endswith("etc/hostname")
     assert seen_content["content"] == "myhost\n"
     # Temp file is cleaned up regardless.
@@ -185,3 +186,97 @@ def test_debian_rootfs_binds_and_regenerates_initramfs(tmp_path, monkeypatch):
     # command must be a umount, never a leftover mount.
     mount_family = [c[0] for c in commands if c[0] in ("mount", "umount")]
     assert mount_family[-1] == "umount"
+
+
+def test_apt_install_retries_individually_and_reports_failures(monkeypatch):
+    # The batch fails; individually all but "burpsuite" succeed. The good ones
+    # must still install and only the truly-missing name is reported — one bad
+    # package name must never leave the ISO empty.
+    calls: list[list[str]] = []
+
+    def fake_run_logged(cmd, cwd=None, env=None):
+        calls.append(cmd)
+        pkgs = cmd[cmd.index("--no-install-recommends") + 1 :]
+        if len(pkgs) > 1:
+            return False, "batch abort"  # transaction aborts on the missing name
+        return ("burpsuite" not in pkgs), ""
+
+    monkeypatch.setattr(rb, "_run_logged", fake_run_logged)
+
+    chroot = ["chroot", "/rootfs"]
+    all_ok, failed = rb._apt_install(chroot, ["nmap", "burpsuite", "wireshark"], {})
+
+    assert all_ok is False
+    assert failed == ["burpsuite"]
+    # Batch attempt + one per-package attempt each.
+    assert len(calls) == 1 + 3
+
+
+def test_kali_repo_setup_writes_pinned_source_and_key(monkeypatch, tmp_path):
+    cmds: list[list[str]] = []
+    files: dict[str, str] = {}
+
+    def fake_run_logged(cmd, cwd=None, env=None):
+        cmds.append(cmd)
+        return True, ""
+
+    def fake_install_file(content, dest, mode="0644"):
+        files[str(dest)] = content
+        return True, ""
+
+    monkeypatch.setattr(rb, "_run_logged", fake_run_logged)
+    monkeypatch.setattr(rb, "_install_file", fake_install_file)
+
+    assert rb._setup_kali_repo(tmp_path / "rootfs", {}) is True
+
+    src = next(v for k, v in files.items() if k.endswith("kali.list"))
+    pin = next(v for k, v in files.items() if k.endswith("kali.pref"))
+    assert "kali-rolling" in src
+    # Pinned low so Debian stays the default source.
+    assert "Pin-Priority: 100" in pin
+    # The archive key is imported and the index refreshed.
+    assert any("archive-key.asc" in " ".join(c) for c in cmds)
+    assert any(c[-1] == "update" for c in cmds)
+
+
+def test_kali_repo_set_up_when_profile_requests_it(tmp_path, monkeypatch):
+    commands: list[list[str]] = []
+
+    def fake_run_logged(cmd, cwd=None, env=None):
+        commands.append(cmd)
+        return True, ""
+
+    monkeypatch.setattr(rb, "_require_root", lambda *_a, **_k: None)
+    monkeypatch.setattr(rb, "_run_logged", fake_run_logged)
+    monkeypatch.setattr(
+        rb, "_select_debian_mirror", lambda *_a, **_k: "http://deb.debian.org/debian"
+    )
+
+    profile = DistroProfile(
+        name="secos",
+        hostname="secos-host",
+        packages=["nmap", "metasploit-framework"],
+        kernel=KernelConfig(source="prebuilt"),
+        kali_repo=True,
+    )
+    rootfs = tmp_path / "rootfs"
+    (rootfs / "boot").mkdir(parents=True)
+    (rootfs / "boot" / "initrd.img-6.1.0-test").write_text("x", encoding="utf-8")
+
+    assert asyncio.run(rb.build_debian_rootfs(profile, rootfs)) is True
+    # The Kali signing key was imported → the repo was set up during the build.
+    assert any("archive-key.asc" in " ".join(c) for c in commands)
+
+
+def test_kernel_flavor_maps_to_packages():
+    # Arch exposes real kernel variants; cachyos degrades to zen (repo bootstrap
+    # would touch the host keyring) and kali has no Arch equivalent.
+    assert rb._arch_kernel_package("standard") == "linux"
+    assert rb._arch_kernel_package("hardened") == "linux-hardened"
+    assert rb._arch_kernel_package("lts") == "linux-lts"
+    assert rb._arch_kernel_package("zen") == "linux-zen"
+    assert rb._arch_kernel_package("cachyos") == "linux-zen"
+    assert rb._arch_kernel_package("kali") == "linux"
+    # Debian ships one generic image line regardless of flavor.
+    assert rb._debian_kernel_package("zen") == "linux-image-amd64"
+    assert rb._debian_kernel_package("kali") == "linux-image-amd64"
