@@ -75,3 +75,21 @@ def test_descriptive_naming():
     assert nl_to_profile("arch development workstation").name == "archon-devbox-arch"
     # No recognizable intent → plain base name.
     assert nl_to_profile("plain debian").name == "archon-debian"
+
+
+def test_word_boundary_kills_substring_false_positives():
+    # "research" contains "arch", "email" contains "ai", "google" contains "go".
+    # Substring matching used to misfire on all three; word boundaries must not.
+    assert nl_to_profile("debian to do research on birds").base == "debian"
+    assert nl_to_profile("debian for email and browsing").name == "archon-debian"
+    pkgs = resolve_packages("debian to browse google", "debian")
+    assert "golang" not in pkgs and "go" not in pkgs
+
+
+def test_keyword_aliases_improve_recall():
+    # Common synonyms resolve to the same group as the canonical keyword.
+    assert "postgresql" in resolve_packages("debian with postgres", "debian")
+    assert {"kubectl", "helm"} <= set(resolve_packages("debian with k8s", "debian"))
+    assert "docker.io" in resolve_packages("debian running containers", "debian")
+    # "cyber" (no "security" suffix) still reads as a security build.
+    assert nl_to_profile("an os for cyber work").name == "archon-secops-debian"

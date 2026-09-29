@@ -2,8 +2,28 @@
 Base OS adapter interface that all platform-specific adapters must implement
 """
 
+import contextlib
+import io
 from abc import ABC, abstractmethod
 from typing import Any
+
+
+def load_pyautogui() -> Any | None:
+    """Import pyautogui, or return ``None`` when it can't load.
+
+    pyautogui connects to the display the moment it's imported. On a Wayland or
+    headless session python-xlib writes ``Xlib.xauth: warning, no xauthority
+    details available`` to stdout, and a missing tkinter makes mouseinfo raise
+    SystemExit. Neither is actionable here — GUI automation just degrades to
+    unavailable — so we swallow the import-time noise and return ``None`` on any
+    failure. Redirecting stdout is what silences the Xlib warning seen at startup.
+    """
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            import pyautogui
+        return pyautogui
+    except BaseException:  # noqa: BLE001 — SystemExit from mouseinfo must be caught too
+        return None
 
 
 class BaseModuleAdapter(ABC):

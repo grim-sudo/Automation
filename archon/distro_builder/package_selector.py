@@ -2,11 +2,52 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from loguru import logger
 
 from archon.distro_builder.models import DistroProfile
+
+
+def _present(keyword: str, text: str) -> bool:
+    """Word-boundary keyword match against lowercased *text*.
+
+    Substring matching is what made detection "lag": ``"security"`` fired inside
+    ``"cybersecurity"`` (pulling the weak generic group), ``"arch"`` fired inside
+    ``"research"``, ``"ai"`` inside ``"email"``, ``"go"`` inside ``"google"``.
+    Anchoring on ``\\b`` kills that whole class of false positives while still
+    matching multi-word phrases like ``"web server"`` or hyphenated ``"red-team"``.
+    """
+    return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
+
+
+# Synonyms → the canonical PACKAGE_MAP keyword they should resolve to. This is the
+# recall half of the fix: users say "postgres", "k8s", "containers", "infosec",
+# and the build should still select the right group instead of silently missing it.
+_KEYWORD_ALIASES: dict[str, str] = {
+    "cyber": "cybersecurity",
+    "infosec": "cybersecurity",
+    "pen testing": "pentesting",
+    "pentester": "pentesting",
+    "postgres": "database",
+    "postgresql": "database",
+    "psql": "database",
+    "k8s": "kubernetes",
+    "containers": "docker",
+    "containerization": "docker",
+    "node": "nodejs",
+    "node.js": "nodejs",
+    "golang": "go",
+    "vm": "virtualization",
+    "virtual machine": "virtualization",
+    "virtual machines": "virtualization",
+    "firewall": "nftables",
+    "webserver": "web server",
+    "web-server": "web server",
+    "dev tools": "development",
+    "developer tools": "development",
+}
 
 # Cybersecurity tool groups (Debian/Kali package names). These are installed
 # resiliently — a name missing from the enabled repos is skipped, not fatal —
@@ -231,8 +272,16 @@ def resolve_packages(description: str, base: str) -> list[str]:
     base_map = PACKAGE_MAP.get(base, {})
     packages: list[str] = []
 
+    # Expand any synonym present in the request to its canonical keyword, so an
+    # alias like "postgres" or "k8s" resolves the same group as the real keyword.
+    matched_keywords = {kw for kw in base_map if _present(kw, desc_lower)}
+    for alias, canonical in _KEYWORD_ALIASES.items():
+        if canonical in base_map and _present(alias, desc_lower):
+            matched_keywords.add(canonical)
+
+    # Preserve PACKAGE_MAP declaration order for deterministic, stable output.
     for keyword, pkgs in base_map.items():
-        if keyword in desc_lower:
+        if keyword in matched_keywords:
             packages.extend(pkgs)
 
     # Deduplicate while preserving insertion order
@@ -277,9 +326,9 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
     # Detect base distro. "omarchy" is an opinionated Arch + Hyprland setup, so it
     # implies the Arch base regardless of the word "arch" appearing.
     base: Literal["debian", "arch", "unix"] = "debian"
-    if "arch" in nl_lower or "omarchy" in nl_lower:
+    if _present("arch", nl_lower) or "omarchy" in nl_lower:
         base = "arch"
-    elif "buildroot" in nl_lower or "minimal unix" in nl_lower or "unix" in nl_lower:
+    elif _present("buildroot", nl_lower) or _present("unix", nl_lower):
         base = "unix"
 
     # Detect desktop environment / compositor. Longer, more specific names are
@@ -295,12 +344,12 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
         desktop = "hyprland"
     else:
         for de in _DE_KEYWORDS:
-            if de in nl_lower:
+            if _present(de, nl_lower):
                 # "plasma" is KDE's package group keyword.
                 desktop = "kde" if de == "plasma" else de
                 break
     # Headless / server / no GUI overrides any desktop detection
-    if "no gui" in nl_lower or "headless" in nl_lower or "server" in nl_lower:
+    if _present("no gui", nl_lower) or _present("headless", nl_lower) or _present("server", nl_lower):
         desktop = None
 
     # Detect explicit hostname directive
@@ -325,19 +374,19 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
 
     # Detect kernel-level config hints
     kconfig: dict[str, str] = {}
-    if "kvm" in nl_lower:
+    if _present("kvm", nl_lower):
         kconfig["CONFIG_KVM"] = "y"
-    if "modules" in nl_lower:
+    if _present("modules", nl_lower):
         kconfig["CONFIG_MODULES"] = "y"
-    if "apparmor" in nl_lower:
+    if _present("apparmor", nl_lower):
         kconfig["CONFIG_SECURITY_APPARMOR"] = "y"
-    if "selinux" in nl_lower:
+    if _present("selinux", nl_lower):
         kconfig["CONFIG_SECURITY_SELINUX"] = "y"
-    if "wireguard" in nl_lower:
+    if _present("wireguard", nl_lower):
         kconfig["CONFIG_WIREGUARD"] = "m"
-    if "nftables" in nl_lower or "netfilter" in nl_lower:
+    if _present("nftables", nl_lower) or _present("netfilter", nl_lower):
         kconfig["CONFIG_NF_TABLES"] = "m"
-    if "audit" in nl_lower:
+    if _present("audit", nl_lower):
         kconfig["CONFIG_AUDIT"] = "y"
 
     # Decide which kernel Archon builds around, driven by the request itself:
@@ -355,7 +404,7 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
 
     # A security-focused request on the Debian base needs the Kali repo so tools
     # absent from Debian (metasploit, burpsuite, veracrypt, …) are installable.
-    kali_repo = base == "debian" and any(k in nl_lower for k in KALI_TRIGGER_KEYWORDS)
+    kali_repo = base == "debian" and any(_present(k, nl_lower) for k in KALI_TRIGGER_KEYWORDS)
 
     name = _derive_name(nl_lower, base, desktop)
 
@@ -407,9 +456,9 @@ def _detect_kernel_source(nl_lower: str, has_kconfig: bool) -> Literal["prebuilt
     reliably; the one exception is a request that carries kernel-level kconfig
     options, which are only applicable to a source build and therefore imply custom.
     """
-    if any(h in nl_lower for h in _CUSTOM_KERNEL_HINTS):
+    if any(_present(h, nl_lower) for h in _CUSTOM_KERNEL_HINTS):
         return "custom"
-    if any(h in nl_lower for h in _PREBUILT_KERNEL_HINTS):
+    if any(_present(h, nl_lower) for h in _PREBUILT_KERNEL_HINTS):
         return "prebuilt"
     return "custom" if has_kconfig else "prebuilt"
 
@@ -425,12 +474,12 @@ def _detect_kernel_flavor(
     maps flavor → package per base, but keeping the profile honest here avoids
     promising e.g. a CachyOS kernel on Debian.
     """
-    if base == "debian" and any(k in nl_lower for k in KALI_TRIGGER_KEYWORDS):
+    if base == "debian" and any(_present(k, nl_lower) for k in KALI_TRIGGER_KEYWORDS):
         detected = "kali"
     else:
         detected = "standard"
         for hint, flavor in _KERNEL_FLAVOR_HINTS:
-            if hint in nl_lower:
+            if _present(hint, nl_lower):
                 detected = flavor
                 break
 
@@ -445,12 +494,13 @@ def _detect_kernel_flavor(
 
 # Recognizable build intents → a short, descriptive name segment. First match wins.
 _NAME_INTENTS = (
-    (("cybersecurity", "cyber security", "pentest", "penetration", "red team",
-      "blue team", "forensics", "dfir", "hardening", "security"), "secops"),
-    (("privacy", "anonymous", "anonymity", "spoofing", "tor "), "ghostshell"),
-    (("machine learning", "deep learning", " ml ", " ai ", "data science",
+    (("cybersecurity", "cyber security", "cyber", "infosec", "pentest",
+      "penetration", "red team", "blue team", "forensics", "dfir",
+      "hardening", "security"), "secops"),
+    (("privacy", "anonymous", "anonymity", "spoofing", "tor"), "ghostshell"),
+    (("machine learning", "deep learning", "ml", "ai", "data science",
       "data analysis", "transformer"), "datalab"),
-    (("gaming", "game "), "playdeck"),
+    (("gaming", "game"), "playdeck"),
     (("media", "audio", "video", "content creation"), "mediaforge"),
     (("developer", "development", "programming", "coding"), "devbox"),
     (("server", "headless"), "server"),
@@ -469,7 +519,7 @@ def _derive_name(nl_lower: str, base: str, desktop: str | None) -> str:
 
     intent: str | None = None
     for keywords, label in _NAME_INTENTS:
-        if any(k in nl_lower for k in keywords):
+        if any(_present(k, nl_lower) for k in keywords):
             intent = label
             break
 

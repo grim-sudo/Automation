@@ -20,6 +20,7 @@ from .base_adapter import (
     BaseOSAdapter,
     BaseProcessAdapter,
     BaseSystemAdapter,
+    load_pyautogui,
 )
 
 
@@ -649,9 +650,12 @@ class ArchGUIAdapter(BaseGUIAdapter):
                     continue
 
         # Ultimate fallback: try pyautogui
+        pyautogui = load_pyautogui()
+        if pyautogui is None:
+            logger.warning("Failed to take screenshot: pyautogui unavailable")
+            logger.info("Install: sudo pacman -S scrot (X11) or grim (Wayland)")
+            return False
         try:
-            import pyautogui
-
             screenshot = pyautogui.screenshot()
             screenshot.save(path)
             logger.info(f"Screenshot saved: {path} (using pyautogui)")
@@ -663,9 +667,11 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
     def click(self, x: int, y: int) -> bool:
         """Click at position with fallback"""
+        pyautogui = load_pyautogui()
+        if pyautogui is None:
+            logger.warning("Failed to click: pyautogui unavailable")
+            return False
         try:
-            import pyautogui
-
             pyautogui.click(x, y)
             return True
         except Exception as e:
@@ -674,9 +680,11 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
     def type_text(self, text: str) -> bool:
         """Type text with fallback"""
+        pyautogui = load_pyautogui()
+        if pyautogui is None:
+            logger.warning("Failed to type text: pyautogui unavailable")
+            return False
         try:
-            import pyautogui
-
             pyautogui.write(text, interval=0.05)
             return True
         except Exception as e:
@@ -685,9 +693,11 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
     def press_key(self, key: str) -> bool:
         """Press a key with fallback"""
+        pyautogui = load_pyautogui()
+        if pyautogui is None:
+            logger.warning("Failed to press key: pyautogui unavailable")
+            return False
         try:
-            import pyautogui
-
             pyautogui.press(key)
             return True
         except Exception as e:
@@ -696,9 +706,11 @@ class ArchGUIAdapter(BaseGUIAdapter):
 
     def find_element(self, image_path: str) -> dict[str, int]:
         """Find element on screen by image with fallback"""
+        pyautogui = load_pyautogui()
+        if pyautogui is None:
+            logger.warning(f"Failed to find element: pyautogui unavailable ({image_path})")
+            return {"x": 0, "y": 0}
         try:
-            import pyautogui
-
             location = pyautogui.locateOnScreen(image_path, confidence=0.8)
             if location:
                 center = pyautogui.center(location)

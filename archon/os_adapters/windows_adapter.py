@@ -11,12 +11,6 @@ from typing import Any
 import httpx
 import psutil
 
-# Make pyautogui optional (only needed on Windows)
-try:
-    import pyautogui
-except (ImportError, SystemExit, Exception):
-    pyautogui = None
-
 from .base_adapter import (
     BaseFilesystemAdapter,
     BaseGUIAdapter,
@@ -24,7 +18,11 @@ from .base_adapter import (
     BaseOSAdapter,
     BaseProcessAdapter,
     BaseSystemAdapter,
+    load_pyautogui,
 )
+
+# Make pyautogui optional (only needed on Windows)
+pyautogui = load_pyautogui()
 
 # Windows-specific imports
 try:
