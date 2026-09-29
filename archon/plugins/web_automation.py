@@ -5,7 +5,10 @@ Web automation plugin using Selenium
 import contextlib
 import os
 import re
+import shutil
+import subprocess
 import time as time_module
+import webbrowser
 from typing import Any
 
 from loguru import logger
@@ -61,6 +64,7 @@ class WebAutomationPlugin(AutomationPlugin):
         self.driver = None
         self.wait = None
         self._playwright_active = False
+        self._system_browser_active = False
         self._pw = None
         self._pw_browser = None
         self._pw_context = None
@@ -152,7 +156,21 @@ class WebAutomationPlugin(AutomationPlugin):
                 headless = params.get("headless", False) or (
                     action == "launch_headless_browser" or action == "open_headless"
                 )
-                res = self._open_browser(params.get("browser", "chrome"), headless)
+                url = params.get("url") or params.get("target") or params.get("location")
+                # Scripted DOM control (click/type/scrape) needs a WebDriver;
+                # a plain "open the browser" does not. Only engage Selenium when
+                # the caller explicitly asks for automation.
+                automation = bool(
+                    params.get("automation")
+                    or params.get("scripted")
+                    or params.get("selenium")
+                )
+                res = self._open_browser(
+                    params.get("browser", "chrome"),
+                    headless,
+                    url=url,
+                    automation=automation,
+                )
             # Accept any action that starts with 'navigate_to' as a navigation request
             elif action in (
                 "navigate_to",
@@ -378,8 +396,46 @@ class WebAutomationPlugin(AutomationPlugin):
             logger.exception(f"web_automation action failed: {action}")
             return {"success": False, "error": str(e)}
 
-    def _open_browser(self, browser: str = "chrome", headless: bool = False) -> bool:
-        """Open a web browser"""
+    def _open_system_browser(self, url: str | None = None) -> bool:
+        """Launch the user's default browser, optionally at *url*. Fast and reliable.
+
+        This is what "open chrome" actually means to a user — a launch, not a
+        scripted session. Tries the stdlib ``webbrowser`` controller first (which
+        handles ``about:blank`` and respects ``$BROWSER``), then ``xdg-open`` on
+        Linux desktops. Returns ``True`` if a launcher accepted the request.
+        """
+        target = url or "about:blank"
+        with contextlib.suppress(Exception):
+            if webbrowser.open_new_tab(target):
+                return True
+        # xdg-open only understands real URLs/paths, so skip it for about:blank.
+        if url:
+            opener = shutil.which("xdg-open")
+            if opener:
+                with contextlib.suppress(Exception):
+                    subprocess.Popen(
+                        [opener, url],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    return True
+        return False
+
+    def _open_browser(
+        self,
+        browser: str = "chrome",
+        headless: bool = False,
+        url: str | None = None,
+        automation: bool = False,
+    ) -> bool:
+        """Open a web browser.
+
+        By default this launches the user's real browser via the OS launcher —
+        instant and reliable. A WebDriver-controlled browser (Selenium/Playwright)
+        is only started when the caller needs scripted DOM control
+        (``automation=True``) or a headless session, because standing one up
+        downloads a driver and can take a minute.
+        """
         import platform
 
         try:
@@ -388,6 +444,19 @@ class WebAutomationPlugin(AutomationPlugin):
             if headless and plat.startswith("win"):
                 # Convert to non-headless on Windows to maintain behavior
                 headless = False
+
+            # Fast path: plain browser launch (no scripted automation, not
+            # headless). Avoids the slow WebDriver/ChromeDriver stack entirely.
+            if not automation and not headless:
+                if self._open_system_browser(url):
+                    self._system_browser_active = True
+                    return {
+                        "success": True,
+                        "message": "Opened system browser",
+                        "url": url,
+                        "backend": "system",
+                    }
+                # OS launcher unavailable — fall through to WebDriver below.
 
             # Normalize browser selection: treat 'default'/'auto' as a heuristic choice
             br = str(browser).lower() if browser is not None else ""

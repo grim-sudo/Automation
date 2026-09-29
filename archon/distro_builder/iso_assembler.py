@@ -10,17 +10,19 @@ from loguru import logger
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 
-def prepare_bootloader(rootfs_path: Path, work_dir: Path) -> bool:
+def prepare_bootloader(iso_dir: Path, label: str = "Custom Linux") -> bool:
     """
-    Set up an isolinux bootloader in the work directory.
+    Set up an isolinux bootloader that boots the live SquashFS.
 
-    Locates the system's syslinux installation, copies the required binary
-    and module files into ``work_dir/isolinux/``, generates a boot menu
-    config, and copies the kernel and initrd from the rootfs.
+    Locates the system's syslinux installation, copies the required binary and
+    module files into ``iso_dir/isolinux/``, and writes a ``boot=live`` menu
+    config pointing at the kernel and initrd staged under ``iso_dir/live/`` by
+    :func:`archon.distro_builder.live_builder.build_live_layout`.
 
     Args:
-        rootfs_path: Path to the populated rootfs directory.
-        work_dir: Working directory for ISO assembly; isolinux/ is created here.
+        iso_dir: Staged ISO root (already contains ``live/``); ``isolinux/`` is
+            created inside it.
+        label: Human-readable name shown in the boot menu.
 
     Returns:
         True if bootloader setup succeeded.
@@ -28,7 +30,7 @@ def prepare_bootloader(rootfs_path: Path, work_dir: Path) -> bool:
     Raises:
         FileNotFoundError: If syslinux/isolinux is not installed on the host.
     """
-    isolinux_dir = work_dir / "isolinux"
+    isolinux_dir = iso_dir / "isolinux"
     isolinux_dir.mkdir(parents=True, exist_ok=True)
 
     # Candidate directories where syslinux ships its binary files
@@ -67,43 +69,28 @@ def prepare_bootloader(rootfs_path: Path, work_dir: Path) -> bool:
         else:
             logger.warning(f"Syslinux file not found (non-fatal): {src}")
 
-    # Generate isolinux.cfg
-    cfg_content = """\
-DEFAULT menu.c32
+    # Generate isolinux.cfg. ``boot=live`` tells the live-boot initramfs to find
+    # and mount /live/filesystem.squashfs off the media — this is what makes the
+    # ISO an actual live system rather than an unbootable rootfs dump.
+    safe_label = label.replace("\n", " ").strip() or "Custom Linux"
+    cfg_content = f"""\
+DEFAULT live
 PROMPT 0
 TIMEOUT 50
-MENU TITLE Custom Linux Boot Menu
+MENU TITLE {safe_label} Live Boot Menu
 
-LABEL linux
-    MENU LABEL Start Custom Linux
-    KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img root=/dev/sr0 ro quiet
+LABEL live
+    MENU LABEL Start {safe_label} (Live)
+    KERNEL /live/vmlinuz
+    APPEND initrd=/live/initrd.img boot=live components quiet
 
-LABEL memtest
-    MENU LABEL Memory Test
-    KERNEL /isolinux/memtest
+LABEL live-failsafe
+    MENU LABEL {safe_label} (failsafe)
+    KERNEL /live/vmlinuz
+    APPEND initrd=/live/initrd.img boot=live components nomodeset noapic noapm nosplash
 """
     (isolinux_dir / "isolinux.cfg").write_text(cfg_content)
-    logger.info("isolinux.cfg written")
-
-    # Copy kernel and initrd from the rootfs into work_dir/boot/
-    boot_dir = work_dir / "boot"
-    boot_dir.mkdir(exist_ok=True)
-
-    rootfs_boot = rootfs_path / "boot"
-    for fname in ["vmlinuz", "initrd.img"]:
-        src = rootfs_boot / fname
-        if src.exists():
-            shutil.copy2(src, boot_dir / fname)
-            logger.info(f"Copied {fname} to boot/")
-        else:
-            # Fall back to versioned filenames (e.g. vmlinuz-6.1.0-21-amd64)
-            matches = sorted((rootfs_boot).glob(f"{fname}*")) if rootfs_boot.exists() else []
-            if matches:
-                shutil.copy2(matches[-1], boot_dir / fname)
-                logger.info(f"Copied {matches[-1].name} -> boot/{fname}")
-            else:
-                logger.warning(f"Could not find {fname} in {rootfs_boot}")
+    logger.info("isolinux.cfg (boot=live) written")
 
     logger.info("Bootloader prepared successfully")
     return True

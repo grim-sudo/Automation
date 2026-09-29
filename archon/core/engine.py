@@ -228,6 +228,36 @@ class Archon:
                     payload["error"] = enhance_result.get("error", "Document enhancement failed")
                 return payload
 
+            # "Open chrome and search for bread" / "go to example.com" is a
+            # browser launch, not a scripted Selenium session. The AI planner
+            # tends to explode it into a slow multi-step WebDriver sequence
+            # (open_browser → navigate → type → press) that stands up
+            # ChromeDriver and can take ~100s. Detect the intent up front and
+            # satisfy it with one fast system-browser action.
+            browser_route = self._maybe_browser_search(command)
+            if browser_route is not None:
+                web = browser_route["result"]
+                route = browser_route["route"]
+                ok = bool(web.get("success", False)) if isinstance(web, dict) else True
+                self._log_execution(
+                    command,
+                    {"action": route.split(".")[-1], "category": "web_automation"},
+                    web, success=ok, duration=time.monotonic() - start,
+                )
+                payload = {
+                    "success": ok,
+                    "result": web,
+                    "command": command,
+                    "complexity": "simple",
+                    "route": route,
+                    "timestamp": datetime.now().isoformat(),
+                }
+                if not ok:
+                    payload["error"] = (
+                        web.get("error") if isinstance(web, dict) else None
+                    ) or "Browser action failed"
+                return payload
+
             # Check if command is too complex for AI (very long with nested structures)
             # Use fallback parser directly for these cases
             if self._is_too_complex_for_ai(command):
@@ -723,6 +753,124 @@ class Archon:
                 return self._run_distro_build(command)
         except PrivilegeError as exc:
             return {"success": False, "message": str(exc), "iso_path": None}
+
+    # A scripted browser session (scrape/extract/click/login/screenshot) needs a
+    # real WebDriver — leave those to normal planning. Their presence vetoes the
+    # fast system-browser path below.
+    _WEB_AUTOMATION_RE = re.compile(
+        r"\b(?:scrape|scraping|extract|crawl|download|screenshot|"
+        r"click|fill\s+in|fill\s+out|submit|log\s*in|sign\s*in|automate|"
+        r"automation|headless)\b",
+        re.IGNORECASE,
+    )
+
+    # Web-search verbs: "search for X", "google X", "look up X", "web search X".
+    # Optional qualifiers ("the web", "online", "on google", "for") between the
+    # verb and the query are swallowed so the query comes out clean.
+    _WEB_SEARCH_RE = re.compile(
+        r"\b(?:web\s+search|search|google|look\s+up)\b"
+        r"(?:\s+(?:the\s+web|on\s+the\s+web|online|on\s+google|google|for))*"
+        r"\s+(?P<query>.+)",
+        re.IGNORECASE,
+    )
+
+    # Filesystem search — must NOT be hijacked by the web path.
+    _FILE_SEARCH_RE = re.compile(
+        r"\b(?:file|files|folder|folders|directory|directories|document|"
+        r"documents|codebase|function|class)\b",
+        re.IGNORECASE,
+    )
+
+    # A URL to open directly. An explicit scheme or www. prefix matches on its
+    # own; a bare domain only matches behind a navigation verb (and not "open",
+    # which is ambiguous with opening a file like "open main.py").
+    _NAV_URL_RE = re.compile(
+        r"\b(?P<full>https?://\S+|www\.[^\s,;]+)"
+        r"|\b(?:go\s+to|goto|navigate\s+to|visit|browse\s+to)\s+"
+        r"(?P<bare>[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+(?:/[^\s,;]*)?)",
+        re.IGNORECASE,
+    )
+
+    # Plain "open chrome" / "launch a browser" with no query or URL.
+    _OPEN_BROWSER_RE = re.compile(
+        r"\b(?:open|launch|start|fire\s+up)\s+"
+        r"(?:up\s+|a\s+|the\s+|my\s+)?"
+        r"(?P<browser>chrome|chromium|firefox|edge|safari|brave|"
+        r"web\s+browser|browser)\b",
+        re.IGNORECASE,
+    )
+
+    def _maybe_browser_search(self, command: str) -> dict[str, Any] | None:
+        """Route a browser launch / web search / navigation to a fast one-shot.
+
+        Returns ``{"result": <web result>, "route": <str>}`` when ``command`` is a
+        plain "open the browser", "search the web for X", or "go to <url>" intent,
+        or ``None`` so normal parsing continues. A scripted-automation request
+        (scrape/extract/click/login/…) always returns ``None`` — those need a real
+        WebDriver, not a system-browser launch.
+        """
+        if self._WEB_AUTOMATION_RE.search(command):
+            return None
+
+        # A genuine question ("how do I google X", "what should I search") is a
+        # conversational ask, not a launch instruction — don't hijack it.
+        if re.match(
+            r"\s*(?:what|how|why|who|when|where|which|is|are|can|could|"
+            r"should|would|do|does|did)\b",
+            command, re.IGNORECASE,
+        ):
+            return None
+
+        # 1) Web search — "open chrome and search for bread" / "google X".
+        search = self._WEB_SEARCH_RE.search(command)
+        if search:
+            query = search.group("query").strip().strip("\"'").rstrip(" .!?")
+            # Don't hijack "search for a file named notes.txt" (filesystem).
+            if query and not self._FILE_SEARCH_RE.search(query):
+                self.logger.info(f"Routing to web search (perform_search): {query}")
+                result = self._run_web_action(
+                    "perform_search", {"query": query, "use_system_browser": True}
+                )
+                return {"result": result, "route": "web_automation.perform_search"}
+
+        # 2) Navigate to a concrete URL — "go to example.com".
+        nav = self._NAV_URL_RE.search(command)
+        if nav:
+            url = nav.group("full") or nav.group("bare")
+            if not re.match(r"^https?://", url, re.IGNORECASE):
+                url = f"https://{url}"
+            self.logger.info(f"Routing to browser navigation (open_browser): {url}")
+            result = self._run_web_action("open_browser", {"url": url})
+            return {"result": result, "route": "web_automation.open_browser"}
+
+        # 3) Plain "open the browser" with nothing to search or navigate to.
+        opened = self._OPEN_BROWSER_RE.search(command)
+        if opened:
+            browser = re.sub(r"\s+", " ", opened.group("browser").strip()).lower()
+            if browser in ("browser", "web browser"):
+                browser = "chrome"
+            self.logger.info(f"Routing to browser launch (open_browser): {browser}")
+            result = self._run_web_action("open_browser", {"browser": browser})
+            return {"result": result, "route": "web_automation.open_browser"}
+
+        return None
+
+    def _run_web_action(self, action: str, params: dict[str, Any]) -> Any:
+        """Dispatch a web_automation action, favouring the capability registry.
+
+        The fast system-browser actions (open_browser, perform_search) don't need
+        Selenium, but the capability gates its advertised actions on Selenium being
+        installed. Fall back to the plugin instance directly so the fast path still
+        works when Selenium is absent.
+        """
+        try:
+            return self.capability_registry.dispatch("web_automation", action, params)
+        except Exception:
+            pm = getattr(self, "plugin_manager", None)
+            plugin = getattr(pm, "plugins", {}).get("web_automation") if pm else None
+            if plugin is not None:
+                return plugin.execute(action, params)
+            return {"success": False, "error": "web_automation capability unavailable"}
 
     # "output directory /data", "output dir ~/isos", "output to ./build", or a
     # trailing "... in /data" — capture the path token that follows.

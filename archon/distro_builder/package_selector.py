@@ -222,16 +222,60 @@ def nl_to_profile(nl_command: str) -> DistroProfile:
     if "audit" in nl_lower:
         kconfig["CONFIG_AUDIT"] = "y"
 
+    # Decide which kernel Archon builds around, driven by the request itself:
+    #   * explicit "custom/compiled/from-source/hardened kernel" -> compile from source
+    #   * explicit "prebuilt/stock/distro/packaged kernel"       -> distro kernel package
+    #   * otherwise default to the reliable prebuilt package, UNLESS kernel-level
+    #     kconfig options were requested — those can only be applied to a source
+    #     build, so they imply a custom kernel.
+    source = _detect_kernel_source(nl_lower, has_kconfig=bool(kconfig))
+
     logger.debug(
-        f"nl_to_profile: base={base} desktop={desktop} "
+        f"nl_to_profile: base={base} desktop={desktop} kernel_source={source} "
         f"hostname={hostname} packages={packages} kconfig={kconfig}"
     )
 
     return DistroProfile(
         name=f"custom-{base}",
         base=base,
-        kernel=KernelConfig(version="latest-stable", kconfig_options=kconfig),
+        kernel=KernelConfig(version="latest-stable", source=source, kconfig_options=kconfig),
         packages=list(dict.fromkeys(packages)),  # dedupe, preserve order
         hostname=hostname,
         desktop=desktop,
     )
+
+
+_CUSTOM_KERNEL_HINTS = (
+    "custom kernel",
+    "custom-compiled kernel",
+    "compile kernel",
+    "compiled kernel",
+    "kernel from source",
+    "from-source kernel",
+    "build kernel",
+    "hardened kernel",
+)
+_PREBUILT_KERNEL_HINTS = (
+    "prebuilt kernel",
+    "pre-built kernel",
+    "prebuilt",
+    "stock kernel",
+    "distro kernel",
+    "packaged kernel",
+    "package kernel",
+)
+
+
+def _detect_kernel_source(nl_lower: str, has_kconfig: bool) -> Literal["prebuilt", "custom"]:
+    """Choose the kernel source from the user's phrasing (explicit wins over default).
+
+    Explicit "custom"/"prebuilt" language in the request takes precedence. With no
+    explicit signal we default to the distro's prebuilt package because it boots
+    reliably; the one exception is a request that carries kernel-level kconfig
+    options, which are only applicable to a source build and therefore imply custom.
+    """
+    if any(h in nl_lower for h in _CUSTOM_KERNEL_HINTS):
+        return "custom"
+    if any(h in nl_lower for h in _PREBUILT_KERNEL_HINTS):
+        return "prebuilt"
+    return "custom" if has_kconfig else "prebuilt"

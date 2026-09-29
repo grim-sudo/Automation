@@ -123,7 +123,7 @@ def main_callback(
 ) -> None:
     """Archon — Natural Language Automation Framework.
 
-    Run [bold]omni COMMAND --help[/bold] for help on individual commands.
+    Run [bold]archon COMMAND --help[/bold] for help on individual commands.
     """
     global _global_debug, _global_log_file, _global_safe_mode
     _global_debug = debug
@@ -935,7 +935,7 @@ def distro_build(
         debian_suite = settings.distro_builder.debian_suite
         require_confirm = settings.distro_builder.require_root_confirmation
     except Exception:
-        work_dir = "/tmp/omni_distro_build"
+        work_dir = "/tmp/archon_distro_build"
         build_jobs = jobs if jobs > 0 else (os.cpu_count() or 4)
         debian_mirror = "http://deb.debian.org/debian"
         debian_suite = "bookworm"
@@ -1058,6 +1058,8 @@ def _emit_debootstrap_instructions(cfg: dict, output_path: Path, work_path: Path
     """Print manual debootstrap steps when no distro-build plugin is available."""
     suite = cfg.get("debian_suite", "bookworm")
     mirror = cfg.get("debian_mirror", "http://deb.debian.org/debian")
+    if mirror.strip().lower() == "auto":
+        mirror = "http://deb.debian.org/debian"
     description = cfg.get("description", "custom Debian distro")
 
     console.print(

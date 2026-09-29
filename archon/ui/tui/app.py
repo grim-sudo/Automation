@@ -38,6 +38,7 @@ from .widgets import (
     ArchonHeader,
     AssistantMessage,
     CommandInput,
+    DebugConsole,
     ErrorView,
     ExecutionView,
     Sidebar,
@@ -73,6 +74,7 @@ class ArchonApp(App[None]):
         ("ctrl+d", "quit", "Exit"),
         ("ctrl+b", "toggle_sidebar", "Sidebar"),
         ("ctrl+j", "toggle_activity", "Activity"),
+        ("ctrl+g", "toggle_debug", "Debug"),
     ]
 
     def __init__(self, engine: Any = None) -> None:
@@ -95,6 +97,7 @@ class ArchonApp(App[None]):
             with Vertical(id="content"):
                 yield VerticalScroll(id="conversation")
                 yield ActivityLog()
+                yield DebugConsole()
         yield StatusBar(id="status-bar")
         yield CommandInput()
 
@@ -113,6 +116,7 @@ class ArchonApp(App[None]):
             self.logger.debug(f"Could not configure sudo escalation: {exc}")
 
         self.query_one("#activity", ActivityLog).display = False  # hidden by default
+        self.query_one("#debug-console", DebugConsole).display = False  # hidden by default
 
         # Brief startup splash, then focus the input and start polling.
         self.push_screen(StartupScreen(self._startup_facts()))
@@ -136,6 +140,7 @@ class ArchonApp(App[None]):
         yield SystemCommand("Clear conversation", "Empty the transcript", self.action_clear_conversation)
         yield SystemCommand("Toggle sidebar", "Show/hide the system inspector", self.action_toggle_sidebar)
         yield SystemCommand("Toggle activity", "Show/hide the activity log", self.action_toggle_activity)
+        yield SystemCommand("Toggle debug console", "Show/hide the raw log stream", self.action_toggle_debug)
         yield SystemCommand("Cancel operation", "Stop the current generation", self.action_cancel)
         yield SystemCommand("Exit Archon", "Quit the application", self.action_quit)
 
@@ -412,6 +417,10 @@ class ArchonApp(App[None]):
     def action_toggle_activity(self) -> None:
         activity = self.query_one("#activity", ActivityLog)
         activity.display = not activity.display
+
+    def action_toggle_debug(self) -> None:
+        console = self.query_one("#debug-console", DebugConsole)
+        console.display = not console.display
 
     def on_resize(self, event: Any) -> None:
         # Collapse the sidebar on narrow terminals so nothing overflows.

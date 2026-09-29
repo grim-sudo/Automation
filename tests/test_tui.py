@@ -281,6 +281,14 @@ async def test_app_toggles_and_clear():
         await pilot.pause(0.05)
         assert activity.display is True
 
+        from archon.ui.tui.widgets import DebugConsole
+
+        console = app.query_one("#debug-console", DebugConsole)
+        assert console.display is False
+        app.action_toggle_debug()
+        await pilot.pause(0.05)
+        assert console.display is True
+
         # Clearing empties the transcript back to a single system note.
         await _drain_turn(app, pilot, "hi")
         app.action_clear_conversation()
@@ -288,3 +296,35 @@ async def test_app_toggles_and_clear():
         conv = app.query_one("#conversation", VerticalScroll)
         assert app._current_assistant is None
         assert len(conv.children) == 1  # just the "cleared" system note
+
+
+@pytest.mark.asyncio
+async def test_debug_console_captures_log_stream():
+    """The debug console installs a loguru sink and drains records into itself."""
+    from archon.ui.tui.app import ArchonApp
+    from archon.ui.tui.widgets import DebugConsole
+    from loguru import logger
+
+    app = ArchonApp()
+    app.controller = _FakeController()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause(1.8)
+        console = app.query_one("#debug-console", DebugConsole)
+
+        # Sink registered at mount.
+        assert console._sink_id is not None
+
+        # Make it visible so the RichLog actually renders written lines.
+        app.action_toggle_debug()
+        await pilot.pause(0.05)
+
+        # A log emitted from anywhere lands in the buffer, then drains to the log.
+        logger.bind(name="probe").warning("debug-console-marker")
+        assert any(r["message"] == "debug-console-marker" for r in console._buffer)
+
+        await pilot.pause(0.4)  # let the drain interval run
+        assert len(console._buffer) == 0  # buffer flushed into the RichLog
+        assert console.lines  # something was written
+
+    # Sink removed at unmount so it doesn't leak into other tests.
+    assert console._sink_id is None

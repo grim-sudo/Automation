@@ -199,6 +199,6 @@ class TestDefaultAllowedRoots:
 
     def test_path_under_home_directory_is_accepted(self) -> None:
         validator = PathValidator()
-        home_path = Path.home() / ".config" / "omni_test_dummy.txt"
+        home_path = Path.home() / ".config" / "archon_test_dummy.txt"
         result = validator.validate(str(home_path))
         assert isinstance(result, Path)

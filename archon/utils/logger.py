@@ -116,8 +116,8 @@ def _default_init() -> None:
         log_dir.mkdir(parents=True, exist_ok=True)
         from datetime import datetime
 
-        log_path = log_dir / f"omni_{datetime.now().strftime('%Y%m%d')}.log"
-        _env_level = os.getenv("OMNI_LOG_LEVEL", "INFO").upper()
+        log_path = log_dir / f"archon_{datetime.now().strftime('%Y%m%d')}.log"
+        _env_level = os.getenv("ARCHON_LOG_LEVEL", "INFO").upper()
         configure_logging(
             debug=(_env_level == "DEBUG"),
             log_file=str(log_path),

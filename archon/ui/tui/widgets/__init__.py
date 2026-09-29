@@ -16,6 +16,7 @@ from .conversation import (
     SystemMessage,
     UserMessage,
 )
+from .debug_console import DebugConsole
 from .execution import ExecutionView, PlanView, ToolCallView
 from .header import ArchonHeader
 from .sidebar import Sidebar
@@ -26,6 +27,7 @@ __all__ = [
     "ArchonHeader",
     "AssistantMessage",
     "CommandInput",
+    "DebugConsole",
     "ErrorView",
     "ExecutionView",
     "PlanView",

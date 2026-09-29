@@ -10,8 +10,10 @@ All blocking subprocess calls run in asyncio.to_thread().
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from loguru import logger
@@ -26,6 +28,75 @@ __all__ = [
 ]
 
 _BUILDROOT_URL = "https://buildroot.org/downloads/buildroot-snapshot.tar.gz"
+
+# Fallback used when mirror selection is disabled or every candidate fails. The
+# deb.debian.org CDN is geo-routed, so it is a safe default even when slow.
+_DEFAULT_DEBIAN_MIRROR = "http://deb.debian.org/debian"
+
+# Curated set of well-maintained, full Debian mirrors probed when the configured
+# mirror is "auto". Kept short on purpose — the point is to pick the fastest
+# reachable one, not to mirror the whole official list.
+_DEBIAN_MIRROR_CANDIDATES = (
+    "http://deb.debian.org/debian",
+    "http://ftp.us.debian.org/debian",
+    "http://ftp.uk.debian.org/debian",
+    "http://ftp.de.debian.org/debian",
+    "http://mirror.leaseweb.com/debian",
+    "http://mirrors.kernel.org/debian",
+)
+
+
+def _select_debian_mirror(configured: str, suite: str) -> str:
+    """Resolve the Debian mirror to use, probing for the fastest when 'auto'.
+
+    An explicit URL is returned untouched. When *configured* is ``"auto"`` (or
+    blank), each candidate's ``dists/<suite>/Release`` is fetched concurrently and
+    the fastest responder wins. If probing is impossible (no httpx) or every
+    candidate fails, we fall back to the geo-routed CDN.
+    """
+    if configured and configured.strip().lower() != "auto":
+        return configured
+
+    try:
+        import concurrent.futures
+        import time
+
+        import httpx
+    except Exception:  # noqa: BLE001 - no probing available, use the safe default
+        logger.debug("Mirror probing unavailable; using {}", _DEFAULT_DEBIAN_MIRROR)
+        return _DEFAULT_DEBIAN_MIRROR
+
+    def _probe(base: str) -> float | None:
+        url = f"{base.rstrip('/')}/dists/{suite}/Release"
+        try:
+            start = time.monotonic()
+            with httpx.Client(follow_redirects=True, timeout=5.0) as client:
+                resp = client.get(url, headers={"Range": "bytes=0-0"})
+            if resp.status_code >= 400:
+                return None
+            return time.monotonic() - start
+        except httpx.HTTPError:
+            return None
+
+    timings: dict[str, float] = {}
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(_DEBIAN_MIRROR_CANDIDATES)
+    ) as pool:
+        for base, elapsed in zip(
+            _DEBIAN_MIRROR_CANDIDATES,
+            pool.map(_probe, _DEBIAN_MIRROR_CANDIDATES),
+            strict=True,
+        ):
+            if elapsed is not None:
+                timings[base] = elapsed
+
+    if not timings:
+        logger.warning("No Debian mirror responded; falling back to {}", _DEFAULT_DEBIAN_MIRROR)
+        return _DEFAULT_DEBIAN_MIRROR
+
+    fastest = min(timings, key=timings.__getitem__)
+    logger.info("Fastest Debian mirror: {} ({:.0f} ms)", fastest, timings[fastest] * 1000)
+    return fastest
 
 
 def _require_root(func_name: str) -> None:
@@ -92,6 +163,30 @@ def _run_logged(
     return result.returncode == 0, output
 
 
+def _install_file(content: str, dest: Path, mode: str = "0644") -> tuple[bool, str]:
+    """Write *content* to *dest* inside a root-owned rootfs, with privilege.
+
+    debootstrap/pacstrap create the rootfs tree owned by root, so the
+    unprivileged build process cannot write into it directly — a plain
+    ``Path.write_text`` raises ``PermissionError`` (this is the ``/etc/hostname``
+    failure). The escalation session's stdin is already consumed by the sudo
+    password, so we can't pipe content through ``sudo tee`` either.
+
+    Instead, stage the content in a user-owned temp file and ``install`` it into
+    place through :func:`_run_logged` (which sudo-wraps when escalated). ``install``
+    sets ownership to the running user (root) and an explicit mode in one step,
+    and passing content via a file sidesteps any shell-quoting of the payload.
+    """
+    fd, tmp = tempfile.mkstemp(prefix="archon_rootfs_")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        return _run_logged(["install", "-m", mode, "-T", tmp, str(dest)])
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+
+
 async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     """Build a Debian minimal rootfs using debootstrap.
 
@@ -116,8 +211,10 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
         mirror = cfg.distro_builder.debian_mirror
         suite = cfg.distro_builder.debian_suite
     except Exception:
-        mirror = "http://deb.debian.org/debian"
+        mirror = "auto"
         suite = "bookworm"
+
+    mirror = await asyncio.to_thread(_select_debian_mirror, mirror, suite)
 
     logger.info("Running debootstrap {} {} …", suite, rootfs_path)
 
@@ -137,39 +234,66 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
         return False
 
     # ── chroot setup ──────────────────────────────────────────────────────────
+    # The rootfs is root-owned (debootstrap ran as root), so config files must be
+    # written through the privilege session, not with a direct Path.write_text.
     chroot = ["chroot", str(rootfs_path)]
 
     # Set hostname
-    (rootfs_path / "etc" / "hostname").write_text(profile.hostname + "\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, profile.hostname + "\n", rootfs_path / "etc" / "hostname"
+    )
 
     # Set timezone
-    tz_file = rootfs_path / "etc" / "timezone"
-    tz_file.write_text(profile.timezone + "\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, profile.timezone + "\n", rootfs_path / "etc" / "timezone"
+    )
     await asyncio.to_thread(
         _run_logged,
         chroot + ["ln", "-sf", f"/usr/share/zoneinfo/{profile.timezone}", "/etc/localtime"],
     )
 
-    # Locale
+    # Locale (read is fine — the file is world-readable; only the write needs root)
     locale_gen = rootfs_path / "etc" / "locale.gen"
     existing = locale_gen.read_text(encoding="utf-8") if locale_gen.exists() else ""
-    locale_gen.write_text(existing + f"\n{profile.locale} UTF-8\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, existing + f"\n{profile.locale} UTF-8\n", locale_gen
+    )
     await asyncio.to_thread(_run_logged, chroot + ["locale-gen"])
 
-    # Install packages
-    if profile.packages:
-        env = dict(os.environ)
-        env["DEBIAN_FRONTEND"] = "noninteractive"
-        pkg_cmd = (
-            chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + profile.packages
-        )
-        logger.info("Installing {} packages …", len(profile.packages))
-        ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
-        if not ok:
-            logger.warning("Some packages failed to install; continuing.")
+    # Live-boot infrastructure is mandatory for a bootable live ISO: live-boot
+    # supplies the initramfs hooks that mount live/filesystem.squashfs off the
+    # media, live-config handles first-boot setup, and systemd-sysv provides the
+    # init a debootstrap --variant=minbase tree otherwise lacks. When the profile
+    # asks for the distro's prebuilt kernel, install it here too so its postinst
+    # generates a live-capable initramfs (live-boot is configured in the same
+    # transaction). A custom-source kernel is installed separately afterwards.
+    live_pkgs = ["live-boot", "live-config", "live-config-systemd", "systemd-sysv"]
+    if profile.kernel.source == "prebuilt":
+        live_pkgs.append("linux-image-amd64")
+
+    install_pkgs = live_pkgs + list(profile.packages)
+
+    env = dict(os.environ)
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+
+    # apt needs a package index inside the chroot before it can install anything.
+    await asyncio.to_thread(_run_logged, chroot + ["apt-get", "update"], env=env)
+
+    pkg_cmd = chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + install_pkgs
+    logger.info("Installing {} packages (incl. live-boot infra) …", len(install_pkgs))
+    ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
+    if not ok:
+        # live-boot failing is fatal — without it the ISO cannot boot. Profile
+        # packages failing is not, so only refuse when the live infra is missing.
+        live_boot_present = (rootfs_path / "usr" / "share" / "initramfs-tools" / "scripts"
+                             / "live").exists()
+        if not live_boot_present:
+            logger.error("live-boot infrastructure failed to install — ISO would not boot.")
+            return False
+        logger.warning("Some profile packages failed to install; continuing.")
 
     # Cleanup
-    await asyncio.to_thread(_run_logged, chroot + ["apt-get", "clean"])
+    await asyncio.to_thread(_run_logged, chroot + ["apt-get", "clean"], env=env)
 
     logger.info("Debian rootfs built at {}", rootfs_path)
     return True
@@ -215,15 +339,21 @@ async def build_arch_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     )
     await asyncio.to_thread(_run_logged, arch_chroot + ["hwclock", "--systohc"])
 
-    # Locale
+    # Locale — the pacstrap tree is root-owned, so writes go through the session.
     locale_gen = rootfs_path / "etc" / "locale.gen"
     existing = locale_gen.read_text(encoding="utf-8") if locale_gen.exists() else ""
-    locale_gen.write_text(existing + f"\n{profile.locale} UTF-8\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, existing + f"\n{profile.locale} UTF-8\n", locale_gen
+    )
     await asyncio.to_thread(_run_logged, arch_chroot + ["locale-gen"])
-    (rootfs_path / "etc" / "locale.conf").write_text(f"LANG={profile.locale}\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, f"LANG={profile.locale}\n", rootfs_path / "etc" / "locale.conf"
+    )
 
     # Hostname
-    (rootfs_path / "etc" / "hostname").write_text(profile.hostname + "\n", encoding="utf-8")
+    await asyncio.to_thread(
+        _install_file, profile.hostname + "\n", rootfs_path / "etc" / "hostname"
+    )
 
     logger.info("Arch rootfs built at {}", rootfs_path)
     return True
@@ -253,7 +383,7 @@ async def build_buildroot_rootfs(
 
     import tempfile
 
-    build_dir = Path(tempfile.mkdtemp(prefix="omni_buildroot_"))
+    build_dir = Path(tempfile.mkdtemp(prefix="archon_buildroot_"))
     num_jobs = jobs or os.cpu_count() or 1
 
     # Download Buildroot snapshot

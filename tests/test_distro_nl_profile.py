@@ -41,3 +41,29 @@ def test_headless_overrides_desktop() -> None:
     profile = nl_to_profile("minimal debian headless with nginx")
     assert profile.desktop is None
     assert "nginx" in profile.packages
+
+
+def test_kernel_source_defaults_to_prebuilt() -> None:
+    # No kernel-level hints -> reliable distro package.
+    profile = nl_to_profile("minimal debian headless with nginx")
+    assert profile.kernel.source == "prebuilt"
+
+
+def test_explicit_custom_kernel_requested() -> None:
+    profile = nl_to_profile("debian with a custom kernel and nginx")
+    assert profile.kernel.source == "custom"
+
+
+def test_explicit_prebuilt_beats_kconfig_options() -> None:
+    # User explicitly wants the stock kernel; honor it even though apparmor would
+    # otherwise imply a source build.
+    profile = nl_to_profile("debian with prebuilt kernel and apparmor")
+    assert profile.kernel.source == "prebuilt"
+
+
+def test_kconfig_options_imply_custom_kernel() -> None:
+    # Kernel-level options can only be applied to a source build, so they force
+    # the custom path even without the word "custom".
+    profile = nl_to_profile("debian with apparmor and wireguard")
+    assert profile.kernel.kconfig_options
+    assert profile.kernel.source == "custom"

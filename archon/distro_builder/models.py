@@ -24,11 +24,16 @@ class KernelConfig(BaseModel):
 
     Attributes:
         version:         Kernel version string, e.g. ``"6.9.3"`` or ``"latest-stable"``.
+        source:          ``"prebuilt"`` installs the distro's packaged kernel (reliable,
+                         boots first time); ``"custom"`` compiles the kernel from source
+                         and builds a matching initramfs (needed to apply kconfig_options).
         patches:         List of local patch file paths to apply with ``patch -p1``.
         kconfig_options: Mapping of CONFIG_ option names to values (``"y"``/``"n"``/``"m"``).
+                         Only meaningful when ``source == "custom"``.
     """
 
     version: str = "latest-stable"
+    source: Literal["prebuilt", "custom"] = "prebuilt"
     patches: list[str] = Field(default_factory=list)
     kconfig_options: dict[str, str] = Field(default_factory=dict)
 
@@ -54,7 +59,7 @@ class DistroProfile(BaseModel):
     packages: list[str] = Field(default_factory=list)
     locale: str = "en_US.UTF-8"
     timezone: str = "UTC"
-    hostname: str = "omni-custom"
+    hostname: str = "archon-custom"
     desktop: str | None = None
     extra_scripts: list[str] = Field(default_factory=list)
 
@@ -89,6 +94,10 @@ class BuildResult(BaseModel):
     log_path: str = ""
     build_time_seconds: float = 0.0
     size_bytes: int | None = None
+    # Human-readable reason a build failed. Without this field the pipeline's
+    # ``error_message=...`` was silently dropped by pydantic, so failures
+    # surfaced as a bare "ISO built: None" with no cause.
+    error_message: str | None = None
 
 
 class BuildContext(BaseModel):

@@ -97,6 +97,16 @@ Screen {
     padding: 0 2;
 }
 
+/* ── Debug console (raw log stream) ──────────────────────────────────────── */
+.debug-console {
+    height: 16;
+    dock: bottom;
+    background: #0c0e11;
+    border-top: solid #26292f;
+    border-title-color: #8a6d3b;
+    padding: 0 2;
+}
+
 /* ── Status bar + input ─────────────────────────────────────────────────── */
 #status-bar {
     height: 1;

@@ -3,7 +3,7 @@ Archon configuration module.
 
 Priority order (highest to lowest):
   1. Programmatic overrides (init_settings / CLI flag injection)
-  2. Environment variables with OMNI__ prefix and nested delimiter __
+  2. Environment variables with ARCHON__ prefix and nested delimiter __
   3. Backward-compat flat env vars (OLLAMA_URL, OLLAMA_MODEL, N8N_API_KEY, …)
   4. ~/.archon/config.toml
   5. Hardcoded defaults
@@ -40,11 +40,12 @@ __all__ = [
     "AISettings",
     "N8nSettings",
     "DistroBuildSettings",
+    "FirecrawlSettings",
+    "PublicApisSettings",
     "Settings",
     "get_settings",
     "generate_example_config",
     # Legacy aliases kept for backwards compat
-    "OmniConfig",
     "get_config",
 ]
 
@@ -124,6 +125,9 @@ _COMPAT_MAP: dict[str, tuple[str, str]] = {
     # Firecrawl (self-hosted) flat env vars
     "FIRECRAWL_BASE_URL": ("firecrawl", "base_url"),
     "FIRECRAWL_TIMEOUT": ("firecrawl", "timeout"),
+    # Public APIs (keyless) flat env vars
+    "PUBLIC_APIS_TIMEOUT": ("public_apis", "timeout"),
+    "PUBLIC_APIS_USER_AGENT": ("public_apis", "user_agent"),
 }
 
 
@@ -368,11 +372,31 @@ class FirecrawlSettings(BaseModel):
         return v
 
 
+class PublicApisSettings(BaseModel):
+    """Keyless public-API integration settings (see :mod:`archon.plugins.public_apis`)."""
+
+    timeout: float = Field(
+        default=20.0,
+        description="Per-request timeout in seconds for public-API calls",
+    )
+    user_agent: str = Field(
+        default="Archon/1.0 (+https://github.com/public-apis/public-apis)",
+        description="User-Agent sent with public-API requests (some hosts require one)",
+    )
+
+    @field_validator("timeout")
+    @classmethod
+    def _validate_timeout(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("public_apis timeout must be positive")
+        return v
+
+
 class DistroBuildSettings(BaseModel):
     """Custom Linux distribution builder settings."""
 
     work_dir: str = Field(
-        default="/tmp/omni_distro_build",
+        default="/tmp/archon_distro_build",
         description="Temporary working directory for build operations",
     )
     output_dir: str = Field(
@@ -384,8 +408,12 @@ class DistroBuildSettings(BaseModel):
         description="Parallel build jobs; 0 = auto-detect from CPU count",
     )
     debian_mirror: str = Field(
-        default="http://deb.debian.org/debian",
-        description="Debian package mirror URL used during debootstrap",
+        default="auto",
+        description=(
+            "Debian package mirror URL used during debootstrap. 'auto' probes a "
+            "curated set of mirrors and picks the fastest to respond; set an "
+            "explicit URL to pin one."
+        ),
     )
     debian_suite: str = Field(
         default="bookworm",
@@ -422,7 +450,7 @@ class Settings(BaseSettings):
     Configuration is resolved in this priority order:
 
     1. Programmatic init overrides (highest priority)
-    2. ``OMNI__`` prefixed env vars (e.g. ``OMNI__AI__MODEL``)
+    2. ``ARCHON__`` prefixed env vars (e.g. ``ARCHON__AI__MODEL``)
     3. Backward-compat flat env vars (``OLLAMA_URL``, ``OLLAMA_MODEL``, etc.)
     4. ``~/.archon/config.toml``
     5. Hardcoded defaults (lowest priority)
@@ -443,6 +471,10 @@ class Settings(BaseSettings):
     firecrawl: FirecrawlSettings = Field(
         default_factory=FirecrawlSettings,
         description="Self-hosted Firecrawl web-tools settings",
+    )
+    public_apis: PublicApisSettings = Field(
+        default_factory=PublicApisSettings,
+        description="Keyless public-API integration settings",
     )
     debug: bool = Field(
         default=False,
@@ -526,8 +558,8 @@ def generate_example_config(path: Path | None = None) -> Path:
 #   CLI flag > environment variable > this file > hardcoded default
 #
 # Nested env var delimiter: "__"
-#   e.g. export OMNI__AI__MODEL="qwen3.5:9b"
-#        export OMNI__DEBUG=true
+#   e.g. export ARCHON__AI__MODEL="qwen3.5:9b"
+#        export ARCHON__DEBUG=true
 #
 # Backward-compat flat env vars (no prefix required):
 #   MAX_RETRIES, OLLAMA_URL, OLLAMA_MODEL, N8N_URL, N8N_API_KEY
@@ -608,7 +640,7 @@ polling_interval_seconds = 5
 
 [distro_builder]
 # Temporary scratch directory used during build operations
-work_dir = "/tmp/omni_distro_build"
+work_dir = "/tmp/archon_distro_build"
 
 # Directory where finished ISOs and release artifacts are written
 output_dir = "./distro_output"
@@ -616,8 +648,8 @@ output_dir = "./distro_output"
 # Parallel make jobs (0 = auto-detect via nproc / os.cpu_count())
 default_jobs = 0
 
-# Debian mirror used by debootstrap
-debian_mirror = "http://deb.debian.org/debian"
+# Debian mirror used by debootstrap ("auto" picks the fastest reachable mirror)
+debian_mirror = "auto"
 
 # Debian suite (release codename) for the base system
 debian_suite = "bookworm"
@@ -636,6 +668,15 @@ base_url = "http://localhost:3002"
 
 # Per-request timeout in seconds (crawls can be slow)
 timeout = 120.0
+
+# ── Public APIs (keyless integrations) ─────────────────────────────────────────
+
+[public_apis]
+# Per-request timeout in seconds for keyless public-API calls
+timeout = 20.0
+
+# User-Agent sent with requests (some hosts, e.g. GitHub/Nominatim, require one)
+user_agent = "Archon/1.0 (+https://github.com/public-apis/public-apis)"
 """
 
     path.write_text(content, encoding="utf-8")
@@ -686,6 +727,3 @@ def get_config(**overrides: Any) -> Settings:
         return Settings(**overrides)
     return get_settings()
 
-
-# Legacy name alias
-OmniConfig = Settings

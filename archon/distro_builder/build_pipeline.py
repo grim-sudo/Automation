@@ -15,14 +15,14 @@ from .iso_assembler import assemble_iso, prepare_bootloader, verify_iso
 from .kernel_configurator import (
     apply_options,
     build_kernel,
-    install_modules,
     load_default_config,
     write_config,
 )
 from .kernel_fetcher import apply_patches, download_kernel, fetch_latest_stable_version
+from .live_builder import build_live_layout, install_custom_kernel
 from .models import BuildContext, BuildResult, DistroProfile
 from .package_selector import nl_to_profile
-from .rootfs_builder import build_arch_rootfs, build_buildroot_rootfs, build_debian_rootfs
+from .rootfs_builder import build_debian_rootfs
 
 console = Console()
 
@@ -79,19 +79,16 @@ async def build_distro(
     work_dir: Path | None = None,
 ) -> BuildResult:
     """
-    Orchestrate the full distro build pipeline.
+    Orchestrate the full live-ISO build pipeline.
 
-    Pipeline stages:
-        1. Resolve kernel version (if "latest-stable")
-        2. Download kernel source tarball
-        3. Apply any requested patches
-        4. Configure kernel (.config generation)
-        5. Compile kernel (bzImage + modules)
-        6. Build rootfs (debootstrap / pacstrap / Buildroot)
-        7. Install kernel modules into rootfs
-        8. Prepare isolinux bootloader
-        9. Assemble ISO with xorriso
-        10. Verify ISO with isovfy
+    Pipeline stages (Debian base):
+        For a custom kernel: resolve version, download source, apply patches,
+        configure (.config), and compile (bzImage + modules).
+        Then, always: build the rootfs with live-boot infrastructure (and the
+        distro kernel package on the prebuilt path), install the custom kernel
+        + a matching initramfs when applicable, SquashFS the rootfs into
+        ``live/filesystem.squashfs``, stage kernel + initrd, write a
+        ``boot=live`` isolinux config, assemble the ISO with xorriso, and verify.
 
     Args:
         profile: The DistroProfile describing what to build.
@@ -105,11 +102,25 @@ async def build_distro(
     if jobs == 0:
         jobs = os.cpu_count() or 4
 
+    # Live boot is implemented on the Debian live-boot stack (SquashFS +
+    # live-boot initramfs hooks). Arch/Buildroot use entirely different live
+    # mechanisms (archiso, custom init), so fail clearly — before allocating any
+    # work dirs or log handlers — rather than emit a non-booting image.
+    if profile.base != "debian":
+        return BuildResult(
+            success=False,
+            log_path="",
+            error_message=(
+                f"Live ISO builds currently support the 'debian' base only; "
+                f"requested base '{profile.base}' is not yet supported."
+            ),
+        )
+
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     base_work = Path(work_dir) if work_dir else Path("/tmp")
-    work_dir = (base_work / f"omni_distro_{profile.name}_{int(time.time())}").resolve()
+    work_dir = (base_work / f"archon_distro_{profile.name}_{int(time.time())}").resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
 
     rootfs_path = work_dir / "rootfs"
@@ -129,116 +140,108 @@ async def build_distro(
         jobs=jobs,
     )
 
+    # Live boot is implemented on the Debian live-boot stack (SquashFS +
+    # live-boot initramfs hooks); the base was already validated above.
+    custom_kernel = profile.kernel.source == "custom"
+
     try:
-        # ------------------------------------------------------------------ #
-        # Step 1 – Resolve kernel version                                      #
-        # ------------------------------------------------------------------ #
-        console.print("[bold cyan]Step 1/7:[/bold cyan] Resolving kernel version")
-        logger.info("Step 1/7: Resolving kernel version")
+        kernel_dir: Path | None = None
+        if custom_kernel:
+            # ── Step 1 – Resolve kernel version ──────────────────────────── #
+            console.print("[bold cyan]Step 1/6:[/bold cyan] Resolving kernel version")
+            logger.info("Step 1/6: Resolving kernel version (custom source build)")
 
-        kernel_version = profile.kernel.version
-        if kernel_version == "latest-stable":
-            kernel_version = await fetch_latest_stable_version()
-            logger.info(f"Latest stable kernel: {kernel_version}")
-        console.print(f"  Kernel: [green]{kernel_version}[/green]")
+            kernel_version = profile.kernel.version
+            if kernel_version == "latest-stable":
+                kernel_version = await fetch_latest_stable_version()
+                logger.info(f"Latest stable kernel: {kernel_version}")
+            console.print(f"  Kernel: [green]{kernel_version}[/green]")
 
-        # ------------------------------------------------------------------ #
-        # Step 2 – Download kernel source                                      #
-        # ------------------------------------------------------------------ #
-        console.print("[bold cyan]Step 2/7:[/bold cyan] Downloading kernel source")
-        logger.info(f"Step 2/7: Downloading kernel {kernel_version}")
+            # ── Step 2 – Download kernel source ──────────────────────────── #
+            console.print("[bold cyan]Step 2/6:[/bold cyan] Downloading kernel source")
+            logger.info(f"Step 2/6: Downloading kernel {kernel_version}")
 
-        kernel_cache = _resolve_kernel_cache()
-        kernel_cache.mkdir(parents=True, exist_ok=True)
-        kernel_dir = await download_kernel(kernel_version, kernel_cache)
+            kernel_cache = _resolve_kernel_cache()
+            kernel_cache.mkdir(parents=True, exist_ok=True)
+            kernel_dir = await download_kernel(kernel_version, kernel_cache)
 
-        # ------------------------------------------------------------------ #
-        # Step 2b – Apply patches (optional)                                   #
-        # ------------------------------------------------------------------ #
-        if profile.kernel.patches:
-            logger.info(f"Applying {len(profile.kernel.patches)} patch(es)")
-            patch_paths = [Path(p) for p in profile.kernel.patches]
-            patches_ok = await apply_patches(kernel_dir, patch_paths)
-            if not patches_ok:
-                logger.warning("One or more patches did not apply cleanly — continuing")
+            # ── Step 2b – Apply patches (optional) ───────────────────────── #
+            if profile.kernel.patches:
+                logger.info(f"Applying {len(profile.kernel.patches)} patch(es)")
+                patch_paths = [Path(p) for p in profile.kernel.patches]
+                patches_ok = await apply_patches(kernel_dir, patch_paths)
+                if not patches_ok:
+                    logger.warning("One or more patches did not apply cleanly — continuing")
 
-        # ------------------------------------------------------------------ #
-        # Step 3 – Configure kernel                                            #
-        # ------------------------------------------------------------------ #
-        console.print("[bold cyan]Step 3/7:[/bold cyan] Configuring kernel")
-        logger.info("Step 3/7: Configuring kernel")
+            # ── Step 3 – Configure kernel ────────────────────────────────── #
+            console.print("[bold cyan]Step 3/6:[/bold cyan] Configuring kernel")
+            logger.info("Step 3/6: Configuring kernel")
 
-        if profile.kernel.kconfig_options:
-            kconfig = await asyncio.to_thread(load_default_config, kernel_dir)
-            await asyncio.to_thread(apply_options, kconfig, profile.kernel.kconfig_options)
-            config_path = work_dir / ".config"
-            await asyncio.to_thread(write_config, kconfig, config_path)
-            logger.info(
-                f"Custom .config with {len(profile.kernel.kconfig_options)} option(s) written"
+            if profile.kernel.kconfig_options:
+                kconfig = await asyncio.to_thread(load_default_config, kernel_dir)
+                await asyncio.to_thread(apply_options, kconfig, profile.kernel.kconfig_options)
+                config_path = work_dir / ".config"
+                await asyncio.to_thread(write_config, kconfig, config_path)
+                logger.info(
+                    f"Custom .config with {len(profile.kernel.kconfig_options)} option(s) written"
+                )
+            else:
+                config_path = kernel_dir / ".config"
+                logger.info("No custom kconfig_options — will use defconfig")
+
+            # ── Step 4 – Build kernel ────────────────────────────────────── #
+            console.print(f"[bold cyan]Step 4/6:[/bold cyan] Building kernel (jobs={jobs})")
+            logger.info(f"Step 4/6: Building kernel with {jobs} job(s)")
+
+            success, build_log = await asyncio.to_thread(
+                build_kernel, kernel_dir, config_path, jobs
             )
+            if not success:
+                logger.error(f"Kernel build failed. Last output:\n{build_log[-1000:]}")
+                return BuildResult(
+                    success=False,
+                    log_path=str(log_path),
+                    build_time_seconds=time.time() - start_time,
+                    error_message=f"Kernel build failed: {build_log[:500]}",
+                )
+            logger.info("Kernel build finished successfully")
         else:
-            # Use whatever defconfig make produces; build_kernel will run defconfig
-            config_path = kernel_dir / ".config"
-            logger.info("No custom kconfig_options — will use defconfig")
-
-        # ------------------------------------------------------------------ #
-        # Step 4 – Build kernel                                                #
-        # ------------------------------------------------------------------ #
-        console.print(f"[bold cyan]Step 4/7:[/bold cyan] Building kernel (jobs={jobs})")
-        logger.info(f"Step 4/7: Building kernel with {jobs} job(s)")
-
-        success, build_log = await asyncio.to_thread(build_kernel, kernel_dir, config_path, jobs)
-        if not success:
-            logger.error(f"Kernel build failed. Last output:\n{build_log[-1000:]}")
-            return BuildResult(
-                success=False,
-                log_path=str(log_path),
-                build_time_seconds=time.time() - start_time,
-                error_message=f"Kernel build failed: {build_log[:500]}",
+            console.print(
+                "[bold cyan]Steps 1-4/6:[/bold cyan] Skipped "
+                "(using distro prebuilt kernel package)"
             )
-        logger.info("Kernel build finished successfully")
+            logger.info("Using prebuilt distro kernel — skipping source download/compile")
 
-        # ------------------------------------------------------------------ #
-        # Step 5 – Build rootfs                                                #
-        # ------------------------------------------------------------------ #
-        console.print(f"[bold cyan]Step 5/7:[/bold cyan] Building {profile.base} rootfs")
-        logger.info(f"Step 5/7: Building {profile.base} rootfs at {rootfs_path}")
+        # ── Step 5 – Build rootfs (installs live-boot + kernel package) ──── #
+        console.print("[bold cyan]Step 5/6:[/bold cyan] Building debian rootfs")
+        logger.info(f"Step 5/6: Building debian rootfs at {rootfs_path}")
 
-        if profile.base == "debian":
-            rootfs_ok = await asyncio.to_thread(build_debian_rootfs, profile, rootfs_path)
-        elif profile.base == "arch":
-            rootfs_ok = await asyncio.to_thread(build_arch_rootfs, profile, rootfs_path)
-        else:
-            rootfs_ok = await asyncio.to_thread(build_buildroot_rootfs, profile, rootfs_path, jobs)
-
+        # Async coroutine — must be awaited directly (wrapping in
+        # asyncio.to_thread only creates a never-awaited coroutine, the old
+        # "empty 1.6 MB ISO" bug).
+        rootfs_ok = await build_debian_rootfs(profile, rootfs_path)
         if not rootfs_ok:
             return BuildResult(
                 success=False,
                 log_path=str(log_path),
                 build_time_seconds=time.time() - start_time,
-                error_message=f"{profile.base} rootfs build failed",
+                error_message="debian rootfs build failed",
             )
 
-        # Install kernel modules into the freshly-built rootfs
-        modules_ok = await asyncio.to_thread(install_modules, kernel_dir, rootfs_path)
-        if not modules_ok:
-            logger.warning("modules_install reported a failure — proceeding anyway")
+        # A custom kernel isn't in the rootfs yet — install its modules, image,
+        # and a matching live-boot initramfs. The prebuilt package already did
+        # all of this during rootfs build.
+        if custom_kernel and kernel_dir is not None:
+            await install_custom_kernel(kernel_dir, rootfs_path)
 
-        # ------------------------------------------------------------------ #
-        # Step 6 – Prepare bootloader                                          #
-        # ------------------------------------------------------------------ #
-        console.print("[bold cyan]Step 6/7:[/bold cyan] Preparing isolinux bootloader")
-        logger.info("Step 6/7: Preparing bootloader")
+        # ── Step 6 – Assemble live ISO ───────────────────────────────────── #
+        console.print("[bold cyan]Step 6/6:[/bold cyan] Assembling live ISO")
+        logger.info("Step 6/6: SquashFS + bootloader + ISO")
 
-        await asyncio.to_thread(prepare_bootloader, rootfs_path, work_dir)
+        iso_dir = await build_live_layout(rootfs_path, work_dir)
+        await asyncio.to_thread(prepare_bootloader, iso_dir, profile.name)
 
-        # ------------------------------------------------------------------ #
-        # Step 7 – Assemble and verify ISO                                     #
-        # ------------------------------------------------------------------ #
-        console.print("[bold cyan]Step 7/7:[/bold cyan] Assembling ISO")
-        logger.info("Step 7/7: Assembling ISO")
-
-        iso_ok = await asyncio.to_thread(assemble_iso, work_dir, iso_path, profile.name.upper())
+        iso_ok = await asyncio.to_thread(assemble_iso, iso_dir, iso_path, profile.name.upper())
         if not iso_ok:
             return BuildResult(
                 success=False,
@@ -326,11 +329,14 @@ def estimate_build_time(profile: DistroProfile) -> str:
     }
     estimate = base_estimates.get(profile.base, "~45 minutes (base rootfs)")
 
-    # Kernel compilation cost
-    if profile.kernel.kconfig_options:
-        estimate += " + ~20-40 minutes (custom kernel compile)"
+    # Kernel cost depends on whether we compile from source or use the package.
+    if profile.kernel.source == "custom":
+        estimate += " + ~20-40 minutes (custom kernel compile + initramfs)"
     else:
-        estimate += " + ~20-40 minutes (kernel compile)"
+        estimate += " + ~2-5 minutes (prebuilt kernel package + initramfs)"
+
+    # SquashFS compression of the rootfs into a live image
+    estimate += " + ~3-8 minutes (SquashFS + ISO assembly)"
 
     # Desktop environment adds time for package installation
     if profile.desktop:
