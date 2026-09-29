@@ -187,6 +187,40 @@ def _install_file(content: str, dest: Path, mode: str = "0644") -> tuple[bool, s
             os.unlink(tmp)
 
 
+# Kernel virtual filesystems bind-mounted into the chroot before apt/dpkg run.
+# Kernel and live-boot postinst scripts (notably update-initramfs) need these
+# present; without them the initramfs is silently not generated and the live
+# ISO ends up with no initrd. Order matters — /dev before /dev/pts.
+_CHROOT_BINDS = (
+    ("proc", ["mount", "-t", "proc", "proc"]),
+    ("sys", ["mount", "-t", "sysfs", "sys"]),
+    ("dev", ["mount", "--bind", "/dev"]),
+    ("dev/pts", ["mount", "--bind", "/dev/pts"]),
+)
+
+
+def _mount_chroot_binds(rootfs_path: Path) -> list[str]:
+    """Bind /proc, /sys, /dev into the chroot; return the targets mounted.
+
+    Returns only the successfully-mounted targets so the caller can unmount
+    exactly those in a finally block. These MUST be unmounted before the rootfs
+    is squashed, or mksquashfs would descend into the live host's /proc & /dev.
+    """
+    mounted: list[str] = []
+    for rel, cmd in _CHROOT_BINDS:
+        target = rootfs_path / rel
+        ok, _ = _run_logged(cmd + [str(target)])
+        if ok:
+            mounted.append(str(target))
+    return mounted
+
+
+def _umount_chroot_binds(mounted: list[str]) -> None:
+    """Lazily unmount chroot bind targets in reverse order (best effort)."""
+    for target in reversed(mounted):
+        _run_logged(["umount", "-l", target])
+
+
 async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool:
     """Build a Debian minimal rootfs using debootstrap.
 
@@ -267,7 +301,18 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
     # asks for the distro's prebuilt kernel, install it here too so its postinst
     # generates a live-capable initramfs (live-boot is configured in the same
     # transaction). A custom-source kernel is installed separately afterwards.
-    live_pkgs = ["live-boot", "live-config", "live-config-systemd", "systemd-sysv"]
+    # initramfs-tools is what actually builds the initrd; it is a dependency of
+    # live-boot but listed explicitly so --no-install-recommends can never drop
+    # it. live-boot supplies the initramfs hooks that mount
+    # live/filesystem.squashfs; live-config handles first boot; systemd-sysv is
+    # the init a --variant=minbase tree lacks.
+    live_pkgs = [
+        "initramfs-tools",
+        "live-boot",
+        "live-config",
+        "live-config-systemd",
+        "systemd-sysv",
+    ]
     if profile.kernel.source == "prebuilt":
         live_pkgs.append("linux-image-amd64")
 
@@ -276,24 +321,62 @@ async def build_debian_rootfs(profile: DistroProfile, rootfs_path: Path) -> bool
     env = dict(os.environ)
     env["DEBIAN_FRONTEND"] = "noninteractive"
 
-    # apt needs a package index inside the chroot before it can install anything.
-    await asyncio.to_thread(_run_logged, chroot + ["apt-get", "update"], env=env)
+    # Bind /proc, /sys, /dev so kernel/live-boot postinst scripts behave; unmount
+    # in the finally so the rootfs is clean before it is squashed.
+    mounted = await asyncio.to_thread(_mount_chroot_binds, rootfs_path)
+    try:
+        # apt needs a package index inside the chroot before it can install anything.
+        await asyncio.to_thread(_run_logged, chroot + ["apt-get", "update"], env=env)
 
-    pkg_cmd = chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + install_pkgs
-    logger.info("Installing {} packages (incl. live-boot infra) …", len(install_pkgs))
-    ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
-    if not ok:
-        # live-boot failing is fatal — without it the ISO cannot boot. Profile
-        # packages failing is not, so only refuse when the live infra is missing.
-        live_boot_present = (rootfs_path / "usr" / "share" / "initramfs-tools" / "scripts"
-                             / "live").exists()
-        if not live_boot_present:
-            logger.error("live-boot infrastructure failed to install — ISO would not boot.")
-            return False
-        logger.warning("Some profile packages failed to install; continuing.")
+        pkg_cmd = chroot + ["apt-get", "install", "-y", "--no-install-recommends"] + install_pkgs
+        logger.info("Installing {} packages (incl. live-boot infra) …", len(install_pkgs))
+        ok, _ = await asyncio.to_thread(_run_logged, pkg_cmd, env=env)
+        if not ok:
+            # live-boot failing is fatal — without it the ISO cannot boot. Profile
+            # packages failing is not, so only refuse when the live infra is missing.
+            live_boot_present = (rootfs_path / "usr" / "share" / "initramfs-tools" / "scripts"
+                                 / "live").exists()
+            if not live_boot_present:
+                logger.error("live-boot infrastructure failed to install — ISO would not boot.")
+                return False
+            logger.warning("Some profile packages failed to install; continuing.")
 
-    # Cleanup
-    await asyncio.to_thread(_run_logged, chroot + ["apt-get", "clean"], env=env)
+        # Regenerate the initramfs now that live-boot is installed, so the initrd
+        # carries the hooks that mount the squashfs at boot. The kernel postinst
+        # does not reliably produce one inside a chroot (that was the "initrd=None,
+        # the live ISO cannot boot" failure), so this is the authoritative step for
+        # the prebuilt-kernel path. The custom path builds its own initramfs in
+        # install_custom_kernel afterwards.
+        if profile.kernel.source == "prebuilt":
+            await asyncio.to_thread(
+                _run_logged,
+                chroot
+                + [
+                    "sh",
+                    "-c",
+                    'for d in /lib/modules/*/; do k=${d%/}; k=${k##*/}; '
+                    '[ -e "/boot/vmlinuz-$k" ] || continue; '
+                    'update-initramfs -c -k "$k" 2>/dev/null || update-initramfs -u -k "$k"; '
+                    "done",
+                ],
+                env=env,
+            )
+
+        # Cleanup
+        await asyncio.to_thread(_run_logged, chroot + ["apt-get", "clean"], env=env)
+    finally:
+        await asyncio.to_thread(_umount_chroot_binds, mounted)
+
+    # A prebuilt-kernel live rootfs must have a matching initrd or the ISO cannot
+    # boot. Fail here with a clear message instead of ~200s later in the live
+    # layout step (the custom path stages its initrd after this function).
+    if profile.kernel.source == "prebuilt" and not any(
+        (rootfs_path / "boot").glob("initrd.img-*")
+    ):
+        logger.error(
+            "no initramfs was generated in {}/boot — live ISO would not boot.", rootfs_path
+        )
+        return False
 
     logger.info("Debian rootfs built at {}", rootfs_path)
     return True

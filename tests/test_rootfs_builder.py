@@ -63,6 +63,10 @@ def test_debian_rootfs_writes_config_through_privileged_runner(tmp_path, monkeyp
         kernel=KernelConfig(source="prebuilt"),
     )
     rootfs = tmp_path / "rootfs"
+    # Seed an initrd so the prebuilt-kernel bootability check passes; this test
+    # is about config-write routing, not initramfs generation.
+    (rootfs / "boot").mkdir(parents=True)
+    (rootfs / "boot" / "initrd.img-6.1.0-test").write_text("x", encoding="utf-8")
 
     ok = asyncio.run(rb.build_debian_rootfs(profile, rootfs))
     assert ok is True
@@ -120,3 +124,64 @@ def test_select_mirror_falls_back_when_all_fail(monkeypatch):
 
     monkeypatch.setattr(httpx.Client, "get", always_fail)
     assert rb._select_debian_mirror("auto", "bookworm") == rb._DEFAULT_DEBIAN_MIRROR
+
+
+def test_debian_rootfs_fails_when_no_initrd_produced(tmp_path, monkeypatch):
+    # The build must refuse (not silently succeed) when the prebuilt-kernel path
+    # produces no initramfs — that was the "initrd=None, live ISO cannot boot"
+    # failure surfacing 200s too late in the live layout step.
+    monkeypatch.setattr(rb, "_require_root", lambda *_a, **_k: None)
+    monkeypatch.setattr(rb, "_run_logged", lambda *_a, **_k: (True, ""))
+    monkeypatch.setattr(
+        rb, "_select_debian_mirror", lambda *_a, **_k: "http://deb.debian.org/debian"
+    )
+
+    profile = DistroProfile(
+        name="secos",
+        base_distro="debian",
+        hostname="secos-host",
+        packages=[],
+        kernel=KernelConfig(source="prebuilt"),
+    )
+    # No /boot/initrd.img-* seeded → verification must fail the build.
+    assert asyncio.run(rb.build_debian_rootfs(profile, tmp_path / "rootfs")) is False
+
+
+def test_debian_rootfs_binds_and_regenerates_initramfs(tmp_path, monkeypatch):
+    commands: list[list[str]] = []
+
+    def fake_run_logged(cmd, cwd=None, env=None):
+        commands.append(cmd)
+        return True, ""
+
+    monkeypatch.setattr(rb, "_require_root", lambda *_a, **_k: None)
+    monkeypatch.setattr(rb, "_run_logged", fake_run_logged)
+    monkeypatch.setattr(
+        rb, "_select_debian_mirror", lambda *_a, **_k: "http://deb.debian.org/debian"
+    )
+
+    profile = DistroProfile(
+        name="secos",
+        base_distro="debian",
+        hostname="secos-host",
+        packages=[],
+        kernel=KernelConfig(source="prebuilt"),
+    )
+    rootfs = tmp_path / "rootfs"
+    (rootfs / "boot").mkdir(parents=True)
+    (rootfs / "boot" / "initrd.img-6.1.0-test").write_text("x", encoding="utf-8")
+
+    assert asyncio.run(rb.build_debian_rootfs(profile, rootfs)) is True
+
+    firsts = [c[0] for c in commands]
+    # /proc, /sys, /dev bound before apt, and unmounted afterwards.
+    assert firsts.count("mount") == len(rb._CHROOT_BINDS)
+    assert firsts.count("umount") == len(rb._CHROOT_BINDS)
+    # initramfs regenerated in-chroot after live-boot is installed.
+    assert any(
+        c[0] == "chroot" and "update-initramfs" in " ".join(c) for c in commands
+    )
+    # Mounts torn down before the (later) squashfs step — the last mount-family
+    # command must be a umount, never a leftover mount.
+    mount_family = [c[0] for c in commands if c[0] in ("mount", "umount")]
+    assert mount_family[-1] == "umount"
