@@ -185,4 +185,4 @@ batch_*.txt
 # Rust build artifacts (workspace-level)
 /target/
 e2e/
-
+distro_output/
