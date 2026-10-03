@@ -99,6 +99,13 @@ class TestIntentDetection:
             "create a file called os.txt",
             "make a folder named projects",
             "create a linux user account",
+            # A research/doc request that merely mentions distro-ish words must
+            # not route to the OS builder (and get flagged destructive). The old
+            # greedy ".*" bridged "make" to a later "distribution"/"operating
+            # system" anywhere in the prompt.
+            "make a huge research file on quantum computing and quantum key distribution",
+            "write a detailed document about the operating system scheduler",
+            "generate a report covering statistical distribution of the data",
         ],
     )
     def test_build_distro_does_not_over_fire(

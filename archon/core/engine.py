@@ -228,6 +228,31 @@ class Archon:
                     payload["error"] = enhance_result.get("error", "Document enhancement failed")
                 return payload
 
+            # "Change the filetype from md to txt" / "convert notes.md to a text
+            # file" is a rename. The AI planner often can't recover the file's real
+            # path from context, so it emits a rename with a bare name that doesn't
+            # resolve — which then (before the honesty fix) reported a false
+            # success. Resolve the target from an explicit token, the last file we
+            # touched, or a single match in the cwd, and rename it for real.
+            rename_result = self._maybe_change_extension(command)
+            if rename_result is not None:
+                ok = rename_result.get("success", False)
+                self._log_execution(
+                    command, {"action": "rename", "category": "filesystem"},
+                    rename_result, success=ok, duration=time.monotonic() - start,
+                )
+                payload = {
+                    "success": ok,
+                    "result": rename_result,
+                    "command": command,
+                    "complexity": "simple",
+                    "route": "filesystem.rename",
+                    "timestamp": datetime.now().isoformat(),
+                }
+                if not ok:
+                    payload["error"] = rename_result.get("error", "Rename failed")
+                return payload
+
             # "Open chrome and search for bread" / "go to example.com" is a
             # browser launch, not a scripted Selenium session. The AI planner
             # tends to explode it into a slow multi-step WebDriver sequence
@@ -297,14 +322,21 @@ class Archon:
                 # Execute the command
                 result = self._execute_parsed_command(parsed_command, **kwargs)
 
+                # Derive real success from the handler's return instead of
+                # hardcoding True. Filesystem actions (rename/move/copy/delete)
+                # return a bare bool, and many handlers return {"success": ...};
+                # assuming success turned a failed rename ("md -> txt" on a path
+                # that didn't resolve) into a false positive.
+                ok, err = self._interpret_result(result)
+
                 # Log execution
                 self._log_execution(
                     command, parsed_command, result,
-                    success=True, duration=time.monotonic() - start,
+                    success=ok, duration=time.monotonic() - start,
                 )
 
-                return {
-                    "success": True,
+                payload = {
+                    "success": ok,
                     "result": result,
                     "command": command,
                     "complexity": "simple",
@@ -314,6 +346,9 @@ class Archon:
                     ),
                     "timestamp": datetime.now().isoformat(),
                 }
+                if not ok:
+                    payload["error"] = err or "The action reported failure."
+                return payload
             else:
                 # Execute complex workflow
                 self.logger.info(
@@ -389,6 +424,23 @@ class Archon:
                 "ai_suggestions": error_suggestions,
                 "timestamp": datetime.now().isoformat(),
             }
+
+    @staticmethod
+    def _interpret_result(result: Any) -> tuple[bool, str | None]:
+        """Map a handler's return value to ``(success, error)``.
+
+        Handlers are inconsistent: filesystem adapters return a bare ``bool``
+        (``False`` means the op didn't happen), while plugins return a
+        ``{"success": ..., "error": ...}`` dict. Anything else that's non-None is
+        treated as a successful result. This is what stops a ``False`` rename from
+        being reported as success.
+        """
+        if isinstance(result, dict):
+            ok = bool(result.get("success", True))
+            return ok, (None if ok else result.get("error"))
+        if isinstance(result, bool):
+            return result, None
+        return result is not None, None
 
     def _execute_parsed_command(self, parsed_command: dict[str, Any], **kwargs) -> Any:
         """Execute a parsed command using appropriate adapter/plugin"""
@@ -1003,6 +1055,146 @@ class Archon:
 
         self.logger.info(f"Routing to document enhancer (enhance_file): {target}")
         return self._handle_enhance_file({"file_path": target, "instruction": command})
+
+    # Extensions whose content is interchangeable plain text, so "change the
+    # filetype" is a safe pure rename. A target outside this set (pdf, docx, mp4)
+    # is a real content conversion and must NOT be treated as a rename.
+    _PLAINTEXT_EXTS = {"txt", "text", "md", "markdown", "rst", "log"}
+    _EXT_ALIASES = {"text": "txt", "markdown": "md"}
+
+    @classmethod
+    def _norm_ext(cls, raw: str) -> str:
+        raw = raw.lower().lstrip(".")
+        return cls._EXT_ALIASES.get(raw, raw)
+
+    def _last_touched_file(self) -> str | None:
+        """The most recent existing file this engine successfully created/edited.
+
+        Lets "change the filetype from md to txt" find the document the previous
+        turn just produced when the request names no path. Walks the execution
+        history newest-first and returns the first params file token that still
+        resolves to a real file.
+        """
+        for rec in reversed(self.execution_history):
+            if not rec.get("success"):
+                continue
+            params = (rec.get("parsed_command") or {}).get("params") or {}
+            cand = params.get("path") or params.get("file_path") or params.get("filename")
+            if not cand and params.get("name"):
+                loc = params.get("location") or ""
+                cand = os.path.join(loc, params["name"]) if loc else params["name"]
+            if cand:
+                resolved = self._resolve_document_path(str(cand))
+                if resolved:
+                    return resolved
+        return None
+
+    def _extract_target_ext(self, lowered: str) -> str | None:
+        """Pull the target extension from a 'change filetype to X' request.
+
+        Returns ``None`` for a full rename ("... to newname.ext") so that path is
+        left to normal parsing — we only handle a bare extension change here.
+        """
+        # A "to <basename>.<ext>" token means a full rename, not an extension swap.
+        if re.search(r"\bto\s+[^\s'\"]*[^\s'\".]\.[a-z0-9]{1,9}\b", lowered):
+            return None
+        m = re.search(
+            r"\bto\s+(?:an?\s+|the\s+)?\.?([a-z0-9]{1,9})(?:\s+(?:file|format))?\b", lowered
+        )
+        return self._norm_ext(m.group(1)) if m else None
+
+    def _resolve_rename_source(self, command: str, lowered: str) -> str | None:
+        """Find which existing file a 'change the filetype' request refers to."""
+        # 1. An explicit path/name token that resolves to a real file.
+        for token in self._PATH_TOKEN_RE.findall(command):
+            resolved = self._resolve_document_path(token)
+            if resolved is not None:
+                return resolved
+        # 2. The file we most recently created or edited.
+        last = self._last_touched_file()
+        if last is not None:
+            return last
+        # 3. A single plaintext document in the cwd (optionally matching "from X").
+        src_ext = None
+        m = re.search(r"\bfrom\s+\.?([a-z0-9]{1,9})\b", lowered)
+        if m:
+            src_ext = self._norm_ext(m.group(1))
+        try:
+            entries = [f for f in sorted(os.listdir(".")) if os.path.isfile(f)]
+        except OSError:
+            return None
+        docs = [
+            f for f in entries
+            if os.path.splitext(f)[1].lstrip(".").lower() in self._PLAINTEXT_EXTS
+            and (src_ext is None or os.path.splitext(f)[1].lstrip(".").lower() == src_ext)
+        ]
+        return os.path.abspath(docs[0]) if len(docs) == 1 else None
+
+    def _maybe_change_extension(self, command: str) -> dict[str, Any] | None:
+        """Handle "change the filetype/extension from X to Y" as a real rename.
+
+        Returns a result dict when the request is a plain-text extension change we
+        can carry out, or ``None`` so normal parsing continues. Guards keep it from
+        hijacking real content conversions (md → pdf) and full renames
+        (a.md → b.txt): both fall through to the normal path.
+        """
+        lowered = command.lower()
+        has_ext_noun = any(
+            n in lowered for n in ("filetype", "file type", "file-type", "extension", "file format")
+        )
+        has_verb = re.search(r"\b(?:convert|change|rename|switch|turn|save)\b", lowered) is not None
+        if not (has_ext_noun or has_verb):
+            return None
+
+        target_ext = self._extract_target_ext(lowered)
+        # Only a plain-text relabel is a safe rename; anything else (pdf, docx, …)
+        # is a real conversion we must not fake by renaming.
+        if target_ext is None or target_ext not in self._PLAINTEXT_EXTS:
+            return None
+
+        source = self._resolve_rename_source(command, lowered)
+        if source is None:
+            # Confident it's an extension-change request (explicit noun) but we
+            # can't find the file — report honestly instead of a false positive.
+            if has_ext_noun:
+                return {
+                    "success": False,
+                    "error": (
+                        "I couldn't tell which file to rename. Name the file "
+                        "(e.g. 'change notes.md to txt')."
+                    ),
+                }
+            return None
+
+        src_ext = os.path.splitext(source)[1].lstrip(".").lower()
+        # Renaming a non-text file (e.g. .docx) to .txt would mislabel binary
+        # content — that needs real conversion, so leave it to normal parsing.
+        if src_ext and src_ext not in self._PLAINTEXT_EXTS:
+            return None
+
+        new_path = os.path.splitext(source)[0] + "." + target_ext
+        if os.path.abspath(new_path) == os.path.abspath(source):
+            return {
+                "success": True,
+                "path": source,
+                "message": f"{os.path.basename(source)} is already a .{target_ext} file.",
+            }
+        if os.path.exists(new_path):
+            return {
+                "success": False,
+                "error": f"{os.path.basename(new_path)} already exists; not overwriting it.",
+            }
+        try:
+            os.rename(source, new_path)
+        except OSError as exc:
+            return {"success": False, "error": f"Rename failed: {exc}"}
+        self.logger.info(f"Changed extension: {source} -> {new_path}")
+        return {
+            "success": True,
+            "path": new_path,
+            "old_path": source,
+            "message": f"Renamed {os.path.basename(source)} to {os.path.basename(new_path)}.",
+        }
 
     # Text-like extensions the enhancer is willing to read and rewrite.
     _ENHANCE_EXTENSIONS = (".md", ".markdown", ".txt", ".rst", ".text")

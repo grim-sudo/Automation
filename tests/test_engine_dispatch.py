@@ -126,6 +126,104 @@ def test_prefix_action_falls_through_to_unknown_plugin(engine, tmp_path):
     assert res["success"] is False
 
 
+# ── result interpretation (honest success/failure) ──────────────────────────
+
+
+def test_interpret_result_bool_false_is_failure():
+    # A filesystem rename/move returns a bare bool; False must not be reported as
+    # success (the "changed md to txt" false positive came from assuming True).
+    assert Archon._interpret_result(False) == (False, None)
+    assert Archon._interpret_result(True) == (True, None)
+
+
+def test_interpret_result_dict_and_other_values():
+    ok, err = Archon._interpret_result({"success": False, "error": "boom"})
+    assert ok is False and err == "boom"
+    assert Archon._interpret_result({"success": True})[0] is True
+    # A dict with no explicit flag is treated as success; None is a failure.
+    assert Archon._interpret_result({"path": "/x"})[0] is True
+    assert Archon._interpret_result(None)[0] is False
+    assert Archon._interpret_result("wrote it")[0] is True
+
+
+def test_failed_rename_is_reported_not_a_false_positive(engine, tmp_path):
+    # Renaming a file that doesn't exist returns False from the adapter; feeding
+    # that through the interpreter must yield failure, not the old false positive
+    # where the simple-command path hardcoded success=True.
+    missing = tmp_path / "nope.md"
+    result = engine._execute_parsed_command(
+        {
+            "action": "rename",
+            "category": "filesystem",
+            "params": {"source": str(missing), "destination": str(tmp_path / "nope.txt")},
+        }
+    )
+    assert result is False
+    assert Archon._interpret_result(result)[0] is False
+
+
+# ── change-filetype rename fast-path ─────────────────────────────────────────
+
+
+def test_change_extension_renames_named_file(engine, tmp_path):
+    src = tmp_path / "quantum.md"
+    src.write_text("# Quantum\n\nbody", encoding="utf-8")
+
+    res = engine._maybe_change_extension(f"change the filetype of {src} from md to txt")
+
+    assert res["success"] is True
+    assert (tmp_path / "quantum.txt").is_file()
+    assert not src.exists()
+    assert (tmp_path / "quantum.txt").read_text() == "# Quantum\n\nbody"
+
+
+def test_change_extension_uses_last_touched_file_from_history(tmp_path, monkeypatch):
+    # No path in the request → resolve the file the previous turn created.
+    eng = Archon()
+    try:
+        monkeypatch.chdir(tmp_path)
+        doc = tmp_path / "notes.md"
+        doc.write_text("hi", encoding="utf-8")
+        eng.execution_history.append(
+            {
+                "timestamp": "t",
+                "original_command": "make notes",
+                "parsed_command": {
+                    "action": "create_file",
+                    "category": "filesystem",
+                    "params": {"path": str(doc)},
+                },
+                "result_summary": "ok",
+                "success": True,
+                "duration": 1,
+            }
+        )
+        res = eng._maybe_change_extension("change the filetype from md to txt")
+        assert res["success"] is True
+        assert (tmp_path / "notes.txt").is_file()
+    finally:
+        eng.shutdown()
+
+
+def test_change_extension_ignores_real_conversion_and_full_rename(engine):
+    # md → pdf is a content conversion, not a rename → leave it to normal parsing.
+    assert engine._maybe_change_extension("convert report.md to pdf") is None
+    # "a.md to summary.txt" is a full rename with a new basename → not our job.
+    assert engine._maybe_change_extension("rename a.md to summary.txt") is None
+
+
+def test_change_extension_reports_honestly_when_file_not_found(tmp_path, monkeypatch):
+    eng = Archon()
+    try:
+        monkeypatch.chdir(tmp_path)  # empty dir, no history match
+        res = eng._maybe_change_extension("change the file type from md to txt")
+        assert res is not None
+        assert res["success"] is False
+        assert "couldn't tell which file" in res["error"].lower()
+    finally:
+        eng.shutdown()
+
+
 # ── chat() seamless router ──────────────────────────────────────────────────
 
 

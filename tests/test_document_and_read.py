@@ -60,6 +60,40 @@ def test_generate_document_returns_empty_when_offline():
     assert ai.generate_document("anything") == ""
 
 
+class _TruncatingProvider:
+    """Reports the first reply as truncated so continuation must kick in."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete_ex(
+        self,
+        messages,  # noqa: ANN001
+        *,
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+        model: str | None = None,
+        timeout: float | None = None,
+    ) -> tuple[str, str]:
+        self.calls += 1
+        if self.calls == 1:
+            # Truncated at the cap → the facade should ask us to continue.
+            return "# Quantum\n\nPart one.", "length"
+        return "Part two, the rest.", "stop"
+
+
+def test_generate_document_continues_past_truncation():
+    provider = _TruncatingProvider()
+    ai = _ai_with_provider(provider)
+
+    out = ai.generate_document("complex quantum computing docs", filename="q.md")
+
+    # Both halves are present and stitched — not cut off at the first section.
+    assert "Part one." in out
+    assert "Part two, the rest." in out
+    assert provider.calls == 2
+
+
 # ── filesystem read_file support ─────────────────────────────────────────────
 
 

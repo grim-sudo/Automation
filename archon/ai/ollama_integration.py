@@ -189,6 +189,44 @@ class OllamaProvider:
                 f"Ollama not reachable at {self.base_url}: {exc}", model=used_model
             ) from exc
 
+        return self._parse_chat_response(resp, used_model)[0]
+
+    async def complete_ex(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+        model: str | None = None,
+        timeout: float | None = None,
+    ) -> tuple[str, str]:
+        """Like :meth:`complete`, but also return Ollama's ``done_reason``.
+
+        ``done_reason`` is ``"stop"`` when the model ended on its own and
+        ``"length"`` when it hit ``num_predict`` and the text is truncated. The
+        document generator uses this to continue a long reply instead of writing
+        out a document that just stops mid-section.
+        """
+        used_model = model or self.model
+        used_timeout = self.timeout if timeout is None else float(timeout)
+        payload: dict[str, Any] = {
+            "model": used_model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=used_timeout) as client:
+                resp = await client.post(f"{self.base_url}/api/chat", json=payload)
+        except httpx.TimeoutException as exc:
+            raise AIProviderError(
+                f"Ollama request timed out after {used_timeout}s", model=used_model
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AIProviderError(
+                f"Ollama not reachable at {self.base_url}: {exc}", model=used_model
+            ) from exc
+
         return self._parse_chat_response(resp, used_model)
 
     async def chat(
@@ -433,8 +471,14 @@ class OllamaProvider:
 
     # ── Internal ───────────────────────────────────────────────────────────
 
-    def _parse_chat_response(self, resp: httpx.Response, used_model: str) -> str:
-        """Validate and extract content from a non-streaming ``/api/chat`` reply."""
+    def _parse_chat_response(
+        self, resp: httpx.Response, used_model: str
+    ) -> tuple[str, str]:
+        """Validate a non-streaming ``/api/chat`` reply.
+
+        Returns ``(content, done_reason)`` — ``done_reason`` is ``"length"`` when
+        the reply was truncated at ``num_predict``, ``"stop"`` on a clean finish.
+        """
         if resp.status_code == 404:
             raise AIProviderError(
                 f"Ollama model {used_model!r} not found. Pull it with "
@@ -460,8 +504,10 @@ class OllamaProvider:
             )
         # /api/chat → {"message": {"content": "..."}}; some builds use "response".
         content = ""
+        done_reason = "stop"
         if isinstance(data, dict):
             content = data.get("message", {}).get("content", "") or data.get("response", "")
+            done_reason = data.get("done_reason") or "stop"
         if not content:
             logger.debug("Ollama returned empty content for model {}", used_model)
-        return content or ""
+        return content or "", done_reason

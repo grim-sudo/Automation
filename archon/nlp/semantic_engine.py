@@ -130,11 +130,18 @@ class SemanticNLPEngine:
                 r"n8n\s*:",
             ],
             IntentType.BUILD_DISTRO: [
-                r"\b(build|create|compile|make|generate)\s+(?:custom\s+)?(?:distro|linux|iso|distribution)\b",
-                r"\b(build|create|compile|make|generate)\b.*\b(iso|distro|distribution|linux\s+image|operating\s+system)\b",
+                # A build verb whose OBJECT is a distro/ISO/OS, within a short
+                # window. The window is bounded (no greedy ``.*``) and the object
+                # set excludes bare "distribution"/"os" so an incidental mention
+                # in a document request ("research file on quantum key
+                # distribution", "notes about the operating system") can't hijack
+                # this specialized, high-risk intent.
+                r"\b(?:build|create|compile|make|generate|assemble)\s+(?:me\s+)?"
+                r"(?:(?:a|an|my|the|new|custom)\s+)*(?:\w+\s+){0,2}(?:linux\s+)?"
+                r"(?:distro|iso|operating\s+system|linux\s+image|linux\s+distribution)\b",
                 r"\b(?:linux\s+iso|linux\s+distro|linux\s+distribution|custom\s+iso|custom\s+os)\b",
-                r"\bcompile\s+kernel\b",
-                r"\bbuild\s+(?:custom\s+)?(?:debian|arch|ubuntu)\b",
+                r"\bcompile\s+(?:a\s+|the\s+)?kernel\b",
+                r"\bbuild\s+(?:custom\s+)?(?:debian|arch|ubuntu|kali)\b",
                 r"\bcreate\s+iso\b",
                 r"\bmake\s+(?:custom\s+)?distro\b",
             ],

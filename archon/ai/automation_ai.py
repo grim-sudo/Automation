@@ -555,13 +555,74 @@ class OllamaAutomationAI:
             logger.warning("generate_json failed: {}", exc)
             return None
 
+    def _complete_long(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float,
+        max_tokens: int,
+        timeout: float,
+        max_rounds: int = 8,
+    ) -> str:
+        """Run a completion, continuing it when the model truncates at the cap.
+
+        A single call is bounded by ``max_tokens``; a long document (e.g. "complex
+        documentation on quantum computing") overruns that and used to be written
+        out cut off mid-section. When the provider reports the reply was truncated
+        (``done_reason == "length"``), we feed the text back and ask the model to
+        continue, stitching the pieces together — up to ``max_rounds`` times.
+
+        Only local Ollama exposes the truncation signal (:meth:`complete_ex`); for
+        other providers we fall back to a single call.
+        """
+        complete_ex = getattr(self._ollama, "complete_ex", None)
+        if complete_ex is None:
+            raw = self._run_sync(
+                self._ollama.complete(
+                    messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout
+                ),
+                timeout=timeout + 30,
+            )
+            return (raw or "").strip()
+
+        parts: list[str] = []
+        convo = list(messages)
+        for round_no in range(max_rounds):
+            text, done_reason = self._run_sync(
+                complete_ex(
+                    convo, temperature=temperature, max_tokens=max_tokens, timeout=timeout
+                ),
+                timeout=timeout + 30,
+            )
+            text = (text or "").strip()
+            if not text:
+                break
+            parts.append(text)
+            if done_reason != "length":
+                break
+            logger.debug("document truncated at cap; continuing (round {})", round_no + 1)
+            convo = convo + [
+                {"role": "assistant", "content": text},
+                {
+                    "role": "user",
+                    "content": (
+                        "Continue the document exactly where you stopped. Do not "
+                        "repeat any text you already wrote and do not add a preamble "
+                        "— output only the continuation."
+                    ),
+                },
+            ]
+        return "\n".join(parts).strip()
+
     def generate_document(self, request: str, filename: str = "") -> str:
         """Generate prose/markdown document body for a natural-language request.
 
         Unlike :meth:`generate_code`, this keeps markdown formatting (headings,
         lists, tables) intact — only an outer ```` ``` ```` fence wrapping the
         whole reply is stripped. Returns ``""`` on any failure so callers can
-        fall back to writing an empty file rather than crashing.
+        fall back to writing an empty file rather than crashing. Long documents
+        are generated across multiple continuation rounds so they don't stop
+        mid-section at the token cap.
         """
         if not self._is_available:
             return ""
@@ -580,16 +641,13 @@ class OllamaAutomationAI:
                 },
                 {"role": "user", "content": f"{request}{target}"},
             ]
-            raw = self._run_sync(
-                self._ollama.complete(
-                    messages,
-                    temperature=0.7,
-                    max_tokens=4000,
-                    timeout=_DOCUMENT_TIMEOUT,
-                ),
-                timeout=_DOCUMENT_TIMEOUT + 30,
+            raw = self._complete_long(
+                messages,
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=_DOCUMENT_TIMEOUT,
             )
-            return self._strip_outer_fence((raw or "").strip())
+            return self._strip_outer_fence(raw)
         except Exception as exc:
             logger.warning("generate_document failed: {}", exc)
             return ""
@@ -632,18 +690,17 @@ class OllamaAutomationAI:
             # Some aggregating routers (e.g. FreeLLMAPI 'auto') intermittently
             # return an empty completion. An empty enhance means overwriting the
             # doc with nothing, so retry once before giving up — a wasted minute
-            # beats silently failing a 50s+ request that usually works.
+            # beats silently failing a 50s+ request that usually works. Each
+            # attempt continues past the token cap so the rewrite isn't truncated.
             for attempt in range(2):
-                raw = self._run_sync(
-                    self._ollama.complete(
+                enhanced = self._strip_outer_fence(
+                    self._complete_long(
                         messages,
                         temperature=0.7,
                         max_tokens=4000,
                         timeout=_DOCUMENT_TIMEOUT,
-                    ),
-                    timeout=_DOCUMENT_TIMEOUT + 30,
+                    )
                 )
-                enhanced = self._strip_outer_fence((raw or "").strip())
                 if enhanced:
                     return enhanced
                 logger.warning(

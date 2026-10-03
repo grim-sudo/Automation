@@ -531,7 +531,7 @@ require_root_confirmation = true
 ```bash
 # All tests
 pytest tests/ -v
-# Expected: 449 passed, 2 warnings
+# Expected: 460 passed, 2 warnings
 
 # Quiet summary
 pytest tests/ -q
